@@ -1495,6 +1495,10 @@ async function viewCall(id) {
   const name = assistantOf(c, assistants);
   setPage("calls", caller(c), `${name} · ${when(c.startedAt || c.createdAt)}`);
   const pm = c.artifact?.performanceMetrics || {}, msgs = c.messages || [], turns = pm.turnLatencies || [];
+  const transcriptText = msgs
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .map(m => `${m.role === "user" ? "Caller" : "Assistant"}: ${m.message || ""}`)
+    .join("\n");
   const maxTurn = Math.max(1, ...turns.map(t => t.turnLatency)), toolCalls = msgs.reduce((n, m) => n + (m.role === "tool_calls" ? m.toolCalls?.length || 1 : 0), 0);
   const panes = {
     transcript: () => msgs.length ? `<div class="transcript">${msgs.map(transcriptRow).join("")}</div>` : `<p class="muted">${c.status === "ended" ? "No transcript for this call." : "The transcript appears when the call ends."}</p>`,
@@ -1511,7 +1515,12 @@ async function viewCall(id) {
     card("Type", "phone", esc(TYPE[c.type] || c.type), "", c.endedReason ? esc(c.endedReason) : ""),
   ].filter(Boolean);
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar"><a class="btn ghost" href="#calls">← All calls</a><span class="spacer"></span>${statusBadge(c)}</div>
+  v.innerHTML = `<div class="toolbar">
+    <a class="btn ghost" href="#calls">${ICON.back}All calls</a>
+    <span class="spacer"></span>
+    <button class="btn ghost small" id="copyTranscript">Copy transcript</button>
+    ${statusBadge(c)}
+  </div>
   <div class="cards compact" style="--cols:${Math.ceil(cards.length / Math.ceil(cards.length / 4))}">${cards.join("")}</div>
   ${(c.providerFallbacks || []).map(f => `<p class="muted fallback-note">${ICON.bolt}${esc(LAYER_NAMES[f.layer] || f.layer)} switched to <b>${esc(f.to)}</b> at ${esc(new Date(f.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}${f.reason && f.reason !== "failed" ? ` (${esc(f.reason)})` : ""}</p>`).join("")}
   ${(c.handoffs || []).map(h => `<p class="muted fallback-note">${ICON.bolt}<b>${esc(h.from)}</b> handed the call to <b>${esc(h.to)}</b> at ${esc(new Date(h.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}</p>`).join("")}
@@ -1519,6 +1528,9 @@ async function viewCall(id) {
   <div class="toolbar">${tabs([["transcript", "Transcript"], ["latency", "Response time"], ["json", "JSON"]], callTab)}</div>
   <section class="panel"><div class="body">${panes[callTab]()}</div></section>`;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { callTab = b.dataset.tab; viewCall(id); });
+  const copyTranscript = $("#copyTranscript", v);
+  if (copyTranscript) copyTranscript.dataset.copy = transcriptText;
+  copyButtons(v);
   // The recording needs the dashboard's header, which an <audio src> can't send, so it comes through fetch.
   if ($("#recPlay")) $("#recPlay").onclick = async e => {
     const b = e.currentTarget;
