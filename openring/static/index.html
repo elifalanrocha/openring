@@ -1074,7 +1074,9 @@ function callPhone(n, assistantName) {
 
 const CALL_FILTERS = { all: () => true, phone: c => c.type !== "webCall", browser: c => c.type === "webCall", failed: failed };
 function csvEscape(value) {
-  const text = String(value ?? "");
+  let text = String(value ?? "");
+  // Spreadsheet apps evaluate cells beginning with these characters as formulas.
+  if (/^[=+\-@]/.test(text)) text = "'" + text;
   return /[",\r\n]/.test(text)
     ? `"${text.replace(/"/g, '""')}"`
     : text;
