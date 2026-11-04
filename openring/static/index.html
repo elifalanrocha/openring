@@ -1073,22 +1073,142 @@ function callPhone(n, assistantName) {
 }
 
 const CALL_FILTERS = { all: () => true, phone: c => c.type !== "webCall", browser: c => c.type === "webCall", failed: failed };
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text)
+    ? `"${text.replace(/"/g, '""')}"`
+    : text;
+}
+function exportCallsCsv(calls, assistants) {
+  const headers = [
+    "id",
+    "type",
+    "caller",
+    "assistant",
+    "start time",
+    "duration",
+    "ended reason",
+    "average response time",
+    "cost (US$)"
+  ];
 
+  const rows = calls.map(c => [
+    c.id,
+    TYPE[c.type] || c.type,
+    caller(c),
+    assistantOf(c, assistants),
+    c.startedAt || c.createdAt,
+    c.durationSeconds,
+    c.endedReason,
+    c.artifact?.performanceMetrics?.turnLatencyAverage,
+    c.cost
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(csvEscape).join(","))
+    .join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "openring-calls.csv";
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 async function viewCalls() {
   setPage("calls");
-  const [calls, assistants] = await Promise.all([api("/call?limit=500"), api("/assistant")]);
-  const name = id => assistants.find(a => a.id === id)?.name || "Deleted assistant";
-  const filter = CALL_FILTERS[store.get("openring-calls-filter")] ? store.get("openring-calls-filter") : "all";
+
+  const [calls, assistants] = await Promise.all([
+    api("/call?limit=500"),
+    api("/assistant")
+  ]);
+
+  const filter = CALL_FILTERS[store.get("openring-calls-filter")]
+    ? store.get("openring-calls-filter")
+    : "all";
+
   const shown = calls.filter(CALL_FILTERS[filter]);
   const count = k => calls.filter(CALL_FILTERS[k]).length;
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar">${tabs([["all", "All", count("all")], ["phone", "Phone", count("phone")], ["browser", "Browser", count("browser")], ["failed", "Failed", count("failed")]], filter, "filter")}<button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
-  <section class="panel">${shown.length ? `<div class="scroll"><table class="table"><thead><tr><th>Caller</th><th>Assistant</th><th class="hide-sm">Type</th><th class="num">Duration</th><th class="num hide-sm">Response</th><th class="num hide-sm">Cost</th><th>Status</th><th class="num hide-sm">When</th></tr></thead><tbody>
-    ${shown.map(c => `<tr class="link" tabindex="0" data-id="${esc(c.id)}"><td><b>${esc(caller(c))}</b></td><td>${esc(assistantOf(c, assistants))}</td><td class="hide-sm muted">${esc(TYPE[c.type] || c.type)}</td><td class="num">${dur(c.durationSeconds)}</td><td class="num hide-sm">${ms(c.artifact?.performanceMetrics?.turnLatencyAverage)}</td><td class="num hide-sm">${usd(c.cost)}</td><td>${statusBadge(c)}</td><td class="num hide-sm muted">${when(c.createdAt)}</td></tr>`).join("")}
-  </tbody></table></div>` : `<div class="empty">${calls.length ? "No calls match this filter." : "No calls yet. Call one of your numbers, or press Test on an assistant to talk to it from here."}</div>`}</section>`;
+
+  v.innerHTML = `
+    <div class="toolbar">
+      ${tabs([
+        ["all", "All", count("all")],
+        ["phone", "Phone", count("phone")],
+        ["browser", "Browser", count("browser")],
+        ["failed", "Failed", count("failed")]
+      ], filter, "filter")}
+      <button class="btn ghost" id="exportCsv">Export CSV</button>
+      <button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button>
+    </div>
+
+    <section class="panel">
+      ${shown.length ? `
+        <div class="scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Caller</th>
+                <th>Assistant</th>
+                <th class="hide-sm">Type</th>
+                <th class="num">Duration</th>
+                <th class="num hide-sm">Response</th>
+                <th class="num hide-sm">Cost</th>
+                <th>Status</th>
+                <th class="num hide-sm">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${shown.map(c => `
+                <tr class="link" tabindex="0" data-id="${esc(c.id)}">
+                  <td><b>${esc(caller(c))}</b></td>
+                  <td>${esc(assistantOf(c, assistants))}</td>
+                  <td class="hide-sm muted">${esc(TYPE[c.type] || c.type)}</td>
+                  <td class="num">${dur(c.durationSeconds)}</td>
+                  <td class="num hide-sm">${ms(c.artifact?.performanceMetrics?.turnLatencyAverage)}</td>
+                  <td class="num hide-sm">${usd(c.cost)}</td>
+                  <td>${statusBadge(c)}</td>
+                  <td class="num hide-sm muted">${when(c.createdAt)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      ` : `
+        <div class="empty">
+          ${calls.length
+            ? "No calls match this filter."
+            : "No calls yet. Call one of your numbers, or press Test on an assistant to talk to it from here."
+          }
+        </div>
+      `}
+    </section>
+  `;
+
+  $("#exportCsv").onclick = () => exportCallsCsv(calls, assistants);
   $("#refresh").onclick = viewCalls;
-  v.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => { store.set("openring-calls-filter", b.dataset.filter); viewCalls(); });
-  v.querySelectorAll("tr.link").forEach(r => { r.onclick = () => go("calls/" + r.dataset.id); r.onkeydown = e => e.key === "Enter" && r.click(); });
+
+  v.querySelectorAll("[data-filter]").forEach(b => {
+    b.onclick = () => {
+      store.set("openring-calls-filter", b.dataset.filter);
+      viewCalls();
+    };
+  });
+
+  v.querySelectorAll("tr.link").forEach(r => {
+    r.onclick = () => go("calls/" + r.dataset.id);
+    r.onkeydown = e => e.key === "Enter" && r.click();
+  });
 }
 
 // ---- Campaigns: one assistant calls a list of people (Vapi's /campaign) ----------------------
