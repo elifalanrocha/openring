@@ -59,6 +59,13 @@ def _connectors() -> dict[str, dict[str, Any]]:
     found = {pid: {"fields": [(env, "API key")], "keysUrl": KEY_PAGES[pid]}
              for pid, env in envs.items() if env and pid in KEY_PAGES}
     found["openrouter"]["oauth"] = True
+    # xAI Grok, Anthropic Claude Code, OpenAI Codex have OAuth (subscriptions)
+    if "xai" in found:
+        found["xai"]["oauth"] = True
+    if "anthropic" in found:
+        found["anthropic"]["oauth"] = True
+    if "openai" in found:
+        found["openai"]["oauth"] = True
     found["twilio"] = {"fields": [("TWILIO_ACCOUNT_SID", "Account SID"), ("TWILIO_AUTH_TOKEN", "Auth token")],
                        "keysUrl": KEY_PAGES["twilio"]}
     # The public key (Keys & Credentials > Public Key) checks that webhooks come from Telnyx.

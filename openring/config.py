@@ -80,6 +80,17 @@ class Settings:
     sip_public_ip: str = field(default_factory=lambda: _env("SIP_PUBLIC_IP"))
     sip_rtp_ports: str = field(default_factory=lambda: _env("SIP_RTP_PORTS", "40000-40999"))
 
+    # OAuth clients for AI provider subscriptions (Claude Code, Codex, Grok, OpenRouter Auth).
+    # Only providers OpenRing actually uses; env vars read at startup.
+    openrouter_client_id: str = field(default_factory=lambda: _env("OPENROUTER_CLIENT_ID"))
+    openrouter_client_secret: str = field(default_factory=lambda: _env("OPENROUTER_CLIENT_SECRET"))
+    xai_client_id: str = field(default_factory=lambda: _env("XAI_CLIENT_ID"))
+    xai_client_secret: str = field(default_factory=lambda: _env("XAI_CLIENT_SECRET"))
+    anthropic_client_id: str = field(default_factory=lambda: _env("ANTHROPIC_CLIENT_ID"))
+    anthropic_client_secret: str = field(default_factory=lambda: _env("ANTHROPIC_CLIENT_SECRET"))
+    openai_client_id: str = field(default_factory=lambda: _env("OPENAI_CLIENT_ID"))
+    openai_client_secret: str = field(default_factory=lambda: _env("OPENAI_CLIENT_SECRET"))
+
     @property
     def public_ws_url(self) -> str:
         if self.public_url.startswith("https://"):

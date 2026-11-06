@@ -201,6 +201,8 @@ a.rowlink:hover { background: var(--panel-2); }
 .tile.link:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .tile .head { display: flex; align-items: center; gap: 12px; }
 .tile .head .avatar { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-family: "IBM Plex Sans", system-ui, sans-serif; flex: none; }
+.tile .head .avatar.icon-avatar { background: transparent; padding: 6px; }
+.tile .head .avatar.icon-avatar img { width: 20px; height: 20px; object-fit: contain; }
 .tile .head .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .head .sub { color: var(--muted); font-size: 12.5px; }
 .tile .head .grow { flex: 1; min-width: 0; }
@@ -1691,6 +1693,16 @@ const MONOGRAM = {
   ollama: "OL", omniroute: "OM", "rime-ai": "RI", neuphonic: "NP", "smallest-ai": "SM", inworld: "IW",
   kokoro: "KO", whisper: "WH", twilio: "TW", telnyx: "TX", genesys: "GC",
 };
+// Provider logos served from /icons/{id}.svg or .ico (downloaded from Simple Icons / provider favicons)
+const PROVIDER_ICONS = new Set([
+  "openai", "anthropic", "google", "perplexity-ai", "ollama", "deepgram", "11labs", "twilio",
+  "groq", "openrouter", "deepseek", "xai", "mistral", "fireworks", "assembly-ai", "gladia", "soniox", "cartesia", "telnyx", "deepinfra", "together-ai",
+  "rime-ai", "smallest-ai", "inworld", "vonage", "cerebras", "omniroute", "genesys", "neuphonic",
+]);
+function providerIcon(id) {
+  if (PROVIDER_ICONS.has(id)) return `/icons/${id}.svg`;
+  return "";
+}
 // One line on what each provider is for, by "kind:id" because some providers do more than one job.
 const ABOUT = {
   "transcriber:deepgram": "Speech to text, US$200 free credit",
@@ -1759,11 +1771,24 @@ async function viewProviders() {
   // Connected first, then the free ones, then the rest in their usual order.
   const rank = p => connected(p) ? 0 : p.free ? 1 : 2;
   const actions = p => {
-    const list = !p.connect ? [] : connected(p) ? ["test", "change", "disconnect"] : ["connect"];
+    const baseList = !p.connect ? [] : connected(p) ? ["test", "change", "disconnect"] : ["connect"];
+    // Add OAuth button if provider supports it
+    const list = [...baseList];
+    if (p.connect?.oauth) {
+        // Insert OAuth before other actions for visibility
+        list.unshift("oauth");
+    }
     return list.length ? `<div class="actions">${list.map(a => `${a === "disconnect" ? '<span class="spacer"></span>' : ""}<button class="${PROVIDER_ACTIONS[a][1]}" data-action="${a}" data-card="${esc(cardKey(p))}">${PROVIDER_ACTIONS[a][0]}</button>`).join("")}</div>` : "";
   };
   const notice = p => providerNotice?.key === cardKey(p) ? esc(providerNotice.text) : "";
-  const tile = p => `<article class="tile provider"><div class="head"><span class="avatar">${esc(MONOGRAM[p.id] || initials(p.name))}</span><div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">${esc(ABOUT[cardKey(p)] || "")}</div></div>${state(p)}</div>${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}${connected(p) && p.connect?.balance ? `<div class="note balance" data-balance="${esc(p.id)}"></div>` : ""}<div class="note" role="status" data-status="${esc(cardKey(p))}">${notice(p)}</div>${actions(p)}</article>`;
+  const tile = p => {
+    const iconUrl = providerIcon(p.id);
+    const avatarHtml = iconUrl
+      ? `<img src="${iconUrl}" alt="${esc(p.name)} logo" width="20" height="20" style="width:20px;height:20px;object-fit:contain" onerror="this.parentElement.textContent='${esc(MONOGRAM[p.id] || initials(p.name))}'">`
+      : esc(MONOGRAM[p.id] || initials(p.name));
+    const avatarClass = iconUrl ? "avatar icon-avatar" : "avatar";
+    return `<article class="tile provider"><div class="head"><span class="${avatarClass}">${avatarHtml}</span><div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">${esc(ABOUT[cardKey(p)] || "")}</div></div>${state(p)}</div>${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}${connected(p) && p.connect?.balance ? `<div class="note balance" data-balance="${esc(p.id)}"></div>` : ""}<div class="note" role="status" data-status="${esc(cardKey(p))}">${notice(p)}</div>${actions(p)}</article>`;
+  };
   const section = ([kind, title]) => {
     const list = rows.filter(p => p.kind === kind).map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([p]) => p);
     if (!list.length) return "";
@@ -1788,6 +1813,46 @@ async function viewProviders() {
   const run = {
     connect: p => openConnect(p),
     change: p => openConnect(p),
+    async oauth(p) {
+        // OAuth authentication flow for supported providers
+        // OpenRouter uses its own internal sign-in (signInOpenRouter inside Connect dialog)
+        if (p.id === "openrouter") {
+            openConnect(p);
+            return;
+        }
+        status(p, `Starting OAuth sign-in with ${p.name}…`);
+        try {
+            const redirectUri = `${location.origin}/oauth/callback`;
+            const response = await api(`/oauth/authorize?provider=${p.id}&redirect_uri=${encodeURIComponent(redirectUri)}`, {
+                method: 'GET',
+                headers: { 'X-OpenRing': 'dashboard' }
+            });
+
+            if (response.authorization_url) {
+                // Store OAuth state for verification
+                sessionStorage.setItem('oauth_state', response.state);
+                sessionStorage.setItem('oauth_provider', p.id);
+
+                // Open OAuth authorization in a new window
+                const oauthWindow = window.open(response.authorization_url, 'oauth_popup', 'width=600,height=700');
+                if (!oauthWindow) {
+                    // Popup was blocked, navigate directly
+                    window.location.href = response.authorization_url;
+                } else {
+                    // Wait for OAuth popup to close
+                    const checkClosed = setInterval(() => {
+                        if (oauthWindow.closed) {
+                            clearInterval(checkClosed);
+                            // Refresh provider list to check OAuth status
+                            viewProviders();
+                        }
+                    }, 1000);
+                }
+            }
+        } catch (err) {
+            status(p, sentence(err.message), true);
+        }
+    },
     async test(p) {
       status(p, `Checking with ${p.name}…`);
       try {
@@ -1829,12 +1894,13 @@ function balanceText(b) {
 }
 
 // Every provider card offers the same actions in the same places: Connect while it isn't,
-// then Test, Change key and Disconnect. Sign-in options (OpenRouter's) live inside Connect.
+// then Test, Change key and Disconnect. Sign-in options (OAuth, OpenRouter's) live inside Connect.
 const PROVIDER_ACTIONS = {
   connect: ["Connect", "btn small"],
   test: ["Test", "btn ghost small"],
   change: ["Change key", "btn ghost small"],
   disconnect: ["Disconnect", "btn ghost small"],
+  oauth: ["OAuth", "btn ghost small oauth-btn"],
 };
 
 const sentence = s => s[0].toUpperCase() + s.slice(1) + (/[.!?]$/.test(s) ? "" : ".");

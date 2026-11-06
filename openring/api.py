@@ -281,6 +281,35 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         # Revalidate every time, so an upgraded OpenRing never shows yesterday's dashboard.
         return FileResponse(Path(__file__).parent / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/icons/{name}.svg", include_in_schema=False)
+    @app.get("/icons/{name}.ico", include_in_schema=False)
+    @app.get("/icons/{name}.png", include_in_schema=False)
+    def provider_icon(name: str) -> FileResponse:
+        """Serve provider logo from static/icons/ (SVG, ICO or PNG)."""
+        import re
+
+        if not re.fullmatch(r"[a-z0-9-]+", name):
+            raise HTTPException(status_code=404, detail="not found")
+        icons_dir = Path(__file__).parent / "static" / "icons"
+        # Map provider IDs to icon file basenames (several providers use a different file name)
+        aliases = {
+            "assembly-ai": "assemblyai",
+            "perplexity-ai": "perplexity",
+            "11labs": "elevenlabs",
+            "together-ai": "together",
+            "rime-ai": "rime",
+            "smallest-ai": "smallest",
+        }
+        candidates = [name, aliases.get(name, "")]
+        for base in candidates:
+            if not base:
+                continue
+            for ext, media in (("svg", "image/svg+xml"), ("ico", "image/x-icon"), ("png", "image/png")):
+                path = icons_dir / f"{base}.{ext}"
+                if path.is_file():
+                    return FileResponse(path, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
+        raise HTTPException(status_code=404, detail="not found")
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
@@ -466,6 +495,187 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         except keys.ConnectError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _use("openrouter", values)
+
+    # ---- OAuth authentication endpoints ----
+    from urllib.parse import urlsplit
+
+    from cryptography.fernet import Fernet
+
+    from .oauth import PROVIDER_CONFIGS, OAuthError, OAuthManager, OAuthProvider
+
+    # Initialize OAuth manager with encryption key from env or generate ephemeral key
+    oauth_encryption_key = os.environ.get("OAUTH_ENCRYPTION_KEY", "")
+    if oauth_encryption_key:
+        oauth_encryption_key = oauth_encryption_key.encode()
+    else:
+        oauth_encryption_key = Fernet.generate_key()
+        os.environ["OAUTH_ENCRYPTION_KEY"] = oauth_encryption_key.decode()
+        logger.warning("OAUTH_ENCRYPTION_KEY not set: using ephemeral key. Tokens will be lost on restart.")
+
+    oauth_manager = OAuthManager(oauth_encryption_key, store)
+
+    def _valid_redirect_uri(redirect_uri: str) -> bool:
+        """Allowlist: must be localhost/loopback or the server's public URL or platform callback.
+        Anthropic: https://platform.claude.com/oauth/code/callback
+        xAI: http://127.0.0.1:56121/callback and http://127.0.0.1:56122/callback (Grok Build)
+        OpenRouter: https://openrouter.ai/auth/callback
+        """
+        try:
+            parsed = urlsplit(redirect_uri)
+            host = parsed.hostname or ""
+            # Loopback allowed for desktop flows (RFC 8252) — covers xAI loopback ports
+            if host in ("localhost", "127.0.0.1", "::1"):
+                return True
+            # Fixed platform callbacks (Anthropic, OpenRouter)
+            if redirect_uri in ("https://platform.claude.com/oauth/code/callback",):
+                return True
+            # Must match PUBLIC_URL if set
+            if settings.public_url:
+                return redirect_uri.startswith(settings.public_url)
+            return False
+        except ValueError:
+            return False
+
+    @app.get("/oauth/authorize", include_in_schema=False, dependencies=[Depends(require_session)])
+    async def oauth_authorize(provider: str, redirect_uri: str, scope: str = "") -> dict[str, Any]:
+        """Initiate OAuth authorization flow for a provider."""
+        if not oauth_manager.is_provider_supported(provider):
+            raise HTTPException(status_code=400, detail=f"OAuth not supported for provider '{provider}'")
+
+        provider_enum = OAuthProvider(provider)
+
+        # Get client credentials for the provider (env override first, then default public client ID)
+        client_id = oauth_manager.get_client_id(provider, settings)
+
+        # OpenRouter has its own PKCE flow (signInOpenRouter in dashboard, keys.exchange_openrouter_code)
+        # The /oauth/authorize endpoint for OpenRouter is not used — dashboard calls internal flow
+        if provider == "openrouter":
+            raise HTTPException(
+                status_code=400, detail="OpenRouter uses built-in sign-in (Connect → Sign in with OpenRouter)"
+            )
+
+        # PKCE flow (anthropic/openai/xai PKCE here)
+        # Anthropic uses fixed redirect_uri (OmniRoute CLAUDE_CONFIG.redirectUri)
+        # xAI Grok uses loopback (OmniRoute XAI_OAUTH_CONFIG.loopbackPort=56121)
+        config = PROVIDER_CONFIGS[provider]
+        if provider == "anthropic":
+            redirect_uri = config.get("redirect_uri", "https://platform.claude.com/oauth/code/callback")
+        elif provider == "xai":
+            # Loopback redirect that Grok's OAuth client expects (OmniRoute XAI_OAUTH_CONFIG)
+            redirect_uri = "http://127.0.0.1:56121/callback"
+        elif not redirect_uri:
+            redirect_uri = f"{settings.public_url or 'http://127.0.0.1:8000'}/oauth/callback"
+
+        if not _valid_redirect_uri(redirect_uri):
+            raise HTTPException(status_code=400, detail="redirect_uri not allowed")
+
+        if not client_id:
+            raise HTTPException(
+                status_code=400, detail=f"OAuth not configured for provider '{provider}' (missing client ID)"
+            )
+
+        # Generate PKCE pair and state
+        verifier, challenge = oauth_manager.generate_pkce_pair()
+        state = secrets.token_urlsafe(32)
+
+        # Store PKCE verifier and state for callback validation
+        if not hasattr(settings, "oauth_sessions"):
+            settings.oauth_sessions = {}
+        settings.oauth_sessions[state] = {
+            "verifier": verifier,
+            "provider": provider,
+            "redirect_uri": redirect_uri,
+            "expires": time.time() + 600,  # 10 minutes
+        }
+
+        auth_url = oauth_manager.generate_authorization_url(
+            provider=provider_enum,
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            scope=scope or PROVIDER_CONFIGS[provider]["default_scope"],
+            state=state,
+            code_challenge=challenge,
+        )
+
+        return {"flow": "pkce", "authorization_url": auth_url, "state": state}
+
+    @app.get("/oauth/callback", include_in_schema=False, dependencies=[Depends(require_session)])
+    async def oauth_callback(provider: str, code: str = "", state: str = "") -> dict[str, Any]:
+        """OAuth callback endpoint (GET - browser redirect) to exchange code for tokens."""
+        # PKCE flow
+        # Verify state and retrieve PKCE verifier
+        if not hasattr(settings, "oauth_sessions") or state not in settings.oauth_sessions:
+            raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+        session_data = settings.oauth_sessions.pop(state)
+        if time.time() > session_data["expires"]:
+            raise HTTPException(status_code=400, detail="OAuth state expired")
+
+        if not oauth_manager.is_provider_supported(provider):
+            raise HTTPException(status_code=400, detail=f"OAuth not supported for provider '{provider}'")
+
+        # OpenRouter is not used via /oauth/* — dashboard uses signInOpenRouter() (keys.exchange_openrouter_code)
+        if provider == "openrouter":
+            raise HTTPException(status_code=400, detail="OpenRouter uses built-in sign-in")
+
+        provider_enum = OAuthProvider(provider)
+        client_id = oauth_manager.get_client_id(provider, settings)
+        client_secret = getattr(settings, f"{provider}_client_secret", "") or ""
+
+        try:
+            token = await oauth_manager.exchange_code(
+                provider=provider_enum,
+                client_id=client_id,
+                client_secret=client_secret,
+                authorization_code=code,
+                redirect_uri=session_data["redirect_uri"],
+                code_verifier=session_data["verifier"],
+            )
+
+            # Store the token (encrypted)
+            oauth_manager.store_token(provider_enum, token)
+
+            return {
+                "success": True,
+                "provider": provider,
+                "message": f"Successfully authenticated with {provider} OAuth",
+                "expires_at": token.expires_at.isoformat(),
+            }
+
+        except OAuthError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"OAuth authentication failed: {str(e)}") from e
+
+    @app.delete("/oauth/{provider}", include_in_schema=False, dependencies=[Depends(require_session)])
+    async def oauth_disconnect(provider: str) -> dict[str, Any]:
+        """Disconnect OAuth provider."""
+        if not oauth_manager.is_provider_supported(provider):
+            raise HTTPException(status_code=400, detail=f"OAuth not supported for provider '{provider}'")
+
+        provider_enum = OAuthProvider(provider)
+        oauth_manager.remove_token(provider_enum)
+
+        return {"success": True, "message": f"Disconnected from {provider} OAuth"}
+
+    @app.get("/oauth/{provider}/status", include_in_schema=False, dependencies=[Depends(require_session)])
+    async def oauth_status(provider: str) -> dict[str, Any]:
+        """Check OAuth status for a provider."""
+        if not oauth_manager.is_provider_supported(provider):
+            raise HTTPException(status_code=400, detail=f"OAuth not supported for provider '{provider}'")
+
+        provider_enum = OAuthProvider(provider)
+        token = oauth_manager.get_token(provider_enum)
+
+        if token:
+            return {
+                "connected": True,
+                "provider": provider,
+                "expires_at": token.expires_at.isoformat(),
+                "scope": token.scope,
+            }
+        else:
+            return {"connected": False, "provider": provider}
 
     @app.get("/stats", dependencies=auth_deps)
     def call_stats(days: int | None = 30) -> dict[str, Any]:
