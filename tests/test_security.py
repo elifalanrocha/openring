@@ -16,6 +16,8 @@ PUBLIC_HTTP = {
     "/auth/state", "/auth/setup", "/auth/login", "/auth/logout",
     "/twilio/voice", "/twilio/status", "/telnyx/voice", "/telnyx/status",
     "/plivo/voice", "/plivo/status", "/plivo/transfer/{token}", "/vonage/voice", "/vonage/event",
+    # Provider logos for the dashboard <img> tags (static files, no data; browsers cannot send a Bearer header).
+    "/icons/{name}.svg", "/icons/{name}.ico", "/icons/{name}.png",
 }
 # Media streams: each claims a queued call by id (Twilio, Telnyx, Plivo, Vonage) or checks a signature (Genesys).
 PUBLIC_WS = {"/ws/twilio", "/ws/telnyx", "/ws/plivo", "/ws/vonage", "/ws/genesys"}
