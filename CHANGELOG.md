@@ -8,6 +8,14 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- The Calls page exports to CSV, with formula cells made safe for spreadsheets, and a call's page copies its transcript
+  (thanks to Vaibhav R Valakunde, vaibhavrvalakunde2006-gif).
+- Provider logos on the Providers page.
+- OmniRoute takes an API key on the Providers page (`OMNIROUTE_API_KEY`), for when its API key protection is on;
+  it is checked against OmniRoute's model list before it's saved.
+- OAuth sign-in (`/oauth/*`) for xAI, Anthropic and OpenAI with the server owner's own OAuth client
+  (`<PROVIDER>_CLIENT_ID`). OpenRing never signs in as another vendor's app. OpenRouter keeps its own sign-in.
+
 - Calls in and out through Plivo and Vonage, and out through Telnyx (beta): signed webhooks, campaigns, and
   `transferCall` on Plivo and Vonage. Connect them on the Providers page. The import brings Telnyx and Vonage numbers.
 - `openring --version` (thanks to Vaibhav R Valakunde, vaibhavrvalakunde2006-gif) and `openring --host`, which wins over

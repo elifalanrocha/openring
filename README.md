@@ -6,6 +6,9 @@
 
 **Self-hosted voice AI agents with a Vapi-compatible API. No platform fee.**
 
+AI phone agents and receptionists that answer and place calls over Twilio, Telnyx, Plivo, Vonage or any SIP trunk,
+with your own provider keys or a free, 100% local stack (Whisper, Ollama, Kokoro).
+
 [![CI](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml/badge.svg)](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openring?color=e8590c&label=npm)](https://www.npmjs.com/package/openring)
 [![PyPI](https://img.shields.io/pypi/v/openring?color=e8590c&label=pypi)](https://pypi.org/project/openring/)
@@ -134,7 +137,8 @@ with any of them.
 | 16 models, 6 speech-to-text and 9 voice providers, with Vapi's names | |
 | Per-turn latency, time to first word, tokens and voice characters per call, with traffic lights | |
 | Credit left on OpenRouter, Deepgram, ElevenLabs, Twilio, Telnyx and Plivo, on the Providers page | |
-| Call history with transcripts, light and dark themes | |
+| Call recordings, off by default, deleted after 365 days (changeable per server) | |
+| Call history with transcripts, filters, CSV export and copy-transcript, light and dark themes | |
 
 The full plan is in the [roadmap](ROADMAP.md).
 
@@ -627,7 +631,7 @@ dashboard's **Providers** page, or put its key in `~/.openring/.env`.
 | Layer | `provider` values | Key |
 |---|---|---|
 | Model | `openai`, `anthropic`, `google` (Gemini), `groq`, `openrouter`, `deepseek` / `deep-seek`, `xai`, `cerebras`, `together-ai`, `deepinfra`, `perplexity-ai`, `mistral`, `fireworks` | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, ... (the provider's name) |
-| Model, local | `ollama`, `omniroute`, or `custom-llm` with `model.url` (any OpenAI-compatible endpoint) | none |
+| Model, local | `ollama`, `omniroute`, or `custom-llm` with `model.url` (any OpenAI-compatible endpoint) | none (`OMNIROUTE_API_KEY` once OmniRoute's API key protection is on) |
 | Speech-to-text | `deepgram`, `assembly-ai`, `gladia`, `soniox`, `cartesia`, `11labs` | `DEEPGRAM_API_KEY`, `ASSEMBLYAI_API_KEY`, `GLADIA_API_KEY`, `SONIOX_API_KEY`, `CARTESIA_API_KEY`, `ELEVENLABS_API_KEY` |
 | Speech-to-text, local | `whisper` (free; `model`: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`) | none |
 | Voice | `11labs` / `elevenlabs`, `cartesia`, `deepgram` (Aura), `openai`, `rime-ai`, `neuphonic`, `smallest-ai`, `inworld` | the provider's key (`RIME_API_KEY`, `NEUPHONIC_API_KEY`, `SMALLEST_API_KEY`, `INWORLD_API_KEY`, ...) |
@@ -651,6 +655,24 @@ docker compose up --build     # dashboard and API on http://localhost:8000
 
 On a server, set `PUBLIC_URL` to its https address so Twilio can reach it.
 
+## ❓ FAQ
+
+**Can I move my Vapi assistants to OpenRing?** Yes. OpenRing reads the same assistant JSON, provider names, tools
+and webhooks. Point your client at your server's base URL, or press **Import** to copy an account's assistants,
+tools, squads and Twilio numbers.
+
+**Can I run a voice AI agent for free?** Yes, on your own computer: Whisper for speech-to-text, a model through
+Ollama and the Kokoro voice cost nothing per minute. Only a phone line costs money; browser test calls don't.
+
+**Which phone providers work?** Twilio (incoming confirmed on real calls), and Telnyx, Plivo, Vonage, Genesys Cloud
+and SIP trunks in beta. The [comparison](#-how-it-compares) says what each one does today.
+
+**What does a call cost?** What your providers charge, nothing more. Every call records its cost per provider at
+list prices, so the dashboard shows what you spent.
+
+**Do I need Docker or a GPU?** No. `npx openring` installs everything, Python included. A GPU makes the local
+stack faster; cloud providers need none.
+
 ## 🧱 Principles
 
 OpenRing never charges per minute, keeps your keys and data on your machine, stays compatible with Vapi
@@ -662,7 +684,7 @@ decide what to build, is in [PRINCIPLES.md](PRINCIPLES.md).
 ```bash
 git clone https://github.com/elifalanrocha/openring && cd openring
 pip install -e ".[dev,kokoro,whisper]"
-pytest                 # about 20 s, no paid services needed
+pytest                 # a few minutes, no paid services or internet needed
 python -m openring
 ```
 

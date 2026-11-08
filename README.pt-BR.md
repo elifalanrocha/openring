@@ -6,6 +6,9 @@
 
 **Agentes de voz com IA no seu servidor, com API compatível com o Vapi. Sem taxa de plataforma.**
 
+Agentes de telefone e recepcionistas com IA que atendem e fazem ligações pelo Twilio, Telnyx, Plivo, Vonage ou qualquer
+tronco SIP, com as suas chaves ou uma stack grátis e 100% local (Whisper, Ollama, Kokoro).
+
 [![CI](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml/badge.svg)](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openring?color=e8590c&label=npm)](https://www.npmjs.com/package/openring)
 [![PyPI](https://img.shields.io/pypi/v/openring?color=e8590c&label=pypi)](https://pypi.org/project/openring/)
@@ -134,7 +137,8 @@ antes de decidir. O OpenRing não tem vínculo com nenhuma delas.
 | 16 modelos, 6 transcrições e 9 vozes, com os nomes do Vapi | |
 | Latência por turno, tempo até a primeira palavra, tokens e caracteres de voz por ligação, com farol | |
 | Crédito restante no OpenRouter, Deepgram, ElevenLabs, Twilio, Telnyx e Plivo, na página Providers | |
-| Histórico com transcrição, tema claro e escuro | |
+| Gravação das ligações, desligada por padrão, apagada após 365 dias (ajustável por servidor) | |
+| Histórico com transcrição, filtros, exportação em CSV e botão de copiar a transcrição, tema claro e escuro | |
 
 ## 🔁 Migrar do Vapi
 
@@ -401,7 +405,7 @@ um pela página **Providers** do painel, ou coloque a chave no `~/.openring/.env
 
 - **Modelo:** `openai`, `anthropic`, `google` (Gemini), `groq`, `openrouter`, `deepseek`, `xai`, `cerebras`,
   `together-ai`, `deepinfra`, `perplexity-ai`, `mistral`, `fireworks`; locais e sem chave: `ollama`,
-  `omniroute` ou `custom-llm` com `model.url`.
+  `omniroute` (com `OMNIROUTE_API_KEY` quando a proteção por chave do OmniRoute está ligada) ou `custom-llm` com `model.url`.
 - **Transcrição:** `deepgram`, `assembly-ai`, `gladia`, `soniox`, `cartesia`, `11labs`; local e grátis: `whisper`.
 - **Voz:** `11labs`, `cartesia`, `deepgram` (Aura), `openai`, `rime-ai`, `neuphonic`, `smallest-ai`,
   `inworld`; local e grátis: `kokoro`.
@@ -421,6 +425,24 @@ docker compose up --build     # painel e API em http://localhost:8000
 
 Num servidor, coloque em `PUBLIC_URL` o endereço https dele para o Twilio alcançá-lo.
 
+## ❓ Perguntas frequentes
+
+**Dá para trazer meus assistentes do Vapi?** Sim. O OpenRing lê o mesmo JSON de assistente, os mesmos nomes de
+provedor, ferramentas e webhooks. Aponte seu cliente para a URL do seu servidor, ou use **Import** para copiar
+assistentes, ferramentas, squads e números do Twilio de uma conta.
+
+**Dá para rodar um agente de voz de graça?** Sim, no seu computador: Whisper para transcrever, um modelo pelo Ollama
+e a voz Kokoro não custam nada por minuto. Só a linha telefônica custa; ligação de teste pelo navegador não.
+
+**Quais telefonias funcionam?** Twilio (entrada confirmada em ligações reais), e Telnyx, Plivo, Vonage, Genesys Cloud
+e troncos SIP em beta. A [comparação](#-comparação) diz o que cada uma faz hoje.
+
+**Quanto custa uma ligação?** O que os seus provedores cobram, nada mais. Cada ligação grava o custo por provedor a
+preço de tabela, e o painel mostra quanto você gastou.
+
+**Preciso de Docker ou GPU?** Não. `npx openring` instala tudo, Python incluso. GPU deixa a stack local mais rápida;
+provedores na nuvem não precisam.
+
 ## 🧱 Princípios
 
 O OpenRing nunca cobra por minuto, mantém suas chaves e dados na sua máquina, continua compatível com
@@ -432,7 +454,7 @@ e como decidimos o que construir, está no [PRINCIPLES.md](PRINCIPLES.md) (em in
 ```bash
 git clone https://github.com/elifalanrocha/openring && cd openring
 pip install -e ".[dev,kokoro,whisper]"
-pytest                 # uns 20 s, sem precisar de serviço pago
+pytest                 # alguns minutos, sem serviço pago nem internet
 python -m openring
 ```
 
