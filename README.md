@@ -96,12 +96,12 @@ latency is recorded, step by step, and shown in the dashboard.
 | Calls and transcripts | ✅ On your server, no telemetry | Their cloud | Their cloud; on-premise on Enterprise plans | On your server when self-hosted; anonymous telemetry unless you turn it off |
 | Vapi-compatible API | ✅ Change the base URL, import an account | (it's Vapi) | ❌ | ❌ |
 | Free local stack | ✅ Whisper, Ollama, Kokoro | ❌ | ❌ | ✅ Open models you host |
-| Calls at once | No limit of its own, your server decides (**beta**) | 4, then US$10 per line a month | 20, then US$8 per call a month | 10 by default when self-hosted, you can raise it; 10 in its cloud |
-| Backup model | ✅ From any provider, when one fails or is slow (**beta**) | Same provider only, on OpenAI and Bedrock | ✅ Takes over when the main model fails or is slow | — |
-| Phone lines | Twilio (outgoing in **beta**); Telnyx, Plivo and Vonage (**beta**); incoming only on Genesys (**beta**); any carrier by SIP trunk over UDP (**beta**) | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
-| Campaigns | Every line that calls out (**beta**), no retries yet | ✅ | ✅ | ✅ With retries |
-| Knowledge base (RAG) | ✅ Free, on your server, matching words; or your own search (**beta**) | ✅ Google Gemini, or your own server | ✅ | ✅ |
-| Several assistants in one call | ✅ Squads, in Vapi's format (**beta**) | ✅ Squads | ✅ | ✅ |
+| Calls at once | No limit of its own, your server decides | 4, then US$10 per line a month | 20, then US$8 per call a month | 10 by default when self-hosted, you can raise it; 10 in its cloud |
+| Backup model | ✅ From any provider, when one fails or is slow | Same provider only, on OpenAI and Bedrock | ✅ Takes over when the main model fails or is slow | — |
+| Phone lines | Twilio; Telnyx, Plivo and Vonage; incoming only on Genesys; any carrier by SIP trunk over UDP | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
+| Campaigns | Every line that calls out, no retries yet | ✅ | ✅ | ✅ With retries |
+| Knowledge base (RAG) | ✅ Free, on your server, matching words; or your own search | ✅ Google Gemini, or your own server | ✅ | ✅ |
+| Several assistants in one call | ✅ Squads, in Vapi's format | ✅ Squads | ✅ | ✅ |
 | Visual flow builder | ❌ Not planned for now | Canvas for squads | ✅ | ✅ |
 | Calls over WhatsApp | ❌ Not yet | — | — | ✅ Incoming only |
 
@@ -109,38 +109,8 @@ latency is recorded, step by step, and shown in the dashboard.
 phone line, and for speech-to-text too, except that Retell's pricing page lists no separate charge for it. With
 OpenRing, the server, its uptime and any compliance work are yours; hosted platforms take on the first two and help
 with the third (for HIPAA, Vapi charges US$2,000 a month and Retell says there's no extra fee). Prices and features are
-from each company's public pages and docs on November 2, 2026; check them before you decide. OpenRing isn't affiliated
+from each company's public pages and docs on November 8, 2026 (prices rechecked that day); check them before you decide. OpenRing isn't affiliated
 with any of them.
-
-## ✨ What works today
-
-| Works today | Next |
-|---|---|
-| Browser test calls from the dashboard (WebRTC) | Routing speech-to-text and voices by cost |
-| Model routes: Fastest, Cheapest, Reliable or Custom; the next model takes over when one fails or is slow (**beta**) | |
-| A 100% local, free stack: Whisper, Ollama and Kokoro, one click in the editor | |
-| Provider fallback in Vapi's format, across providers (**beta**) | |
-| Callers in any language: the assistant answers in theirs (`"language": "multi"`) | |
-| Several assistants on one call, handing the caller to one another: squads and the `handoff` tool (**beta**) | Handoffs chosen by your server, and to a whole squad |
-| A knowledge base: files the assistant searches during a call, free and on your server, or your own search (**beta**) | Search by meaning, built in |
-| Incoming phone calls through Twilio, confirmed on a real call | Outbound calls through Genesys |
-| SIP trunks: any carrier, no Twilio in between, in and out (**beta**) | SIP over TCP and TLS |
-| Outgoing calls through Twilio (**beta**: tell us how it goes) | |
-| Campaigns: one assistant calls a list or CSV, a few at a time, greeting each person by name (**beta**) | |
-| Calls in and out through Telnyx, Plivo and Vonage (**beta**, see [Telnyx](#telnyx-beta), [Plivo](#plivo-beta) and [Vonage](#vonage-beta)) | |
-| Genesys Cloud calls through its Audio Connector, inside your Architect flows (**beta**, see [Genesys](#genesys-cloud-beta)) | |
-| Vapi-style `/assistant`, `/phone-number`, `/call`, `/campaign` and `/tool` APIs | |
-| Cost per call in dollars, per provider, at list prices (`cost` and `costBreakdown`) | The phone line's cost |
-| Vapi tools: `function`, `apiRequest` (n8n, Make, Zapier), `endCall`, `transferCall` | |
-| Vapi webhooks: `status-update`, `conversation-update`, `end-of-call-report`, `assistant-request` | Calls over WhatsApp |
-| Import assistants, tools and numbers from a Vapi account | |
-| 16 models, 6 speech-to-text and 9 voice providers, with Vapi's names | |
-| Per-turn latency, time to first word, tokens and voice characters per call, with traffic lights | |
-| Credit left on OpenRouter, Deepgram, ElevenLabs, Twilio, Telnyx and Plivo, on the Providers page | |
-| Call recordings, off by default, deleted after 365 days (changeable per server) | |
-| Call history with transcripts, filters, CSV export and copy-transcript, light and dark themes | |
-
-The full plan is in the [roadmap](ROADMAP.md).
 
 ## 🔁 Moving from Vapi
 
@@ -247,7 +217,7 @@ curl -X POST http://localhost:8000/call \
   -d '{"phoneNumberId": "PHONE_NUMBER_ID", "customer": {"number": "+5511912345678"}}'
 ```
 
-**Voicemail (beta).** With `voicemailDetection` or a `voicemailMessage` on the assistant, Twilio's answering
+**Voicemail.** With `voicemailDetection` or a `voicemailMessage` on the assistant, Twilio's answering
 machine detection checks who picked up and waits for the beep. A voicemail gets the `voicemailMessage`, in the
 assistant's voice (or a recording, when it's the URL of a .wav or .mp3), then the call hangs up with
 `endedReason: "voicemail"`; without a message it just hangs up. It's off by default: a person hears the greeting
@@ -258,7 +228,7 @@ a few seconds later, and Twilio charges a small fee per call. `"voicemailDetecti
  "voicemailDetection": {"provider": "twilio", "beepMaxAwaitSeconds": 30}}
 ```
 
-### Campaigns (beta)
+### Campaigns
 
 A campaign has one assistant call a list of people, a few at a time, with the body of Vapi's `POST /campaign`.
 Each person gets an ordinary outbound call that carries the `campaignId`, so transcripts and webhooks work as
@@ -359,7 +329,7 @@ Pick which ones with `serverMessages`, as on Vapi. A phone number without an ass
 `server.url` asks it on each incoming call (`assistant-request`) and uses the `assistantId` or the transient
 `assistant` it answers. `POST /call` also takes a transient `assistant` instead of an `assistantId`.
 
-### Knowledge base (beta)
+### Knowledge base
 
 Upload files, and the assistant looks things up in them during a call. Same calls as Vapi: `POST /file`, then a `query`
 tool, or **Knowledge** in the dashboard and the boxes in the assistant editor.
@@ -387,7 +357,7 @@ the model asks it when it needs to, and the message also has the `query`.
 
 The import copies `query` tools, but not their files: upload them again and list the new ids.
 
-### Squads (beta)
+### Squads
 
 Several assistants on one call, each with its own instructions, tools, model and voice: one answers and hands the caller
 to a specialist, who has the conversation so far. Same JSON as Vapi, in `POST /squad`, or **Squads** in the dashboard:
@@ -426,7 +396,7 @@ talking, about a second of quiet. Not available yet: `dynamic` destinations, han
 `variableExtractionPlan`, rejection plans, and squads in campaigns. Assistants with different transcribers or voices
 keep a connection open to each during the call.
 
-### SIP trunks (beta)
+### SIP trunks
 
 Any carrier that speaks SIP, with no Twilio in between, so you pay the carrier's price. OpenRing speaks SIP and RTP
 (G.711, over UDP) itself. Same JSON as Vapi, or **Phone numbers > SIP trunks** in the dashboard:
@@ -474,7 +444,7 @@ domains and trunks already reach their webhooks: the number in the `sip:` addres
 `customer.sipUri` dials out through Twilio. No real carrier has carried a call through this yet, so please tell us how
 it goes.
 
-### Provider fallback (beta)
+### Provider fallback
 
 Same fields as Vapi. When a provider fails during a call in a way a retry won't fix (a rejected key, no
 credit left, the provider down), the next one in the list takes over for the rest of the call. Unlike Vapi,
@@ -491,7 +461,7 @@ a fallback model can come from another provider:
 When the model switches, the new one answers the caller's last message, so the turn isn't lost. A fallback
 whose key is missing is skipped, and each switch is listed in the call's `providerFallbacks` and on its page.
 
-### Model routes (beta)
+### Model routes
 
 A model route is a saved list of models, in order, that several assistants can share, like OmniRoute's
 combos. Make one on the **Model routes** page (or `POST /model-route`) and pick it in the assistant editor
@@ -549,7 +519,7 @@ doesn't have, write `~/.openring/prices.json` and restart OpenRing:
 Models are per 1M tokens (input, output), speech-to-text per minute, voices per 1M characters; `"*"` is any
 model of that provider. `GET /prices` shows every price in use.
 
-### Telnyx (beta)
+### Telnyx
 
 Calls through Telnyx are new and not yet confirmed on a real Telnyx call. In the Telnyx portal,
 create a **TeXML Application** whose voice URL is `$PUBLIC_URL/telnyx/voice` (HTTP POST) and assign your
@@ -560,7 +530,7 @@ webhook is checked against that public key.
 To call out, name the TeXML application: `TELNYX_APPLICATION_ID`, or `texmlApplicationId` on the number. `POST /call` and
 campaigns then work as on Twilio. Transfers and voicemail detection aren't available on Telnyx yet.
 
-### Plivo (beta)
+### Plivo
 
 Not yet confirmed on a real Plivo call. In the Plivo console, create an **Application** whose Answer URL is
 `$PUBLIC_URL/plivo/voice` and Hangup URL `$PUBLIC_URL/plivo/status` (both HTTP POST) and assign your number to it. Add
@@ -568,7 +538,7 @@ the number in OpenRing with `"provider": "plivo"`, and set `PLIVO_AUTH_ID` and `
 the Providers page. Every webhook's signature is checked with that token. Calls in and out, campaigns and `transferCall`
 work; voicemail detection isn't available on Plivo yet.
 
-### Vonage (beta)
+### Vonage
 
 Not yet confirmed on a real Vonage call. In the Vonage dashboard, create a **Voice application** with signed webhooks on,
 Answer URL `$PUBLIC_URL/vonage/voice` and Event URL `$PUBLIC_URL/vonage/event`, and link your number to it. Add the number
@@ -577,7 +547,7 @@ Vonage lets you download) and `VONAGE_SIGNATURE_SECRET` (Settings > API settings
 page. Calls in and out, campaigns and `transferCall` work, with audio at 16 kHz; voicemail detection isn't available on
 Vonage yet.
 
-### Genesys Cloud (beta)
+### Genesys Cloud
 
 If your contact center runs on Genesys Cloud, an assistant can take calls inside your Architect flows,
 through Genesys's **Audio Connector** (the AudioHook protocol). Not yet confirmed on a real Genesys call.
@@ -664,8 +634,9 @@ tools, squads and Twilio numbers.
 **Can I run a voice AI agent for free?** Yes, on your own computer: Whisper for speech-to-text, a model through
 Ollama and the Kokoro voice cost nothing per minute. Only a phone line costs money; browser test calls don't.
 
-**Which phone providers work?** Twilio (incoming confirmed on real calls), and Telnyx, Plivo, Vonage, Genesys Cloud
-and SIP trunks in beta. The [comparison](#-how-it-compares) says what each one does today.
+**Which phone providers work?** Twilio, Telnyx, Plivo, Vonage, Genesys Cloud and SIP trunks. Only Twilio has taken
+real calls so far; the others are tested against simulated carriers, and each one's section says what's left to confirm.
+The [comparison](#-how-it-compares) says what each one does today.
 
 **What does a call cost?** What your providers charge, nothing more. Every call records its cost per provider at
 list prices, so the dashboard shows what you spent.
@@ -717,7 +688,12 @@ vulnerability? Please report it privately: see [SECURITY.md](SECURITY.md).
 
 ## ⭐ Star history
 
-[![Star history chart](https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date)](https://star-history.com/#elifalanrocha/openring&Date)
+<a href="https://star-history.com/#elifalanrocha/openring&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&theme=dark&v=20261108">
+    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&v=20261108">
+  </picture>
+</a>
 
 ## 📄 License
 

@@ -96,12 +96,12 @@ etapa por etapa, e aparece no painel.
 | Ligações e transcrições | ✅ No seu servidor, sem telemetria | Nuvem deles | Nuvem deles; on-premise nos planos Enterprise | No seu servidor quando self-hosted; telemetria anônima, a não ser que você desligue |
 | API compatível com o Vapi | ✅ Troque a base URL, importe uma conta | (é o Vapi) | ❌ | ❌ |
 | Stack local grátis | ✅ Whisper, Ollama, Kokoro | ❌ | ❌ | ✅ Modelos abertos hospedados por você |
-| Ligações simultâneas | Sem limite próprio, seu servidor decide (**beta**) | 4, depois US$ 10 por linha ao mês | 20, depois US$ 8 por ligação ao mês | 10 por padrão no self-hosted, dá para aumentar; 10 na nuvem dele |
-| Modelo reserva | ✅ De qualquer provedor, quando um falha ou fica lento (**beta**) | Só do mesmo provedor, na OpenAI e no Bedrock | ✅ Assume quando o modelo principal falha ou fica lento | — |
-| Linhas telefônicas | Twilio (saída em **beta**); Telnyx, Plivo e Vonage (**beta**); só entrada no Genesys (**beta**); qualquer operadora por tronco SIP via UDP (**beta**) | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
-| Campanhas | Toda linha que faz ligações (**beta**), sem nova tentativa por enquanto | ✅ | ✅ | ✅ Com nova tentativa |
-| Base de conhecimento (RAG) | ✅ Grátis, no seu servidor, por palavras; ou a sua própria busca (**beta**) | ✅ Google Gemini, ou o seu servidor | ✅ | ✅ |
-| Vários assistentes numa ligação | ✅ Squads, no formato do Vapi (**beta**) | ✅ Squads | ✅ | ✅ |
+| Ligações simultâneas | Sem limite próprio, seu servidor decide | 4, depois US$ 10 por linha ao mês | 20, depois US$ 8 por ligação ao mês | 10 por padrão no self-hosted, dá para aumentar; 10 na nuvem dele |
+| Modelo reserva | ✅ De qualquer provedor, quando um falha ou fica lento | Só do mesmo provedor, na OpenAI e no Bedrock | ✅ Assume quando o modelo principal falha ou fica lento | — |
+| Linhas telefônicas | Twilio; Telnyx, Plivo e Vonage; só entrada no Genesys; qualquer operadora por tronco SIP via UDP | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
+| Campanhas | Toda linha que faz ligações, sem nova tentativa por enquanto | ✅ | ✅ | ✅ Com nova tentativa |
+| Base de conhecimento (RAG) | ✅ Grátis, no seu servidor, por palavras; ou a sua própria busca | ✅ Google Gemini, ou o seu servidor | ✅ | ✅ |
+| Vários assistentes numa ligação | ✅ Squads, no formato do Vapi | ✅ Squads | ✅ | ✅ |
 | Editor visual de fluxos | ❌ Fora dos planos por enquanto | Canvas para squads | ✅ | ✅ |
 | Ligações pelo WhatsApp | ❌ Ainda não | — | — | ✅ Só entrada |
 
@@ -109,36 +109,8 @@ etapa por etapa, e aparece no painel.
 telefônica, e transcrição também, exceto que a página de preços do Retell não lista cobrança separada por ela. Com o
 OpenRing, o servidor, a disponibilidade e qualquer trabalho de compliance ficam com você; as plataformas hospedadas
 cuidam dos dois primeiros e ajudam com o terceiro (para HIPAA, o Vapi cobra US$ 2.000 por mês e o Retell diz que não há
-custo extra). Preços e recursos das páginas públicas e da documentação de cada empresa em 2 de novembro de 2026; confira
+custo extra). Preços e recursos das páginas públicas e da documentação de cada empresa em 8 de novembro de 2026 (preços conferidos nesse dia); confira
 antes de decidir. O OpenRing não tem vínculo com nenhuma delas.
-
-## ✨ O que já funciona
-
-| Já funciona | Próximos passos |
-|---|---|
-| Teste no navegador pelo painel (WebRTC) | Roteamento por custo de transcrição e voz |
-| Rotas de modelo: Mais rápido, Mais barato, Estável ou Custom; o próximo modelo assume quando um falha ou fica lento (**beta**) | |
-| Stack 100% local e grátis: Whisper, Ollama e Kokoro, com um clique no editor | |
-| Provedor reserva no formato do Vapi, inclusive de outro provedor (**beta**) | |
-| Quem liga em qualquer idioma: o assistente responde no idioma dele (`"language": "multi"`) | |
-| Vários assistentes numa ligação, passando a pessoa de um para o outro: squads e a ferramenta `handoff` (**beta**) | Handoff escolhido pelo seu servidor, e para um squad inteiro |
-| Base de conhecimento: arquivos que o assistente consulta durante a ligação, de graça e no seu servidor, ou a sua própria busca (**beta**) | Busca por significado, embutida |
-| Ligações recebidas pelo Twilio, confirmadas numa ligação real | Ligações de saída pelo Genesys |
-| Troncos SIP: qualquer operadora, sem Twilio no meio, entrada e saída (**beta**) | SIP por TCP e TLS |
-| Ligações feitas pelo Twilio (**beta**: conte como foi) | |
-| Campanhas: um assistente liga para uma lista ou CSV, algumas ligações por vez, chamando cada pessoa pelo nome (**beta**) | |
-| Ligações de entrada e saída pela Telnyx, Plivo e Vonage (**beta**) | |
-| Ligações do Genesys Cloud pelo Audio Connector, dentro dos seus fluxos do Architect (**beta**) | |
-| APIs `/assistant`, `/phone-number`, `/call`, `/campaign` e `/tool` no formato do Vapi | |
-| Custo por ligação em dólares, por provedor, a preço de tabela (`cost` e `costBreakdown`) | Custo da linha telefônica |
-| Ferramentas do Vapi: `function`, `apiRequest` (n8n, Make, Zapier), `endCall`, `transferCall` | |
-| Webhooks do Vapi: `status-update`, `conversation-update`, `end-of-call-report`, `assistant-request` | Ligações pelo WhatsApp |
-| Importação de assistentes, ferramentas e números de uma conta do Vapi | |
-| 16 modelos, 6 transcrições e 9 vozes, com os nomes do Vapi | |
-| Latência por turno, tempo até a primeira palavra, tokens e caracteres de voz por ligação, com farol | |
-| Crédito restante no OpenRouter, Deepgram, ElevenLabs, Twilio, Telnyx e Plivo, na página Providers | |
-| Gravação das ligações, desligada por padrão, apagada após 365 dias (ajustável por servidor) | |
-| Histórico com transcrição, filtros, exportação em CSV e botão de copiar a transcrição, tema claro e escuro | |
 
 ## 🔁 Migrar do Vapi
 
@@ -187,7 +159,7 @@ curl -X POST http://localhost:8000/assistant \
   }'
 ```
 
-### Base de conhecimento (beta)
+### Base de conhecimento
 
 Envie arquivos e o assistente consulta durante a ligação. As mesmas chamadas do Vapi: `POST /file` e uma ferramenta
 `query`, ou **Knowledge** no painel e as caixas no editor do assistente. Aceita PDF, .docx, texto, Markdown, CSV, JSON,
@@ -200,7 +172,7 @@ longos, diga nas instruções quando buscar e use os termos dos arquivos. Para b
 `provider: "custom-knowledge-base"` com `server.url`, que recebe o `knowledge-base-request` do Vapi. A importação copia as
 ferramentas `query`, mas não os arquivos: envie de novo e liste os novos ids.
 
-### Squads (beta)
+### Squads
 
 Vários assistentes numa ligação, cada um com suas instruções, ferramentas, modelo e voz: um atende e passa a pessoa para
 um especialista, que recebe a conversa até ali. O mesmo JSON do Vapi em `POST /squad`, ou **Squads** no painel:
@@ -219,7 +191,7 @@ funciona sem squad; `contextEngineeringPlan` define o que o próximo recebe da c
 tudo em `handoffs` e na transcrição. Limites, gravação e webhooks vêm do primeiro assistente. Ainda não: destinos
 `dynamic`, handoff para um squad inteiro, `variableExtractionPlan` e squads em campanhas.
 
-### Troncos SIP (beta)
+### Troncos SIP
 
 Qualquer operadora que fale SIP, sem Twilio no meio, pagando o preço da operadora. O OpenRing fala SIP e RTP (G.711, por
 UDP) sozinho. O mesmo JSON do Vapi: uma credencial `byo-sip-trunk` em `POST /credential` e um número `byo-phone-number`,
@@ -233,16 +205,16 @@ OpenRing só responde aos gateways dos seus troncos, para não virar alvo de fra
 dele como gateway. Ainda não: SIP por TCP ou TLS, detecção
 de caixa postal e outros codecs. Nenhuma operadora real passou por aqui ainda, então conte como foi.
 
-### Provedor reserva (beta)
+### Provedor reserva
 
 Mesmos campos do Vapi (`transcriber.fallbackPlan.transcribers`, `model.fallbackModels`,
 `voice.fallbackPlan.voices`). Se um provedor falha no meio da ligação de um jeito que tentar de novo não
 resolve (chave recusada, crédito acabado, provedor fora do ar), o próximo da lista assume até o fim. Diferente
 do Vapi, o modelo reserva pode ser de outro provedor: `"fallbackModels": [{"provider": "openai", "model":
 "gpt-4.1-mini"}]`. Quando o modelo troca, o novo responde a última fala de quem ligou. Exemplo completo no
-[README em inglês](README.md#provider-fallback-beta).
+[README em inglês](README.md#provider-fallback).
 
-### Rotas de modelo (beta)
+### Rotas de modelo
 
 Uma rota é uma lista de modelos em ordem, salva uma vez e usada por vários assistentes, como os combos do
 OmniRoute. Crie na página **Model routes** (ou `POST /model-route`) e escolha no editor do assistente. A ligação
@@ -256,7 +228,7 @@ de 1,5 s), `cheapest` (o menor preço primeiro, modelos locais antes dos pagos; 
 2 s, e quem falha descansa 15 min) ou `custom` (você escolhe `order`, `maxLatencyMs` e `cooldownMinutes`). O
 "mais rápido" usa o tempo até a primeira palavra nas ligações recentes; **Measure speed** na página da rota
 mede cada modelo com uma resposta curta. Mexer num ajuste de uma rota com preset a torna `custom`. Exemplo no
-[README em inglês](README.md#model-routes-beta).
+[README em inglês](README.md#model-routes).
 
 ### Quanto custa cada ligação
 
@@ -318,27 +290,27 @@ Ligue para o número. As transcrições ficam em `GET /call` e na página **Call
 para alguém, use o mesmo corpo do `POST /call` do Vapi (ou **Call a phone** no painel). Ligue só para quem
 espera a ligação: ligações automáticas são reguladas (as regras da Anatel no Brasil, a TCPA nos EUA).
 
-**Caixa postal (beta):** com `voicemailDetection` ou um `voicemailMessage` no assistente, a detecção do Twilio
+**Caixa postal:** com `voicemailDetection` ou um `voicemailMessage` no assistente, a detecção do Twilio
 vê quem atendeu e espera o bipe. Na caixa postal, o assistente deixa o `voicemailMessage` na própria voz (ou toca
 um áudio, se for a URL de um .wav ou .mp3) e desliga com `endedReason: "voicemail"`; sem recado, só desliga. Vem
 desligada: a pessoa ouve a saudação alguns segundos depois, e o Twilio cobra uma pequena taxa por ligação.
 
-**Telnyx (beta, ainda não confirmada numa ligação real):** no portal da Telnyx, crie uma **TeXML Application**
+**Telnyx (ainda não confirmada numa ligação real):** no portal da Telnyx, crie uma **TeXML Application**
 com a voice URL `$PUBLIC_URL/telnyx/voice` (HTTP POST) e associe o número a ela. Cadastre o número no OpenRing
 com `"provider": "telnyx"` e defina `TELNYX_API_KEY` e `TELNYX_PUBLIC_KEY` (Keys & Credentials > Public Key),
 ou conecte a Telnyx pela página Providers. Para fazer ligações, informe a aplicação TeXML em `TELNYX_APPLICATION_ID` ou
 `texmlApplicationId` no número. Transferência e detecção de caixa postal ainda não existem na Telnyx.
 
-**Plivo (beta, ainda não confirmada numa ligação real):** no console da Plivo, crie uma **Application** com Answer URL
+**Plivo (ainda não confirmada numa ligação real):** no console da Plivo, crie uma **Application** com Answer URL
 `$PUBLIC_URL/plivo/voice` e Hangup URL `$PUBLIC_URL/plivo/status` (HTTP POST) e associe o número. Adicione o número com
 `"provider": "plivo"` e defina `PLIVO_AUTH_ID` e `PLIVO_AUTH_TOKEN`, ou conecte pela página Providers.
 
-**Vonage (beta, ainda não confirmada numa ligação real):** no painel da Vonage, crie uma **Voice application** com webhooks
+**Vonage (ainda não confirmada numa ligação real):** no painel da Vonage, crie uma **Voice application** com webhooks
 assinados, Answer URL `$PUBLIC_URL/vonage/voice` e Event URL `$PUBLIC_URL/vonage/event`, e associe o número. Adicione o
 número com `"provider": "vonage"` e defina `VONAGE_APPLICATION_ID`, `VONAGE_PRIVATE_KEY` (o caminho do arquivo que a Vonage
 deixa baixar) e `VONAGE_SIGNATURE_SECRET`, ou conecte pela página Providers.
 
-**Genesys Cloud (beta, ainda não confirmado numa ligação real):** o assistente atende dentro dos fluxos do
+**Genesys Cloud (ainda não confirmado numa ligação real):** o assistente atende dentro dos fluxos do
 Architect, pelo **Audio Connector** do Genesys. Na página Providers, conecte **Genesys Cloud** (o botão
 **Generate** cria a API key e o client secret; copie os dois antes de salvar). No Genesys, crie uma integração
 Audio Connector com a URI `wss://SEU_HOST_PUBLICO/ws/genesys` (aparece na página Phone numbers) e essas duas
@@ -348,7 +320,7 @@ entrada preenchem as `{{variáveis}}` do assistente. Na saída, `action` vale `f
 número em `transferTo`), para o fluxo rotear a ligação. Conexão sem a API key e a assinatura do Genesys é
 recusada.
 
-### Campanhas (beta)
+### Campanhas
 
 Um assistente liga para uma lista de pessoas, algumas por vez, com o mesmo corpo do `POST /campaign` do Vapi.
 Cada pessoa recebe uma ligação de saída comum, com o `campaignId`, então transcrição e webhooks funcionam como
@@ -435,7 +407,7 @@ assistentes, ferramentas, squads e números do Twilio de uma conta.
 e a voz Kokoro não custam nada por minuto. Só a linha telefônica custa; ligação de teste pelo navegador não.
 
 **Quais telefonias funcionam?** Twilio (entrada confirmada em ligações reais), e Telnyx, Plivo, Vonage, Genesys Cloud
-e troncos SIP em beta. A [comparação](#-comparação) diz o que cada uma faz hoje.
+e troncos SIP. Só o Twilio atendeu ligações reais até agora; os outros foram testados com operadoras simuladas. A [comparação](#-comparação) diz o que cada uma faz hoje.
 
 **Quanto custa uma ligação?** O que os seus provedores cobram, nada mais. Cada ligação grava o custo por provedor a
 preço de tabela, e o painel mostra quanto você gastou.
