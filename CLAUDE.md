@@ -3,7 +3,7 @@
 OpenRing is an open-source, self-hosted alternative to paid voice AI agent platforms. People run it on
 their own machine or server with their own provider keys, so there is **no per-minute platform fee**.
 Its API is **Vapi-compatible**: existing clients migrate by changing the base URL. Code, commits and
-docs are in English (README.pt-BR.md is the exception). See CONTRIBUTING.md for setup and rules.
+docs are in English. See CONTRIBUTING.md for setup and rules.
 
 ## Architecture
 

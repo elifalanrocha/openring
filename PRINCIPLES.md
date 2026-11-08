@@ -48,4 +48,4 @@ A new feature should do at least one of these, and break none of the promises ab
 - make real calls more reliable or faster.
 
 Big ideas that do none of these, like a visual flow builder or our own models, wait. Integrations with
-tools people already use (n8n, CRMs, calendars) come through [Vapi-style tools](README.md#tools) instead.
+tools people already use (n8n, CRMs, calendars) come through [Vapi-style tools](docs/api.md#tools) instead.
