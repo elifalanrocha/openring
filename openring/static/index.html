@@ -16,10 +16,13 @@
   /* Brand: ring orange marks the logo; ember (darker, readable with white text) is the UI accent. */
   --mark: #e8590c;
   --bg: #f7f5f2; --panel: #ffffff; --panel-2: #faf8f5; --line: #e7e2da; --ink: #1c1917; --muted: #6b625a;
-  --rail: #ffffff; --rail-ink: #44403c; --rail-active: #fdeee4;
-  --accent: #c2410c; --accent-ink: #ffffff; --accent-soft: #fdeee4;
-  --c1: #0e7490; --c2: #15803d; --c3: #b45309; --c4: #be123c; --c5: #6d28d9; --c6: #0369a1;
-  --ok: #15803d; --ok-soft: #e3f4ea; --warn: #b45309; --warn-soft: #fbf0dc; --bad: #b42318; --bad-soft: #fde8e6;
+  --rail: #ffffff; --rail-ink: #44403c; --rail-active: #fdf0e3;
+  --accent: #c2410c; --accent-ink: #ffffff; --accent-soft: #fdf0e3;
+  /* Signal teal is the second brand color: a live line and the voice. Orange is for action and selection. */
+  --signal: #0f766e; --signal-soft: #e0f2ef; --field-line: #8c857e;
+  /* Chart series never equal a status color (ok, warn, bad) and stay apart under color blindness. */
+  --c1: var(--signal); --c2: #3730a3; --c3: #64748b; --c4: #c026d3; --c5: #0369a1; --c6: #78350f;
+  --ok: #166534; --ok-soft: #e3f4ea; --warn: #92400e; --warn-soft: #fbf0dc; --bad: #b42318; --bad-soft: #fde8e6;
   --shadow: 0 1px 2px rgba(20,26,34,.05);
   --radius: 12px; --radius-sm: 8px;
   color-scheme: light;
@@ -29,7 +32,8 @@
     --bg: #0f0d0b; --panel: #171412; --panel-2: #1e1a17; --line: #2e2823; --ink: #f5f1ec; --muted: #a39a91;
     --rail: #121010; --rail-ink: #c4bbb2; --rail-active: #2a1d14;
     --accent: #fb923c; --accent-ink: #1c1917; --accent-soft: rgba(251,146,60,.13);
-    --c1: #38bdf8; --c2: #34d399; --c3: #fbbf24; --c4: #fb7185; --c5: #a78bfa; --c6: #2fb8cc;
+    --signal: #2dd4bf; --signal-soft: rgba(45,212,191,.13); --field-line: #7a6f66;
+    --c1: var(--signal); --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
     --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
     --shadow: none;
     color-scheme: dark;
@@ -39,7 +43,8 @@
   --bg: #0f0d0b; --panel: #171412; --panel-2: #1e1a17; --line: #2e2823; --ink: #f5f1ec; --muted: #a39a91;
   --rail: #121010; --rail-ink: #c4bbb2; --rail-active: #2a1d14;
   --accent: #fb923c; --accent-ink: #1c1917; --accent-soft: rgba(251,146,60,.13);
-  --c1: #38bdf8; --c2: #34d399; --c3: #fbbf24; --c4: #fb7185; --c5: #a78bfa; --c6: #2fb8cc;
+  --signal: #2dd4bf; --signal-soft: rgba(45,212,191,.13); --field-line: #7a6f66;
+  --c1: var(--signal); --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
   --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
   --shadow: none;
   color-scheme: dark;
@@ -89,6 +94,7 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .btn.ghost:hover { border-color: var(--muted); filter: none; }
 .btn.danger { background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
 .btn.small { padding: 5px 11px; font-size: 13px; }
+.btn.tonal { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .btn:disabled { opacity: .5; cursor: default; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 0; }
@@ -106,8 +112,8 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); flex-wrap: wrap; }
 .tabs button { border: 0; background: transparent; padding: 6px 13px; border-radius: 7px; color: var(--muted); cursor: pointer; font-weight: 600; font-size: 13px; }
 .tabs button:hover { color: var(--ink); }
-.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
-.tabs .count { opacity: .7; font-weight: 500; margin-left: 4px; }
+.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.tabs .count { font-weight: 500; margin-left: 4px; }
 
 /* Big number cards */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; margin-bottom: 18px; }
@@ -186,7 +192,11 @@ a.rowlink:hover { background: var(--panel-2); }
 .badge.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
 .badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .badge.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
-.badge.live { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.badge.live { background: var(--signal-soft); color: var(--signal); border-color: transparent; }
+.badge.live::before { animation: ping 1.8s cubic-bezier(.2,.7,.2,1) infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal) 55%, transparent); } 75%, 100% { box-shadow: 0 0 0 6px transparent; } }
+@media (prefers-reduced-motion: reduce) { .badge.live::before { animation: none; } }
+.why { margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .badge.ok::before, .badge.live::before, .badge.warn::before, .badge.bad::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* The call path: transcriber -> model -> voice */
@@ -242,9 +252,9 @@ dialog .muted a { color: var(--accent); }
 .field:first-child { margin-top: 0; }
 .field label { display: block; font-weight: 600; margin-bottom: 4px; }
 .field .hint { color: var(--muted); font-size: 13px; margin: -2px 0 6px; }
-.input, .field input, .field textarea, .field select { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2); }
+.input, .field input, .field textarea, .field select { width: 100%; padding: 9px 11px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel-2); }
 .field textarea { min-height: 130px; resize: vertical; }
-input[type="file"] { padding: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2); font: inherit; width: min(420px, 100%); box-sizing: border-box; }
+input[type="file"] { padding: 6px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel-2); font: inherit; width: min(420px, 100%); box-sizing: border-box; }
 input[type="file"]::file-selector-button { margin-right: 12px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
 input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .row-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; align-items: center; }
@@ -275,7 +285,7 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .preset span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
 .route-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin-top: 14px; font-size: 13.5px; }
 .route-settings label { display: flex; align-items: center; gap: 8px; }
-.route-settings select { padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2); }
+.route-settings select { padding: 4px 8px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel-2); }
 .route-row > .num { width: 18px; text-align: right; }
 .route-row select { flex: 0 0 150px; }
 .route-row input { flex: 1; min-width: 0; }
@@ -299,7 +309,7 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .stage label { display: block; font-size: 12px; color: var(--muted); margin-top: 7px; }
 .stage .stage-hint { margin: 8px 0 0; font-size: 12px; color: var(--warn); }
 .stage .stage-hint.plain { color: var(--muted); }
-.stage input, .stage select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.stage input, .stage select { width: 100%; padding: 6px 8px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--panel); }
 .cable { align-self: center; height: 2px; background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) 0 0 / 10px 2px repeat-x; }
 
 /* Transcript */
@@ -625,7 +635,7 @@ function setPage(name, title, sub) {
 }
 
 const PERIODS = [["1", "Today"], ["7", "7D"], ["30", "30D"], ["90", "90D"], ["0", "All"]];
-const PARTS = [["endpointingLatency", "Waiting for silence", "var(--muted)"], ["transcriberLatency", "Transcription", "var(--c1)"], ["modelLatency", "Model", "var(--c5)"], ["voiceLatency", "Voice", "var(--c3)"]];
+const PARTS = [["endpointingLatency", "Waiting for silence", "var(--muted)"], ["transcriberLatency", "Transcription", "var(--c2)"], ["modelLatency", "Model", "var(--c4)"], ["voiceLatency", "Voice", "var(--c1)"]];
 
 async function viewHome() {
   setPage("home");
@@ -1183,7 +1193,7 @@ async function viewCalls() {
                   <td class="num">${dur(c.durationSeconds)}</td>
                   <td class="num hide-sm">${ms(c.artifact?.performanceMetrics?.turnLatencyAverage)}</td>
                   <td class="num hide-sm">${usd(c.cost)}</td>
-                  <td>${statusBadge(c)}</td>
+                  <td>${statusBadge(c)}${failed(c) && c.endedReason ? `<div class="why">${esc(endedLabel(c.endedReason))}</div>` : ""}</td>
                   <td class="num hide-sm muted">${when(c.createdAt)}</td>
                 </tr>
               `).join("")}
@@ -1893,7 +1903,7 @@ function balanceText(b) {
 // Every provider card offers the same actions in the same places: Connect while it isn't,
 // then Test, Change key and Disconnect. Sign-in options (OAuth, OpenRouter's) live inside Connect.
 const PROVIDER_ACTIONS = {
-  connect: ["Connect", "btn small"],
+  connect: ["Connect", "btn tonal small"],
   test: ["Test", "btn ghost small"],
   change: ["Change key", "btn ghost small"],
   disconnect: ["Disconnect", "btn ghost small"],
