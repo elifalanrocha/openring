@@ -201,7 +201,7 @@ a.rowlink:hover { background: var(--panel-2); }
 .tile.link:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .tile .head { display: flex; align-items: center; gap: 12px; }
 .tile .head .avatar { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-family: "IBM Plex Sans", system-ui, sans-serif; flex: none; }
-.tile .head .avatar.icon-avatar { background: transparent; padding: 6px; }
+.tile .head .avatar.icon-avatar { background: #fff; padding: 6px; }
 .tile .head .avatar.icon-avatar img { width: 20px; height: 20px; object-fit: contain; }
 .tile .head .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .head .sub { color: var(--muted); font-size: 12.5px; }
@@ -1771,13 +1771,9 @@ async function viewProviders() {
   // Connected first, then the free ones, then the rest in their usual order.
   const rank = p => connected(p) ? 0 : p.free ? 1 : 2;
   const actions = p => {
-    const baseList = !p.connect ? [] : connected(p) ? ["test", "change", "disconnect"] : ["connect"];
-    // Add OAuth button if provider supports it
-    const list = [...baseList];
-    if (p.connect?.oauth) {
-        // Insert OAuth before other actions for visibility
-        list.unshift("oauth");
-    }
+    const list = !p.connect ? [] : connected(p) ? ["test", "change", "disconnect"] : ["connect"];
+    // OpenRouter's sign-in lives inside Connect; others offer OAuth only with the server's own client.
+    if (p.connect?.oauth && p.id !== "openrouter" && !connected(p)) list.unshift("oauth");
     return list.length ? `<div class="actions">${list.map(a => `${a === "disconnect" ? '<span class="spacer"></span>' : ""}<button class="${PROVIDER_ACTIONS[a][1]}" data-action="${a}" data-card="${esc(cardKey(p))}">${PROVIDER_ACTIONS[a][0]}</button>`).join("")}</div>` : "";
   };
   const notice = p => providerNotice?.key === cardKey(p) ? esc(providerNotice.text) : "";

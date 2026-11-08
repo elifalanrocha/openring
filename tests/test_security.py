@@ -18,6 +18,8 @@ PUBLIC_HTTP = {
     "/plivo/voice", "/plivo/status", "/plivo/transfer/{token}", "/vonage/voice", "/vonage/event",
     # Provider logos for the dashboard <img> tags (static files, no data; browsers cannot send a Bearer header).
     "/icons/{name}.svg", "/icons/{name}.ico", "/icons/{name}.png",
+    # The OAuth provider's cross-site redirect; the one-time state from a signed-in session authorizes it.
+    "/oauth/callback",
 }
 # Media streams: each claims a queued call by id (Twilio, Telnyx, Plivo, Vonage) or checks a signature (Genesys).
 PUBLIC_WS = {"/ws/twilio", "/ws/telnyx", "/ws/plivo", "/ws/vonage", "/ws/genesys"}

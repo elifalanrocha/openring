@@ -49,6 +49,7 @@ KEY_PAGES = {
     "plivo": "https://console.plivo.com/dashboard/",
     "vonage": "https://dashboard.nexmo.com/applications",
     "genesys": "https://help.mypurecloud.com/articles/configure-audio-connector/",
+    "omniroute": "http://localhost:20128/dashboard",
 }
 
 
@@ -59,13 +60,12 @@ def _connectors() -> dict[str, dict[str, Any]]:
     found = {pid: {"fields": [(env, "API key")], "keysUrl": KEY_PAGES[pid]}
              for pid, env in envs.items() if env and pid in KEY_PAGES}
     found["openrouter"]["oauth"] = True
-    # xAI Grok, Anthropic Claude Code, OpenAI Codex have OAuth (subscriptions)
-    if "xai" in found:
-        found["xai"]["oauth"] = True
-    if "anthropic" in found:
-        found["anthropic"]["oauth"] = True
-    if "openai" in found:
-        found["openai"]["oauth"] = True
+    # OmniRoute runs without a key until its API key protection is on; then calls send this key.
+    found["omniroute"] = {"fields": [("OMNIROUTE_API_KEY", "API key")], "keysUrl": KEY_PAGES["omniroute"]}
+    # Other OAuth sign-ins only with the server owner's own client (<PROVIDER>_CLIENT_ID).
+    for pid in ("xai", "anthropic", "openai"):
+        if pid in found and os.environ.get(f"{pid.upper()}_CLIENT_ID"):
+            found[pid]["oauth"] = True
     found["twilio"] = {"fields": [("TWILIO_ACCOUNT_SID", "Account SID"), ("TWILIO_AUTH_TOKEN", "Auth token")],
                        "keysUrl": KEY_PAGES["twilio"]}
     # The public key (Keys & Credentials > Public Key) checks that webhooks come from Telnyx.

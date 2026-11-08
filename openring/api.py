@@ -515,19 +515,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     oauth_manager = OAuthManager(oauth_encryption_key, store)
 
     def _valid_redirect_uri(redirect_uri: str) -> bool:
-        """Allowlist: must be localhost/loopback or the server's public URL or platform callback.
-        Anthropic: https://platform.claude.com/oauth/code/callback
-        xAI: http://127.0.0.1:56121/callback and http://127.0.0.1:56122/callback (Grok Build)
-        OpenRouter: https://openrouter.ai/auth/callback
-        """
+        """Allowlist: localhost/loopback (RFC 8252) or this server's PUBLIC_URL."""
         try:
             parsed = urlsplit(redirect_uri)
             host = parsed.hostname or ""
-            # Loopback allowed for desktop flows (RFC 8252) — covers xAI loopback ports
             if host in ("localhost", "127.0.0.1", "::1"):
-                return True
-            # Fixed platform callbacks (Anthropic, OpenRouter)
-            if redirect_uri in ("https://platform.claude.com/oauth/code/callback",):
                 return True
             # Must match PUBLIC_URL if set
             if settings.public_url:
@@ -554,16 +546,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 status_code=400, detail="OpenRouter uses built-in sign-in (Connect → Sign in with OpenRouter)"
             )
 
-        # PKCE flow (anthropic/openai/xai PKCE here)
-        # Anthropic uses fixed redirect_uri (OmniRoute CLAUDE_CONFIG.redirectUri)
-        # xAI Grok uses loopback (OmniRoute XAI_OAUTH_CONFIG.loopbackPort=56121)
-        config = PROVIDER_CONFIGS[provider]
-        if provider == "anthropic":
-            redirect_uri = config.get("redirect_uri", "https://platform.claude.com/oauth/code/callback")
-        elif provider == "xai":
-            # Loopback redirect that Grok's OAuth client expects (OmniRoute XAI_OAUTH_CONFIG)
-            redirect_uri = "http://127.0.0.1:56121/callback"
-        elif not redirect_uri:
+        if not redirect_uri:
             redirect_uri = f"{settings.public_url or 'http://127.0.0.1:8000'}/oauth/callback"
 
         if not _valid_redirect_uri(redirect_uri):
@@ -599,16 +582,15 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
         return {"flow": "pkce", "authorization_url": auth_url, "state": state}
 
-    @app.get("/oauth/callback", include_in_schema=False, dependencies=[Depends(require_session)])
+    @app.get("/oauth/callback", include_in_schema=False)
     async def oauth_callback(provider: str, code: str = "", state: str = "") -> dict[str, Any]:
-        """OAuth callback endpoint (GET - browser redirect) to exchange code for tokens."""
-        # PKCE flow
-        # Verify state and retrieve PKCE verifier
+        """The provider's browser redirect. It carries no dashboard header and, being cross-site, no
+        SameSite=Strict cookie: the one-time state, issued to a signed-in session, is what authorizes it."""
         if not hasattr(settings, "oauth_sessions") or state not in settings.oauth_sessions:
             raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
         session_data = settings.oauth_sessions.pop(state)
-        if time.time() > session_data["expires"]:
+        if time.time() > session_data["expires"] or session_data["provider"] != provider:
             raise HTTPException(status_code=400, detail="OAuth state expired")
 
         if not oauth_manager.is_provider_supported(provider):

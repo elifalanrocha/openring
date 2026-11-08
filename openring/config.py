@@ -80,7 +80,7 @@ class Settings:
     sip_public_ip: str = field(default_factory=lambda: _env("SIP_PUBLIC_IP"))
     sip_rtp_ports: str = field(default_factory=lambda: _env("SIP_RTP_PORTS", "40000-40999"))
 
-    # OAuth clients for AI provider subscriptions (Claude Code, Codex, Grok, OpenRouter Auth).
+    # The server owner's own OAuth clients (none are built in).
     # Only providers OpenRing actually uses; env vars read at startup.
     openrouter_client_id: str = field(default_factory=lambda: _env("OPENROUTER_CLIENT_ID"))
     openrouter_client_secret: str = field(default_factory=lambda: _env("OPENROUTER_CLIENT_SECRET"))

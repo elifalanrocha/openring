@@ -1,10 +1,7 @@
-"""OAuth 2.0 for AI provider subscriptions (Claude Code, Codex, xAI Grok, OpenRouter).
+"""OAuth 2.0 (Authorization Code + PKCE) sign-in to AI providers.
 
-OpenRing providers that have OAuth:
-- openrouter: PKCE flow, swaps code for API key (keys.exchange_openrouter_code)
-- xai: Grok OAuth (api.x.ai) via device code flow (RFC 8628), token stored encrypted
-- anthropic: Claude Code OAuth (claude.ai) via PKCE
-- openai: Codex OAuth (chatgpt.com / platform) via PKCE
+- openrouter: its own PKCE flow that swaps the code for an API key (keys.exchange_openrouter_code).
+- xai, anthropic, openai: only with the server owner's own OAuth client (<PROVIDER>_CLIENT_ID).
 
 Storage: tokens encrypted with Fernet, key from OAUTH_ENCRYPTION_KEY env or ephemeral (warns).
 """
@@ -68,19 +65,11 @@ class OAuthToken:
         return datetime.now() >= self.expires_at - timedelta(seconds=60)
 
 
-# Provider configs from OmniRoute public CLI credentials
-# These are public OAuth client IDs for native/installed apps using PKCE (RFC 8252)
-# Not secrets — can be overridden via env vars
-DEFAULT_CLIENT_IDS = {
-    "openrouter": None,  # OpenRouter uses its own custom flow (see keys.exchange_openrouter_code)
-    # Grok Build public client ID (from OmniRoute publicCreds.ts grok_id)
-    "xai": "b1a00492-073a-47ea-816f-4c329264a828",
-    "anthropic": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",  # Claude Code public client ID
-    "openai": "app_EMoamEEZ73f0CkXaXp7hrann",  # Codex public client ID
-}
+# No built-in client IDs: OpenRing never signs in as another vendor's app (Claude Code, Codex, Grok CLI);
+# their terms reserve those clients and subscriptions for their own tools. A server owner who has
+# their own OAuth client sets <PROVIDER>_CLIENT_ID. OpenRouter has its own flow (keys.exchange_openrouter_code).
+DEFAULT_CLIENT_IDS: Dict[str, Optional[str]] = {"openrouter": None, "xai": None, "anthropic": None, "openai": None}
 
-# xAI uses device code flow (RFC 8628) for Grok Build
-# Other providers use Authorization Code + PKCE
 PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "openrouter": {
         # OpenRouter has custom PKCE exchange handled in keys.py
@@ -91,38 +80,22 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "default_scope": "openid profile email",
     },
     "xai": {
-        # Grok Build (xAI) — PKCE flow (OmniRoute XAI_OAUTH_CONFIG / GROK_BUILD_OAUTH_CONFIG)
-        # Same auth.x.ai oauth2 endpoints and public client_id as Grok Build CLI
         "authorize_url": "https://auth.x.ai/oauth2/authorize",
         "token_url": "https://auth.x.ai/oauth2/token",
         "flow": "pkce",
-        "default_scope": "openid profile email offline_access grok-cli:access",
-        "client_id": DEFAULT_CLIENT_IDS["xai"],
-        "referrer": "cli-proxy-api",
-        "plan": "generic",
+        "default_scope": "openid profile email offline_access",
     },
     "anthropic": {
-        # Claude Code OAuth (Authorization Code + PKCE) - OmniRoute CLAUDE_CONFIG
         "authorize_url": "https://claude.ai/oauth/authorize",
         "token_url": "https://api.anthropic.com/v1/oauth/token",
         "flow": "pkce",
-        "default_scope": "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers",
-        "client_id": DEFAULT_CLIENT_IDS["anthropic"],
-        "redirect_uri": "https://platform.claude.com/oauth/code/callback",
+        "default_scope": "openid profile email offline_access",
     },
     "openai": {
-        # OpenAI Codex OAuth (Authorization Code + PKCE) - OmniRoute CODEX_CONFIG
         "authorize_url": "https://auth.openai.com/oauth/authorize",
         "token_url": "https://auth.openai.com/oauth/token",
         "flow": "pkce",
         "default_scope": "openid profile email offline_access",
-        "client_id": DEFAULT_CLIENT_IDS["openai"],
-        "extra_params": {
-            "id_token_add_organizations": "true",
-            "codex_cli_simplified_flow": "true",
-            "originator": "codex_cli_rs",
-            "prompt": "login",
-        },
     },
 }
 
@@ -189,16 +162,6 @@ class OAuthManager:
         if code_challenge:
             params["code_challenge"] = code_challenge
             params["code_challenge_method"] = "S256"
-
-        # xAI Grok requires these params (from OmniRoute XAI_OAUTH_CONFIG / GROK_BUILD_OAUTH_CONFIG)
-        if provider.value == "xai":
-            params["nonce"] = secrets.token_hex(16)
-            params["plan"] = config.get("plan", "generic")
-            params["referrer"] = config.get("referrer", "cli-proxy-api")
-
-        # OpenAI Codex requires extra_params (from OmniRoute CODEX_CONFIG)
-        if provider.value == "openai" and config.get("extra_params"):
-            params.update(config["extra_params"])
 
         query_string = urlencode(params)
         return f"{auth_url}?{query_string}"
@@ -281,8 +244,9 @@ class OAuthManager:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
             "client_id": client_id,
-            "client_secret": client_secret,
         }
+        if client_secret:
+            data["client_secret"] = client_secret
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:

@@ -82,7 +82,8 @@ def test_every_provider_with_a_key_can_be_connected():
     envs = {**STT_PROVIDERS, **TTS_PROVIDERS, **{p: e for p, (_, e) in LLM_PROVIDERS.items() if p not in LOCAL_LLMS}}
     missing = {p for p, env in envs.items() if env and p not in ALIASES and p not in keys.CONNECTORS}
     assert missing == set()
-    assert all(keys.CONNECTORS[p]["keysUrl"].startswith("https://") for p in keys.CONNECTORS)
+    # Key pages are https, except a gateway's own dashboard on this computer.
+    assert all(keys.CONNECTORS[p]["keysUrl"].startswith(("https://", "http://localhost:")) for p in keys.CONNECTORS)
 
 
 def test_newer_providers_are_checked_their_own_way():
@@ -305,3 +306,18 @@ def test_balance_route_needs_a_connected_provider(env_file, monkeypatch):
 
 def fake_balance_result():
     return {"left": 9.5, "unit": "USD", "limit": None, "used": None, "low": False}
+
+
+def test_omniroute_takes_an_api_key_checked_against_its_model_list():
+    assert keys.CONNECTORS["omniroute"]["fields"] == [("OMNIROUTE_API_KEY", "API key")]
+    seen = []
+
+    def handle(request):
+        seen.append((str(request.url), request.headers["authorization"]))
+        return httpx.Response(401 if request.headers["authorization"] != "Bearer sk-omni-good" else 200)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    assert asyncio.run(keys.check("omniroute", {"OMNIROUTE_API_KEY": "sk-omni-good"}, client=client))
+    with pytest.raises(keys.ConnectError):
+        asyncio.run(keys.check("omniroute", {"OMNIROUTE_API_KEY": "sk-omni-bad"}, client=client))
+    assert seen[0][0].endswith("/v1/models") and seen[0][1] == "Bearer sk-omni-good"
