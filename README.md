@@ -96,10 +96,10 @@ latency is recorded, step by step, and shown in the dashboard.
 | Calls and transcripts | ✅ On your server, no telemetry | Their cloud | Their cloud; on-premise on Enterprise plans | On your server when self-hosted; anonymous telemetry unless you turn it off |
 | Vapi-compatible API | ✅ Change the base URL, import an account | (it's Vapi) | ❌ | ❌ |
 | Free local stack | ✅ Whisper, Ollama, Kokoro | ❌ | ❌ | ✅ Open models you host |
-| Calls at once | No limit of its own, your server decides | 4, then US$10 per line a month | 20, then US$8 per call a month | 10 by default when self-hosted, you can raise it; 10 in its cloud |
+| Calls at once | ✅ No limit of its own, your server decides, never billed per line | 4, then US$10 per line a month | 20, then US$8 per call a month | 10 by default when self-hosted, you can raise it; 10 in its cloud |
 | Backup model | ✅ From any provider, when one fails or is slow | Same provider only, on OpenAI and Bedrock | ✅ Takes over when the main model fails or is slow | — |
-| Phone lines | Twilio; Telnyx, Plivo and Vonage; incoming only on Genesys; any carrier by SIP trunk over UDP | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
-| Campaigns | Every line that calls out, no retries yet | ✅ | ✅ | ✅ With retries |
+| Phone lines | ✅ Twilio, Telnyx, Plivo, Vonage and any carrier by SIP trunk, all included free; incoming only on Genesys | ✅ Twilio, Vonage, Telnyx, SIP | ✅ Twilio, Telnyx, SIP | ✅ Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, Asterisk |
+| Campaigns | ✅ Every line that calls out, free, no per-call platform fee (retries coming) | ✅ | ✅ | ✅ With retries |
 | Knowledge base (RAG) | ✅ Free, on your server, matching words; or your own search | ✅ Google Gemini, or your own server | ✅ | ✅ |
 | Several assistants in one call | ✅ Squads, in Vapi's format | ✅ Squads | ✅ | ✅ |
 
