@@ -37,7 +37,8 @@ def manager():
 
 
 def token(hours=1, **extra):
-    return OAuthToken(OAuthProvider.OPENAI, "at", "Bearer", datetime.now() + timedelta(hours=hours), **extra)
+    expires = datetime.now() + timedelta(hours=hours)
+    return OAuthToken(OAuthProvider.OPENAI, "secret-access-token", "Bearer", expires, **extra)
 
 
 def test_no_vendor_client_ids_are_built_in():
@@ -73,11 +74,12 @@ def test_client_id_comes_from_settings(manager):
 
 
 def test_tokens_are_encrypted_and_expire(manager):
-    manager.store_token(OAuthProvider.OPENAI, token(refresh_token="rt", extra_data={"a": 1}))
+    manager.store_token(OAuthProvider.OPENAI, token(refresh_token="secret-refresh-token", extra_data={"a": 1}))
     raw = manager.store.get_setting("oauth_token:openai")
-    assert "at" not in raw and "rt" not in raw
+    assert "secret-access-token" not in raw and "secret-refresh-token" not in raw
     got = manager.get_token(OAuthProvider.OPENAI)
-    assert (got.access_token, got.refresh_token, got.extra_data) == ("at", "rt", {"a": 1})
+    assert (got.access_token, got.refresh_token, got.extra_data) == (
+        "secret-access-token", "secret-refresh-token", {"a": 1})
 
     manager.store_token(OAuthProvider.OPENAI, token(hours=-1))
     assert manager.get_token(OAuthProvider.OPENAI) is None
