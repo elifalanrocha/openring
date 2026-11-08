@@ -116,3 +116,45 @@ def test_model_specific_price_beats_wildcard():
     assert prices.stt("deepgram", "nova-3", "multi") == 0.0092
     assert prices.tts("11labs", "eleven_multilingual_v2") == 80.0
     assert prices.tts("11labs", "eleven_v3") == 80.0
+
+
+def test_the_phone_line_is_priced_for_twilio_in_the_us_and_canada():
+    assert prices.line("twilio", "inbound", "+16205665371") == 0.0129  # 0.0085 + 0.0044 for Media Streams
+    assert prices.line("twilio", "inbound", "+18005551234") == 0.0264  # toll-free
+    assert prices.line("twilio", "outbound", "+16205665371", "+15551234567") == 0.0184  # the callee's number counts
+    # Only US and Canada are priced: Brazil, other carriers and a call without a number stay unknown, never a guess.
+    assert prices.line("twilio", "inbound", "+5511999999999") is None
+    assert prices.line("twilio", "outbound", "+16205665371", "+5511999999999") is None
+    assert prices.line("twilio", "inbound", None) is None
+    assert prices.line("telnyx", "inbound", "+16205665371") is None
+    assert prices.line_minutes("twilio", 61) == 2 and prices.line_minutes("twilio", 0) == 0  # a started minute counts
+    assert prices.line_minutes("telnyx", 90) == 1.5
+
+
+def test_your_own_line_rate_applies_to_any_carrier_and_prefix(tmp_path):
+    (tmp_path / "prices.json").write_text(json.dumps({
+        "line": {"telnyx": {"inbound": 0.01, "outbound:+55": 0.05}, "twilio": {"outbound": 0.02}},
+    }), encoding="utf-8")
+    prices.reload()
+    assert prices.line("telnyx", "inbound", "+442012345678") == 0.01
+    assert prices.line("telnyx", "outbound", "+16205665371", "+5511999999999") == 0.05
+    assert prices.line("telnyx", "outbound", "+16205665371", "+15551234567") is None  # that rate is for +55 only
+    assert prices.line("twilio", "outbound", "+16205665371", "+5511999999999") == 0.02
+    assert prices.line("twilio", "outbound", "+16205665371", "+15551234567") == 0.0184  # the shipped one stays
+
+
+def test_a_calls_line_cost_follows_its_number_and_direction():
+    from openring.bot import line_cost
+    from openring.store import Store
+
+    store = Store(":memory:")
+    ours = store.create("phone_numbers", {"provider": "twilio", "number": "+16205665371"})
+    inbound = {"type": "inboundPhoneCall", "phoneNumberId": ours["id"], "phoneCallProvider": "twilio",
+               "customer": {"number": "+5511999999999"}}
+    cost, carrier = line_cost(inbound, 61, store)
+    assert (cost, carrier) == (pytest.approx(2 * 0.0129), "twilio")  # two minutes started, whoever calls
+    outbound = {**inbound, "type": "outboundPhoneCall"}
+    assert line_cost(outbound, 61, store) == (None, "twilio")  # Brazilian callee: no price
+    assert line_cost({"type": "webCall"}, 61, store) is None  # a browser call has no line
+    trunk = store.create("phone_numbers", {"provider": "byo-phone-number", "number": "+16205665371"})
+    assert line_cost({"type": "inboundPhoneCall", "phoneNumberId": trunk["id"]}, 30, store) == (None, "sip")

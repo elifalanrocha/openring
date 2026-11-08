@@ -8,8 +8,8 @@ something, or pick an item and say you're on it. Shipped work moves to the [chan
 - **Routing speech-to-text and voices by cost and speed**, as model routes already do for models.
 - **Faster local speech-to-text on a CPU:** streaming Moonshine for the languages it covers. The 100% local
   stack itself (Whisper, Ollama, Kokoro) is in.
-- **The phone line in the cost per call.** Calls already record what their models, transcribers and voices
-  cost; next is the minute on the line.
+- **More carriers in the cost per call.** The line is priced for Twilio in the US and Canada; next are Telnyx,
+  Plivo, Vonage and other countries, once each price is on a page we can point to.
 - **More telephony:** transfers through Telnyx, voicemail detection beyond Twilio, outbound calls through Genesys Cloud,
   and Exotel. Telnyx, Plivo and Vonage already take calls in and out.
 - **Campaigns, next steps:** retrying busy and unanswered numbers, calling hours per time zone, and Vapi's

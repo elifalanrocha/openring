@@ -8,6 +8,9 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- The phone line in a call's cost (`costBreakdown.line`, included in `total`): Twilio's list prices for US and Canadian
+  numbers, rounded up to the minute. Other carriers and countries are named in `unpriced` until you add a rate in
+  `~/.openring/prices.json` (`"line"`).
 - The Calls page exports to CSV, with formula cells made safe for spreadsheets, and a call's page copies its transcript
   (thanks to Vaibhav R Valakunde, vaibhavrvalakunde2006-gif).
 - Provider logos on the Providers page.

@@ -372,9 +372,12 @@ route makes it `custom`. Without a route, `"maxLatencyMs"` on an assistant's `mo
 ### What a call costs
 
 Every call records what its providers charge, at list prices, in Vapi's fields: `cost` (US$) and
-`costBreakdown.llm`, `.stt`, `.tts` and `.total`, next to the tokens, voice characters and seconds of audio it
-used. A call that switched providers is priced per provider. The dashboard shows it per call and per minute.
-The phone line (Twilio, Telnyx, Plivo, Vonage) isn't included yet.
+`costBreakdown.llm`, `.stt`, `.tts`, `.line` and `.total`, next to the tokens, voice characters and seconds of
+audio it used. A call that switched providers is priced per provider. The dashboard shows it per call and per minute.
+`line` is the phone line (browser calls have none). Twilio's is priced for US and Canadian numbers: local and
+toll-free inbound, outbound, each with Media Streams, rounded up to the minute like Twilio bills it. Telnyx, Plivo,
+Vonage, SIP trunks and other countries have no shipped price: the call names `phone line (<carrier>)` in `unpriced`
+until you add a rate below.
 
 Model prices ship with OpenRing (`openring/llm_prices.json`, from [LiteLLM](https://github.com/BerriAI/litellm)'s
 price list and OpenRouter's model list); speech-to-text and voice prices come from each provider's pricing
@@ -385,11 +388,13 @@ doesn't have, write `~/.openring/prices.json` and restart OpenRing:
 ```json
 {"llm": {"custom-llm": {"my-model": [0.2, 0.6]}},
  "stt": {"deepgram": {"nova-3": 0.0065}},
- "tts": {"rime-ai": {"*": 30}}}
+ "tts": {"rime-ai": {"*": 30}},
+ "line": {"telnyx": {"inbound": 0.01, "outbound": 0.01}}}
 ```
 
 Models are per 1M tokens (input, output), speech-to-text per minute, voices per 1M characters; `"*"` is any
-model of that provider. `GET /prices` shows every price in use.
+model of that provider. A line rate is per minute for `inbound`, `inbound-tollfree` or `outbound`; add a prefix
+(`"outbound:+55"`) to limit it to numbers that start so. `GET /prices` shows every price in use.
 
 ### Telnyx
 

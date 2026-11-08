@@ -7,12 +7,14 @@ never a guess. `~/.openring/prices.json` overrides any of them, in the same shap
 
     {"llm": {"custom-llm": {"my-model": [0.2, 0.6]}},   # per 1M tokens: [input, output]
      "stt": {"deepgram": {"nova-3": 0.0077}},           # per minute of audio
-     "tts": {"cartesia": {"*": 37.38}}}                 # per 1M characters; "*" is any model
+     "tts": {"cartesia": {"*": 37.38}},                 # per 1M characters; "*" is any model
+     "line": {"telnyx": {"inbound": 0.01, "outbound": 0.01}}}  # per minute on the phone line
 """
 
 from __future__ import annotations
 
 import json
+import math
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -41,6 +43,17 @@ TTS: dict[str, dict[str, float]] = {
     # $0.175 per 10K characters; Pro is listed as about $0.195: smallest.ai/pricing/models
     "smallest-ai": {"lightning_v3.1": 17.5, "lightning_v3.1_pro": 19.5},
 }
+# Per minute on the phone line, by "<direction>:<number prefix>"; a key without a prefix (yours, in prices.json) fits
+# any number. Directions: inbound, inbound-tollfree, outbound. Twilio, US and Canada list prices
+# (twilio.com/en-us/voice/pricing/us, 2026-11-08): local inbound 0.0085, toll-free inbound 0.022, outbound 0.014,
+# each plus 0.0044 for Media Streams, which OpenRing's calls use. Other carriers (Telnyx, Plivo, Vonage, SIP) and
+# other countries stay unknown until you add them.
+LINE: dict[str, dict[str, float]] = {
+    "twilio": {"inbound:+1": 0.0129, "inbound-tollfree:+1": 0.0264, "outbound:+1": 0.0184},
+}
+LINE_UPDATED = "2026-11-08"
+LINE_ROUNDED_UP = {"twilio"}  # billed in whole minutes, a started minute counts
+TOLL_FREE = ("+1800", "+1833", "+1844", "+1855", "+1866", "+1877", "+1888")
 FREE_LLMS = {"ollama"}  # runs on this computer (OmniRoute may route to paid providers, so it isn't here)
 # How a route's "cheapest" order weighs input against output: a voice call sends its whole conversation on
 # every turn and gets a sentence or two back, so input tokens are most of the bill.
@@ -55,7 +68,7 @@ def _shipped() -> dict[str, Any]:
 
 @cache
 def _tables() -> dict[str, dict[str, dict[str, Any]]]:
-    tables = {"llm": _shipped()["llm"], "stt": STT, "tts": TTS}
+    tables = {"llm": _shipped()["llm"], "stt": STT, "tts": TTS, "line": LINE}
     tables = {kind: {p: dict(models) for p, models in table.items()} for kind, table in tables.items()}
     try:
         user = json.loads(USER_FILE.read_text(encoding="utf-8")) if USER_FILE.exists() else {}
@@ -79,7 +92,8 @@ def _tables() -> dict[str, dict[str, dict[str, Any]]]:
 
 def table() -> dict[str, Any]:
     """Every price, for the dashboard: {"updated", "llm", "stt", "tts"}."""
-    return {"updated": {"llm": _shipped()["updated"], "stt": UPDATED, "tts": UPDATED}, **_tables()}
+    updated = {"llm": _shipped()["updated"], "stt": UPDATED, "tts": UPDATED, "line": LINE_UPDATED}
+    return {"updated": updated, **_tables()}
 
 
 def reload() -> None:
@@ -117,6 +131,26 @@ def tts(provider: str, model: str | None) -> float | None:
     """US$ per 1M characters; None when unknown."""
     found = _find("tts", "11labs" if provider == "elevenlabs" else provider, model)
     return None if found is None else float(found)
+
+
+def line(provider: str, direction: str, ours: str | None, theirs: str | None = None) -> float | None:
+    """US$ per minute on the phone line; None when unknown. `ours` is the number the call came to or left from,
+    `theirs` the other person's. The number that sets the rate (ours inbound, theirs outbound) picks it by prefix."""
+    rates = _tables()["line"].get(provider) or {}
+    number = (ours if direction == "inbound" else theirs) or ""
+    kinds = ["inbound-tollfree", "inbound"] if direction == "inbound" and number.startswith(TOLL_FREE) else [direction]
+    for kind in kinds:
+        for key, rate in rates.items():
+            name, _, prefix = key.partition(":")
+            if name == kind and number.startswith(prefix):
+                return float(rate)
+
+    return None
+
+
+def line_minutes(provider: str, seconds: float) -> float:
+    """What the carrier bills for a call of this length: whole minutes for Twilio, else the exact time."""
+    return float(math.ceil(seconds / 60)) if provider in LINE_ROUNDED_UP else seconds / 60
 
 
 def blended(provider: str, model: str | None) -> float | None:

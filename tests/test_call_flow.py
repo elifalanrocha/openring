@@ -105,7 +105,7 @@ def test_call_lifecycle(monkeypatch, quiet_providers):
     assert call["artifact"]["messages"] == call["messages"]
     assert call["artifact"]["performanceMetrics"]["turnLatencies"] == []  # nobody spoke
     assert set(call["costBreakdown"]) == {"llmPromptTokens", "llmCompletionTokens", "ttsCharacters",
-                                          "transcriberAudioSeconds", "stt", "llm", "tts", "total"}
+                                          "transcriberAudioSeconds", "stt", "llm", "tts", "line", "total"}
     assert call["cost"] == call["costBreakdown"]["total"]
 
 
@@ -205,6 +205,19 @@ def test_caller_who_hangs_up_at_once_ends_the_call(monkeypatch, quiet_providers)
         ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
     call = _wait_until_ended(store, params["callId"])
     assert (call["status"], call["endedReason"]) == ("ended", "customer-ended-call")
+
+
+def test_a_phone_call_records_what_the_line_cost(monkeypatch, quiet_providers):
+    """A call to a US Twilio number is priced for the line too: a started minute at Twilio's list price."""
+    _pipeline_started(monkeypatch)
+    client, store, params = _answered_call(monkeypatch)
+    with client.websocket_connect("/ws/twilio") as ws:
+        _handshake(ws, params)
+        ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
+    call = _wait_until_ended(store, params["callId"])
+    breakdown = call["costBreakdown"]
+    assert breakdown["line"] == 0.0129 and breakdown["total"] >= breakdown["line"]
+    assert "unpriced" not in breakdown or not any("phone line" in name for name in breakdown["unpriced"])
 
 
 def test_a_provider_that_stops_working_mid_call_ends_the_call_with_the_reason(monkeypatch, quiet_providers):

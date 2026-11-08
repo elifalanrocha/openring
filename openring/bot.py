@@ -179,6 +179,20 @@ class Usage:
         }
 
 
+def line_cost(call: dict[str, Any] | None, seconds: float, store: Store) -> tuple[float | None, str] | None:
+    """What the phone line charged for a phone call, at list prices: (US$, carrier); US$ is None when that carrier's
+    price for these numbers is unknown. None for a call that used no line (a browser call)."""
+    if not call or call.get("type") not in ("inboundPhoneCall", "outboundPhoneCall"):
+        return None
+    provider = str(call.get("phoneCallProvider") or "")
+    number = store.get("phone_numbers", str(call.get("phoneNumberId") or "")) or {}
+    provider = provider or ("sip" if number.get("provider") == "byo-phone-number" else number.get("provider") or "")
+    direction = "inbound" if call["type"] == "inboundPhoneCall" else "outbound"
+    rate = prices.line(provider, direction, str(number.get("number") or ""),
+                       str((call.get("customer") or {}).get("number") or ""))
+    return (None if rate is None else rate * prices.line_minutes(provider, seconds)), provider or "unknown"
+
+
 def members(service: Any) -> list[Any]:
     """The provider services behind one pipeline step: a switcher's, or the service itself."""
     return list(getattr(service, "services", None) or [service]) if service is not None else []
@@ -827,7 +841,14 @@ async def run_call(
         for moving in list(handing_off):
             moving.cancel()
         transcript = transcript_messages(conversation()) if context is not None else []
+        duration = round(time.monotonic() - started, 1)
         breakdown = usage.cost_breakdown(services)
+        if (on_line := line_cost(store.get("calls", call_id), duration, store)) is not None:
+            if on_line[0] is None:
+                breakdown["unpriced"] = [*breakdown.get("unpriced", []), f"phone line ({on_line[1]})"]
+            else:
+                breakdown["line"] = round(on_line[0], 6)
+                breakdown["total"] = round(breakdown["total"] + breakdown["line"], 6)
         routes.save_speed(store)
         recorded = False
         if recorder:
@@ -849,7 +870,7 @@ async def run_call(
                 "status": "ended",
                 "endedAt": now_iso(),
                 "endedReason": ended_reason,
-                "durationSeconds": round(time.monotonic() - started, 1),
+                "durationSeconds": duration,
                 "messages": transcript,
                 "artifact": {"messages": transcript, "performanceMetrics": performance_metrics(turns, first_word_ms),
                              **(recording_urls if recorded else {})},
