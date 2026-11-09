@@ -123,6 +123,22 @@ def test_oauth_button_only_with_own_client(monkeypatch):
     assert keys._connectors()["anthropic"].get("oauth")
 
 
+def test_redirect_uri_must_be_the_same_origin_as_public_url():
+    client = signed_in(anthropic_client_id="own-client", public_url="https://voice.example.com")
+
+    def allowed(uri):
+        r = client.get("/oauth/authorize", params={"provider": "anthropic", "redirect_uri": uri}, headers=DASH)
+        return r.status_code == 200
+
+    assert allowed("https://voice.example.com/oauth/callback")
+    assert allowed("http://127.0.0.1:8000/oauth/callback")
+    # A prefix match would have accepted these.
+    assert not allowed("https://voice.example.com.evil.example/cb")
+    assert not allowed("https://voice.example.com@evil.example/cb")
+    assert not allowed("http://voice.example.com/cb")  # other scheme
+    assert not allowed("javascript://localhost/%0aalert(1)")
+
+
 def test_authorize_and_callback_round_trip(monkeypatch):
     client = signed_in()
     r = client.get("/oauth/authorize", params={"provider": "anthropic", "redirect_uri": ""}, headers=DASH)

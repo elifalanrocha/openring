@@ -518,12 +518,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """Allowlist: localhost/loopback (RFC 8252) or this server's PUBLIC_URL."""
         try:
             parsed = urlsplit(redirect_uri)
-            host = parsed.hostname or ""
-            if host in ("localhost", "127.0.0.1", "::1"):
+            if parsed.scheme not in ("http", "https"):
+                return False
+            if (parsed.hostname or "") in ("localhost", "127.0.0.1", "::1"):
                 return True
-            # Must match PUBLIC_URL if set
+            # Same origin as PUBLIC_URL (a prefix match would accept https://host.evil.example)
             if settings.public_url:
-                return redirect_uri.startswith(settings.public_url)
+                public = urlsplit(settings.public_url)
+                return (parsed.scheme, parsed.netloc.lower()) == (public.scheme, public.netloc.lower())
             return False
         except ValueError:
             return False
