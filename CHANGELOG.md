@@ -6,6 +6,8 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-09
+
 ### Added
 
 - The phone line in a call's cost (`costBreakdown.line`, included in `total`): Twilio's list prices for US and Canadian

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openring"
-version = "0.1.5"
+version = "0.1.6"
 description = "Open-source, self-hosted Vapi alternative for voice AI agents. Vapi-compatible API, no per-minute platform fee."
 readme = "README.md"
 license = "MIT"
