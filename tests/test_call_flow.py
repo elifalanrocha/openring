@@ -209,10 +209,15 @@ def test_caller_who_hangs_up_at_once_ends_the_call(monkeypatch, quiet_providers)
 
 def test_a_phone_call_records_what_the_line_cost(monkeypatch, quiet_providers):
     """A call to a US Twilio number is priced for the line too: a started minute at Twilio's list price."""
-    _pipeline_started(monkeypatch)
+    sent = _pipeline_started(monkeypatch)
     client, store, params = _answered_call(monkeypatch)
     with client.websocket_connect("/ws/twilio") as ws:
         _handshake(ws, params)
+        for _ in range(150):  # a call hung up within 50 ms lasted 0.0 s, which Twilio's rounding prices at nothing
+            if sent:
+                break
+            time.sleep(0.1)
+        time.sleep(0.2)
         ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
     call = _wait_until_ended(store, params["callId"])
     breakdown = call["costBreakdown"]
