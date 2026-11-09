@@ -32,6 +32,7 @@ UNREACHED = {
     "rejected": "customer-did-not-answer",
     "cancelled": "customer-did-not-answer",
     "failed": "vonage-failed-to-connect-call",
+    "completed": "vonage-failed-to-connect-call",  # answered, but the websocket never connected
 }
 
 
@@ -72,7 +73,7 @@ def verify_webhook(secret: str, token: str, body: bytes = b"", *, application_id
         return False
     if application_id and claims.get("application_id") and claims["application_id"] != application_id:
         return False
-    if claims.get("payload_hash") and body:
+    if claims.get("payload_hash"):  # vouches for this body only, an empty one included
         return hmac.compare_digest(str(claims["payload_hash"]).lower(), hashlib.sha256(body).hexdigest())
     return True
 

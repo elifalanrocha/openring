@@ -64,6 +64,26 @@ def test_who_may_call_the_webhooks():
         assert not vonage.verify_webhook(SECRET, broken)
 
 
+def test_a_token_signed_for_a_body_cannot_be_replayed_without_one():
+    """A token that carries a payload hash vouches for that body only. Dropping the body (a GET whose query says
+    anything) used to skip the check, so a captured token forged any webhook for the next five minutes."""
+    body = b'{"status": "started", "uuid": "x"}'
+    token = webhook_token(body=body)
+    assert vonage.verify_webhook(SECRET, token, body)
+    assert not vonage.verify_webhook(SECRET, token, b"")
+    assert vonage.verify_webhook(SECRET, webhook_token())  # a token with no hash is what it was
+
+
+def test_a_replayed_token_cannot_forge_an_event_through_the_query(monkeypatch, placed):
+    client, store, _, n = app(monkeypatch)
+    call = client.post("/call", json={"phoneNumberId": n["id"], "customer": {"number": "+5511912345678"}},
+                       headers=AUTH).json()
+    captured = webhook_token(body=b'{"status": "started"}')
+    r = client.get(f"/vonage/event?callId={call['id']}&status=failed", headers=signed(captured))
+    assert r.status_code == 403
+    assert store.get("calls", call["id"])["status"] == "queued"
+
+
 def test_the_token_for_vonages_api():
     token = vonage.make_jwt(APPLICATION, PEM, now=1_800_000_000)
     head, payload, signature = token.split(".")
@@ -192,6 +212,19 @@ def test_an_outgoing_call_that_never_connected_ends_with_the_reason(monkeypatch,
     assert r.status_code == 204
     assert (store.get("calls", call["id"])["status"], store.get("calls", call["id"])["endedReason"]) == (
         "ended", reason)
+
+
+def test_a_call_answered_but_never_streamed_is_not_left_waiting(monkeypatch, placed):
+    """Vonage ends such a call with 'completed'; without a reason the record stayed 'queued' for good."""
+    client, store, _, n = app(monkeypatch)
+    call = client.post("/call", json={"phoneNumberId": n["id"], "customer": {"number": "+5511912345678"}},
+                       headers=AUTH).json()
+    body = json.dumps({"status": "completed", "uuid": "leg-out-1"}).encode()
+    r = client.post(f"/vonage/event?callId={call['id']}", content=body, headers={
+        "content-type": "application/json", **signed(webhook_token(body=body))})
+    assert r.status_code == 204
+    ended = store.get("calls", call["id"])
+    assert (ended["status"], ended["endedReason"]) == ("ended", "vonage-failed-to-connect-call")
 
 
 def test_events_of_a_call_that_connected_or_of_no_call_change_nothing(monkeypatch, placed):

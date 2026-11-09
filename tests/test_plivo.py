@@ -122,6 +122,16 @@ def test_unsigned_or_unverifiable_webhooks_are_refused(monkeypatch):
     assert hook(trusting, "/plivo/voice", sign_it=False).status_code == 200
 
 
+def test_a_signature_is_good_for_its_own_url_only(monkeypatch):
+    """A captured signed webhook can't be pointed at another route or given a call id of someone else's call."""
+    client, store, _, _ = app(monkeypatch)
+    headers = {"X-Plivo-Signature-V3": reference(TOKEN, "https://x.test/plivo/voice", "n-1", FORM),
+               "X-Plivo-Signature-V3-Nonce": "n-1"}
+    assert client.post("/plivo/voice", data=FORM, headers=headers).status_code == 200
+    for path in ("/plivo/status", "/plivo/voice?callId=another-call", "/plivo/transfer/guess"):
+        assert client.post(path, data=FORM, headers=headers).status_code == 403
+
+
 def test_number_without_assistant_says_so(monkeypatch):
     client, _, _, _ = app(monkeypatch)
     r = hook(client, "/plivo/voice", form={**FORM, "To": "19990000000"})
