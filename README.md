@@ -20,7 +20,7 @@ Plivo, Vonage or any SIP trunk, with your own provider keys or a free, 100% loca
 [![Run it in one command](https://img.shields.io/badge/⚡_Run_it-npx_openring-e8590c?style=for-the-badge)](#-quick-start)
 [![Move from Vapi](https://img.shields.io/badge/🔁_Move_from-Vapi-1c1917?style=for-the-badge)](#-moving-from-vapi)
 
-[Quick start](#-quick-start) · [How it works](#-how-it-works) · [Compare](#-how-it-compares) · [API guide](docs/api.md) · [Providers](#-providers) · [Roadmap](ROADMAP.md)
+[Quick start](#-quick-start) · [How it works](#-how-it-works) · [Compare](#-how-it-compares) · [API guide](docs/api.md) · [Providers](#-providers) · [Roadmap](ROADMAP.md) · [Discussions](https://github.com/elifalanrocha/openring/discussions)
 
 </div>
 
@@ -233,6 +233,10 @@ python -m openring
 Small pull requests get merged fastest. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [good first issues](https://github.com/elifalanrocha/openring/labels/good%20first%20issue); see
 [CHANGELOG.md](CHANGELOG.md) for what shipped.
+
+Questions, ideas and "look what I built" go to [Discussions](https://github.com/elifalanrocha/openring/discussions);
+bugs go to [issues](https://github.com/elifalanrocha/openring/issues/new/choose). If you have a phone provider account,
+[testing it on a real call](https://github.com/elifalanrocha/openring/labels/needs-testing) helps more than anything.
 
 ## 💛 Support the project
 

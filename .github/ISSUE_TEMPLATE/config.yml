@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Ask a question or share an idea
+    url: https://github.com/elifalanrocha/openring/discussions
+    about: Questions, ideas and what you built belong in Discussions, not in an issue.
   - name: Report a security problem
     url: https://github.com/elifalanrocha/openring/security/advisories/new
     about: Please report vulnerabilities privately, not in a public issue.
