@@ -1,0 +1,21 @@
+# OpenRing
+
+> OpenRing is an open-source (MIT), self-hosted alternative to Vapi for voice AI agents. It answers and places phone calls over Twilio, Telnyx, Plivo, Vonage, Genesys Cloud or any SIP trunk, and speaks Vapi's JSON, so a Vapi client moves over by changing its base URL. There is no per-minute platform fee: you pay your own providers directly, or run a free, 100% local stack (Whisper, Ollama, Kokoro). Run it with `npx openring`. No Docker or GPU needed.
+
+Key facts:
+- License: MIT. Language: Python (Pipecat pipelines), launcher on npm.
+- API: Vapi-compatible (`/assistant`, `/phone-number`, `/call`, `/campaign`, `/squad`, tools, server messages).
+- Providers: OpenAI, Anthropic, Google, Groq, OpenRouter, Ollama and more for models; Deepgram, Whisper, AssemblyAI and more for speech-to-text; ElevenLabs, Cartesia, Kokoro and more for voice.
+- Keys, calls and transcripts stay on your machine. No telemetry.
+
+## Docs
+- [README](https://github.com/elifalanrocha/openring/blob/main/README.md): quick start, how it works, comparison with Vapi, Retell and Dograh, free stack, FAQ
+- [API guide](https://github.com/elifalanrocha/openring/blob/main/docs/api.md): assistants, phone calls, campaigns, tools, knowledge bases, squads, SIP trunks, fallbacks, model routes, call cost
+- [Principles](https://github.com/elifalanrocha/openring/blob/main/PRINCIPLES.md): no platform fee, your keys, Vapi-compatible, one command, honest status
+- [Changelog](https://github.com/elifalanrocha/openring/blob/main/CHANGELOG.md)
+
+## Optional
+- [Contributing](https://github.com/elifalanrocha/openring/blob/main/CONTRIBUTING.md)
+- [Security policy](https://github.com/elifalanrocha/openring/blob/main/SECURITY.md)
+- [Roadmap](https://github.com/elifalanrocha/openring/blob/main/ROADMAP.md)
+- [Third-party licenses](https://github.com/elifalanrocha/openring/blob/main/THIRD_PARTY.md)

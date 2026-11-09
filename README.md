@@ -1,13 +1,15 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" width="88" height="88" alt="OpenRing logo">
+<img src="https://raw.githubusercontent.com/elifalanrocha/openring/main/docs/assets/logo.svg" width="88" height="88" alt="OpenRing logo">
 
 # OpenRing
 
-**Self-hosted voice AI agents with a Vapi-compatible API. No platform fee.**
+**The open-source, self-hosted Vapi alternative for voice AI agents. Vapi-compatible API, no platform fee.**
 
-AI phone agents and receptionists that answer and place calls over Twilio, Telnyx, Plivo, Vonage or any SIP trunk,
-with your own provider keys or a free, 100% local stack (Whisper, Ollama, Kokoro).
+OpenRing runs AI phone agents, voice AI agents and AI receptionists that answer and place calls over Twilio, Telnyx,
+Plivo, Vonage or any SIP trunk, with your own provider keys or a free, 100% local stack (Whisper, Ollama, Kokoro).
+
+<sub>Latest release 0.1.5 · README updated November 8, 2026</sub>
 
 [![CI](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml/badge.svg)](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openring?color=e8590c&label=npm)](https://www.npmjs.com/package/openring)
