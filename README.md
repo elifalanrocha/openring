@@ -261,8 +261,8 @@ vulnerability? Please report it privately: see [SECURITY.md](SECURITY.md).
 
 <a href="https://star-history.com/#elifalanrocha/openring&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&theme=dark&v=20261108">
-    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&v=20261108">
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&theme=dark&v=20261109">
+    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=elifalanrocha/openring&type=Date&v=20261109">
   </picture>
 </a>
 
