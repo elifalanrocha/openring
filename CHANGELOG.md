@@ -90,6 +90,13 @@ All notable changes to OpenRing are listed here. The format follows
   a success. The call now ends right away with `pipeline-error: the voice (11labs ...) stopped working: ...`,
   naming the layer, the provider and its error.
 
+- A Vonage webhook token that carries a payload hash now vouches for that body only. Before, a captured token also
+  passed with no body at all, so it could stand in for any GET to `/vonage/event` or `/vonage/voice` for five minutes.
+  An outgoing Vonage call that was answered but never connected its websocket now ends with
+  `vonage-failed-to-connect-call` instead of staying `queued`.
+- OAuth's `redirect_uri` has to be on the same origin as `PUBLIC_URL` (or on localhost). It was a prefix match, so
+  `https://your-host.evil.example` passed.
+
 ## [0.1.5] - 2026-11-01
 
 ### Added
