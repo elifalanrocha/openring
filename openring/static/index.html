@@ -760,7 +760,7 @@ const TRANSCRIBERS = [["deepgram", "Deepgram"], ["whisper", "Whisper (free, loca
 const VOICES = [["kokoro", "Kokoro (free, local)"], ["11labs", "ElevenLabs"], ["cartesia", "Cartesia"], ["deepgram", "Deepgram Aura"], ["openai", "OpenAI"], ["rime-ai", "Rime"], ["neuphonic", "Neuphonic"], ["smallest-ai", "Smallest AI"], ["inworld", "Inworld"]];
 // A voice each provider has, filled in when the provider changes; the others need a voice ID from their library.
 // Transcriber languages; "multi" follows the caller: speech in any language, answers in the same one.
-const LANGUAGES = [["multi", "Follow the caller"], ["en", "English"], ["pt-BR", "Portuguese (Brazil)"], ["es", "Spanish"], ["fr", "French"], ["de", "German"], ["it", "Italian"]];
+const LANGUAGES = [["multi", "Follow the caller"], ["en", "English"], ["pt-BR", "Portuguese (Brazil)"], ["es", "Spanish"], ["fr", "French"], ["de", "German"], ["it", "Italian"], ["ja", "Japanese"], ["ko", "Korean"], ["hi", "Hindi"], ["nl", "Dutch"], ["tr", "Turkish"], ["pl", "Polish"], ["ru", "Russian"], ["uk", "Ukrainian"], ["id", "Indonesian"]];
 const MULTILINGUAL_VOICES = ["11labs", "openai"];
 // Whisper models from fastest to most accurate, with what they take on a laptop CPU for a 4-second sentence.
 const WHISPER_MODELS = [["tiny", "tiny: fastest, ~0.6 s"], ["base", "base: balanced, ~1.2 s"], ["small", "small: accurate, ~4 s"], ["medium", "medium: needs a GPU"], ["large-v3-turbo", "large-v3-turbo: needs a GPU"]];
