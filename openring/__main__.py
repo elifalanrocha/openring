@@ -65,21 +65,38 @@ def drop_example_api_key() -> bool:
     return False
 
 
-def save_new_api_key() -> str:
-    """Generate an API key, keep it in the settings file and use it now."""
-    key = secrets.token_urlsafe(24)
+def save_setting(name: str, value: str) -> None:
+    """Keep NAME=value in the settings file (replacing its line, empty or not) and use it now."""
     text = ENV_FILE.read_text(encoding="utf-8") if ENV_FILE.exists() else ""
     lines = text.splitlines()
     for i, line in enumerate(lines):
-        if line.strip().startswith("OPENRING_API_KEY="):
-            lines[i] = f"OPENRING_API_KEY={key}"
+        if line.strip().startswith(f"{name}="):
+            lines[i] = f"{name}={value}"
             break
     else:
-        lines.append(f"OPENRING_API_KEY={key}")
+        lines.append(f"{name}={value}")
     HOME.mkdir(parents=True, exist_ok=True)
     ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    os.environ["OPENRING_API_KEY"] = key
+    os.environ[name] = value
+
+
+def save_new_api_key() -> str:
+    """Generate an API key, keep it in the settings file and use it now."""
+    key = secrets.token_urlsafe(24)
+    save_setting("OPENRING_API_KEY", key)
     return key
+
+
+def ensure_oauth_key() -> None:
+    """The key that encrypts saved OAuth sign-ins. Without a saved one, every restart would lose them."""
+    if os.environ.get("OAUTH_ENCRYPTION_KEY", "").strip():
+        return
+    from cryptography.fernet import Fernet
+
+    try:
+        save_setting("OAUTH_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    except OSError:  # a read-only settings file: the server falls back to a key for this run only
+        os.environ.pop("OAUTH_ENCRYPTION_KEY", None)
 
 
 def first_run_setup() -> bool:
@@ -145,6 +162,7 @@ def load_settings() -> tuple[bool, bool]:
     example_key |= load_env_file(Path.cwd() / ".env")  # a project-local .env takes precedence
     example_key |= load_env_file(ENV_FILE)
     adopt_hosted_url()
+    ensure_oauth_key()
     if example_key and not os.environ.get("OPENRING_API_KEY"):
         save_new_api_key()
     return created, example_key

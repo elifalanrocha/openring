@@ -87,6 +87,40 @@ def test_a_public_url_you_set_beats_the_hosting_platforms(home, monkeypatch):
     assert os.environ["PUBLIC_URL"] == "https://voice.example.com"
 
 
+def test_the_oauth_encryption_key_is_made_once_and_kept(home, monkeypatch):
+    import os
+
+    from cryptography.fernet import Fernet
+
+    monkeypatch.delenv("OAUTH_ENCRYPTION_KEY", raising=False)
+    home.load_settings()
+    first = os.environ["OAUTH_ENCRYPTION_KEY"]
+    Fernet(first.encode())  # a valid key
+    assert f"OAUTH_ENCRYPTION_KEY={first}" in home.ENV_FILE.read_text(encoding="utf-8")
+    monkeypatch.delenv("OAUTH_ENCRYPTION_KEY")  # a restart: the key comes from the file
+    home.load_settings()
+    assert os.environ["OAUTH_ENCRYPTION_KEY"] == first
+    assert home.ENV_FILE.read_text(encoding="utf-8").count("OAUTH_ENCRYPTION_KEY=") == 1
+
+
+def test_a_key_you_set_for_oauth_is_left_alone(home, monkeypatch):
+    import os
+
+    monkeypatch.setenv("OAUTH_ENCRYPTION_KEY", "mine")
+    home.load_settings()
+    assert os.environ["OAUTH_ENCRYPTION_KEY"] == "mine"
+    assert "OAUTH_ENCRYPTION_KEY" not in home.ENV_FILE.read_text(encoding="utf-8")
+
+
+def test_an_unwritable_settings_file_does_not_stop_the_server(home, monkeypatch):
+    import os
+
+    monkeypatch.delenv("OAUTH_ENCRYPTION_KEY", raising=False)
+    monkeypatch.setattr(home, "save_setting", lambda *_: (_ for _ in ()).throw(PermissionError("read-only")))
+    home.ensure_oauth_key()
+    assert "OAUTH_ENCRYPTION_KEY" not in os.environ
+
+
 def test_an_example_key_in_the_environment_is_replaced_and_kept(home, monkeypatch):
     # Docker: env_file .env (copied from .env.example) sets OPENRING_API_KEY=change-me.
     monkeypatch.setenv("OPENRING_API_KEY", "change-me")

@@ -15,6 +15,11 @@ All notable changes to OpenRing are listed here. The format follows
   Each call in a campaign records its customer's position (`index`) and `attempt`.
 - On Render, Railway and Fly.io, `PUBLIC_URL` defaults to the address the platform gives the service.
 
+### Fixed
+
+- OAuth sign-ins survive a restart: the key that encrypts them is made once and kept in the settings file
+  (`OAUTH_ENCRYPTION_KEY`), not generated anew at every start.
+
 ## [0.1.6] - 2026-11-09
 
 ### Added
