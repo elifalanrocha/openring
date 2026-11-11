@@ -407,7 +407,9 @@ number to it. Add the number in OpenRing with `"provider": "telnyx"`, and set `T
 webhook is checked against that public key.
 
 To call out, name the TeXML application: `TELNYX_APPLICATION_ID`, or `texmlApplicationId` on the number. `POST /call` and
-campaigns then work as on Twilio. Transfers and voicemail detection aren't available on Telnyx yet.
+campaigns then work as on Twilio. `transferCall` works too, by giving the live call a `<Dial>` through Telnyx's
+TeXML "Update call" request, with the account id Telnyx sends in each webhook; it follows Telnyx's documentation but hasn't been
+run on a real Telnyx call. Voicemail detection isn't available on Telnyx yet.
 
 ### Plivo
 

@@ -127,7 +127,7 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   `/vonage/voice|event`, `/ws/vonage`, 16 kHz), beta, in and out, never tried on a real call. Plivo's V3 signature follows its SDK
   (`signed_string`); a transfer's Dial XML sits behind a one-time token. Vonage's webhooks carry an HS256 JWT (signature secret),
   its API takes an RS256 one (application's private key, a file); an outgoing call carries its NCCO inline; a call not transferred is
-  also hung up by REST. Telnyx calls out through `/v2/texml/calls/{application id}` (`TELNYX_APPLICATION_ID` or the number's
+  also hung up by REST. Telnyx transfers with Update call (`Texml=<Dial>` at `/v2/texml/Accounts/{AccountSid of the webhook}/Calls/{CallSid}`; the account is kept in memory until the stream starts). Telnyx calls out through `/v2/texml/calls/{application id}` (`TELNYX_APPLICATION_ID` or the number's
   `texmlApplicationId`). `api.dial` branches on the number's `provider`; endedReason `<provider>-failed-to-connect-call`.
 - Knowledge bases (`openring/knowledge.py`, `/file`, `/knowledge-base`, beta): uploads keep only the text, cut into passages,
   in the FTS5 table `file_chunks` (`Store.index_file`, `search_chunks`). PDFs are read by another process

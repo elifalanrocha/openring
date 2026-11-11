@@ -1582,6 +1582,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             return {str(k): str(v) for k, v in (data if isinstance(data, dict) else {}).items()}
         return {k: str(v) for k, v in (await request.form()).items()}
 
+    # The Telnyx account a call belongs to, from its webhook (a transfer needs it), until the call's stream starts.
+    telnyx_accounts: dict[str, tuple[str, float]] = {}
+
+    def remember_telnyx_account(call_id: str, form: dict[str, str]) -> None:
+        now = time.monotonic()
+        for stale in [k for k, (_, until) in telnyx_accounts.items() if until < now]:
+            telnyx_accounts.pop(stale)
+        if form.get("AccountSid"):
+            telnyx_accounts[call_id] = (form["AccountSid"], now + TRANSFER_WAIT_SECONDS)
+
     @app.post("/telnyx/voice")
     async def telnyx_voice(request: Request) -> Response:
         """Voice URL of a Telnyx TeXML Application: connects an incoming call to its assistant."""
@@ -1596,12 +1606,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 logger.warning("call {}: Telnyx asked for a call that isn't waiting; not connecting", call_id)
                 return Response(say_twiml("Sorry, this call could not be connected."), media_type="application/xml")
             logger.info("call {} answered; streaming it to its assistant", call_id)
+            remember_telnyx_account(call_id, form)
             return Response(telnyx.stream_texml(f"{settings.public_ws_url}/ws/telnyx?callId={call_id}"),
                             media_type="application/xml")
         answer = await answer_inbound(sip.user_of(form.get("From", "")), sip.user_of(form.get("To", "")),
                                       form.get("CallSid") or form.get("CallControlId"), "telnyx")
         if isinstance(answer, str):
             return Response(say_twiml(answer), media_type="application/xml")
+        remember_telnyx_account(answer["id"], form)
         url = f"{settings.public_ws_url}/ws/telnyx?callId={answer['id']}"
         return Response(telnyx.stream_texml(url), media_type="application/xml")
 
@@ -1824,6 +1836,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             async def transfer(number: str) -> None:
                 twiml = twilio.dial_twiml(_e164(number))
                 await twilio.redirect_call(settings.twilio_account_sid, settings.twilio_auth_token, call_sid, twiml)
+
+        telnyx_account = telnyx_accounts.pop(call_id, ("", 0.0))[0]
+        if provider == "telnyx" and settings.telnyx_api_key and telnyx_account and call.get("phoneCallProviderId"):
+
+            async def transfer(number: str) -> None:
+                await telnyx.update_call(settings.telnyx_api_key, telnyx_account, call["phoneCallProviderId"],
+                                         telnyx.dial_texml(_e164(number)))
 
         async def hang_up(_why: str) -> None:
             await websocket.close()

@@ -13,6 +13,8 @@ All notable changes to OpenRing are listed here. The format follows
 - Campaigns call again whoever didn't answer or was busy: `retryPlan` with `maxAttempts` (up to 5 calls each) and
   `delayMinutes` (5 to 1440, 60 by default), a "Tries each" field on the Campaigns page, and `callsCounterRetrying`.
   Each call in a campaign records its customer's position (`index`) and `attempt`.
+- `transferCall` on Telnyx (beta): the live call is given a `<Dial>` with TeXML's Update call, using the account id Telnyx sends
+  with each webhook.
 - On Render, Railway and Fly.io, `PUBLIC_URL` defaults to the address the platform gives the service.
 
 ### Fixed

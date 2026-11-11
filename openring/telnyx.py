@@ -7,8 +7,9 @@ OpenRing answers with TeXML (Telnyx's TwiML-like XML) that connects the call to 
 from __future__ import annotations
 
 import base64
+import re
 import time
-from xml.sax.saxutils import quoteattr
+from xml.sax.saxutils import escape, quoteattr
 
 # Telnyx signs each webhook with Ed25519 over "<timestamp>|<raw body>". Older timestamps are replays.
 SIGNATURE_TOLERANCE = 300  # seconds
@@ -57,6 +58,13 @@ UNREACHED = {
 }
 
 
+def _error(r) -> TelnyxError:
+    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+    errors = body.get("errors") if isinstance(body, dict) else None
+    said = (errors[0].get("detail") or errors[0].get("title")) if errors and isinstance(errors[0], dict) else None
+    return TelnyxError(f"{said or r.text or r.status_code} (Telnyx error {r.status_code})")
+
+
 async def create_call(api_key: str, application_id: str, *, to: str, from_: str, url: str, status_callback: str) -> str:
     """Start an outgoing call through a TeXML application. Telnyx fetches `url` (by POST, signed like an incoming
     call's webhook) for instructions once it is answered. Returns Telnyx's id for the call, when it says one."""
@@ -67,10 +75,30 @@ async def create_call(api_key: str, application_id: str, *, to: str, from_: str,
                               headers={"Authorization": f"Bearer {api_key}"},
                               data={"To": to, "From": from_, "Url": url, "UrlMethod": "POST",
                                     "StatusCallback": status_callback, "StatusCallbackMethod": "POST"})
-    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
     if r.status_code >= 400:
-        errors = body.get("errors") if isinstance(body, dict) else None
-        said = (errors[0].get("detail") or errors[0].get("title")) if errors and isinstance(errors[0], dict) else None
-        raise TelnyxError(f"{said or r.text or r.status_code} (Telnyx error {r.status_code})")
+        raise _error(r)
+    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
     data = body.get("data") if isinstance(body, dict) and isinstance(body.get("data"), dict) else body
     return str(data.get("call_sid") or data.get("sid") or "") if isinstance(data, dict) else ""
+
+
+# What Telnyx's ids look like (UUIDs, "v3:..." call ids). They go into a URL's path, so nothing else may.
+_ID = re.compile(r"[A-Za-z0-9:_-]{1,200}")
+
+
+def dial_texml(number: str) -> str:
+    return f'<?xml version="1.0" encoding="UTF-8"?><Response><Dial>{escape(number)}</Dial></Response>'
+
+
+async def update_call(api_key: str, account_id: str, call_sid: str, texml: str) -> None:
+    """Give a live call new instructions: the TeXML replaces what it was following (its media stream ends).
+    `account_id` is the Telnyx account's id, the `AccountSid` Telnyx sends with each webhook."""
+    import httpx
+
+    if not (_ID.fullmatch(account_id) and _ID.fullmatch(call_sid)):
+        raise TelnyxError("this call's Telnyx ids look wrong, so it was not transferred")
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(f"https://api.telnyx.com/v2/texml/Accounts/{account_id}/Calls/{call_sid}",
+                              headers={"Authorization": f"Bearer {api_key}"}, data={"Texml": texml})
+    if r.status_code >= 400:
+        raise _error(r)

@@ -303,3 +303,122 @@ def test_telnyxs_api_call(monkeypatch):
                     "StatusCallback": ["https://x/s"], "StatusCallbackMethod": ["POST"]}
     with pytest.raises(telnyx.TelnyxError, match="Invalid key"):
         asyncio.run(telnyx.create_call("bad", "app-1", to="x", from_="y", url="u", status_callback="s"))
+
+
+@pytest.fixture
+def moving_bot(monkeypatch):
+    """The bot is replaced by one that keeps the transfer function it was given."""
+    runs = []
+
+    async def run_call(websocket, *, plan, call_id, **kwargs):
+        runs.append(kwargs.get("transfer"))
+        await websocket.close()
+
+    monkeypatch.setattr("openring.bot.telnyx_transport", lambda websocket, *_: websocket)
+    monkeypatch.setattr("openring.bot.run_call", run_call)
+    updates = []
+
+    async def update_call(api_key, account_id, call_sid, texml):
+        updates.append((api_key, account_id, call_sid, texml))
+
+    monkeypatch.setattr(telnyx, "update_call", update_call)
+    return runs, updates
+
+
+def _stream_id_of(client, form):
+    stream = ET.fromstring(ring(client, form=form).text).find("./Connect/Stream")
+    return parse_qs(urlsplit(stream.get("url")).query)["callId"][0]
+
+
+def test_a_transfer_gives_the_call_a_dial_with_the_account_telnyx_named(monkeypatch, moving_bot):
+    runs, updates = moving_bot
+    client, _, _ = app(monkeypatch)
+    assert _connect(client, _stream_id_of(client, {**FORM, "AccountSid": "acc-uuid-1"})) == 1000
+    asyncio.run(runs[0]("+55 11 98888-7777"))
+    (key, account, sid, texml), = updates
+    assert (key, account, sid) == ("KEY123", "acc-uuid-1", "v3:abc")  # the CallSid of the webhook, not the stream's id
+    assert ET.fromstring(texml).find("./Dial").text == "+5511988887777"
+
+
+def test_an_outgoing_call_can_be_transferred_too(monkeypatch, moving_bot, placed):
+    runs, updates = moving_bot
+    client, _, _ = app(monkeypatch, telnyx_application_id="app-1")
+    call = _dial(client).json()
+    body = urlencode({"CallSid": "v3:out-1", "AccountSid": "acc-uuid-1"}).encode()
+    client.post(f"/telnyx/voice?callId={call['id']}", content=body, headers={
+        "content-type": "application/x-www-form-urlencoded", **sign(body)})
+    assert _connect(client, call["id"]) == 1000
+    asyncio.run(runs[0]("+5511988887777"))
+    assert updates[0][1:3] == ("acc-uuid-1", "v3:out-1")
+
+
+def test_without_the_account_or_the_key_the_line_says_it_cannot_transfer(monkeypatch, moving_bot):
+    runs, _ = moving_bot
+    client, _, _ = app(monkeypatch)
+    assert _connect(client, _stream_id_of(client, FORM)) == 1000  # Telnyx named no account
+    keyless, _, _ = app(monkeypatch, telnyx_api_key="")
+    assert _connect(keyless, _stream_id_of(keyless, {**FORM, "AccountSid": "acc-uuid-1"})) == 1000
+    assert runs == [None, None]
+
+
+def test_an_account_is_remembered_for_one_stream_only(monkeypatch, moving_bot):
+    runs, _ = moving_bot
+    client, store, _ = app(monkeypatch)
+    call_id = _stream_id_of(client, {**FORM, "AccountSid": "acc-uuid-1"})
+    assert _connect(client, call_id) == 1000
+    store.update("calls", call_id, {"status": "queued"})  # a replayed stream for the same call
+    assert _connect(client, call_id) == 1000
+    assert runs[0] is not None and runs[1] is None  # the account was used up by the first
+
+
+def test_a_telnyx_refusal_of_a_transfer_comes_back_to_the_assistant(monkeypatch, moving_bot):
+    runs, _ = moving_bot
+
+    async def refuse(*_a, **_k):
+        raise telnyx.TelnyxError("Resource not found (Telnyx error 404)")
+
+    monkeypatch.setattr(telnyx, "update_call", refuse)
+    client, _, _ = app(monkeypatch)
+    assert _connect(client, _stream_id_of(client, {**FORM, "AccountSid": "acc-uuid-1"})) == 1000
+    with pytest.raises(telnyx.TelnyxError, match="Resource not found"):
+        asyncio.run(runs[0]("+5511988887777"))  # the transfer tool catches this and tells the model
+
+
+def test_telnyxs_update_call_request(monkeypatch):
+    import httpx
+
+    seen = []
+
+    def handler(request):
+        seen.append((request.method, str(request.url), request.headers["authorization"], parse_qs(
+            request.content.decode()), request.headers["content-type"]))
+        if "wrong-account" in str(request.url):
+            return httpx.Response(404, json={"errors": [{"title": "Not found", "detail": "Resource not found"}]})
+        return httpx.Response(200, json={"sid": "v3:abc", "status": "in-progress"})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    asyncio.run(telnyx.update_call("KEY123", "acc-1", "v3:abc", telnyx.dial_texml("+5511<&>")))
+    method, url, auth, form, kind = seen[0]
+    assert (method, url, auth) == ("POST", "https://api.telnyx.com/v2/texml/Accounts/acc-1/Calls/v3:abc",
+                                   "Bearer KEY123")
+    assert kind == "application/x-www-form-urlencoded"
+    assert ET.fromstring(form["Texml"][0]).find("./Dial").text == "+5511<&>"  # escaped inside the XML
+    with pytest.raises(telnyx.TelnyxError, match="Resource not found"):
+        asyncio.run(telnyx.update_call("KEY123", "wrong-account", "v3:abc", "<Response/>"))
+
+
+def test_ids_that_could_steer_the_request_elsewhere_are_never_sent(monkeypatch):
+    import httpx
+
+    seen = []
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(
+        lambda r: seen.append(str(r.url)) or httpx.Response(200, json={})), **kw))
+    for account, sid in (("../../balance", "v3:abc"), ("acc-1", "v3:abc?x=1"), ("acc-1", "a/b"), ("acc 1", "v3:abc"),
+                         ("", "v3:abc"), ("acc-1", ""), ("..", "v3:abc"), ("acc-1", "v3:abc#frag"), ("a" * 300, "x")):
+        with pytest.raises(telnyx.TelnyxError, match="look wrong"):
+            asyncio.run(telnyx.update_call("KEY123", account, sid, "<Response/>"))
+    assert seen == []  # not one request left, with the API key
+    asyncio.run(telnyx.update_call("KEY123", "6a9a7976-012e-45d2-9258-6f5dc68d861e", "v3:1b2c_3-d", "<Response/>"))
+    assert len(seen) == 1
