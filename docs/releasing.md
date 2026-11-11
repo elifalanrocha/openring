@@ -15,6 +15,10 @@ its own version number, so both always ship together.
 4. Approve the staged release on npmjs.com (the package's **Staged Packages** tab) with two-factor
    authentication. Until then `npx openring` keeps installing the previous version.
 
+   The same tag starts `.github/workflows/docker.yml`, which pushes `ghcr.io/elifalanrocha/openring` (`latest`,
+   the version and the minor). It needs no setup except one: after the first push, open the package under the
+   repository's **Packages** and set its visibility to public, so `docker pull` works without a login.
+
 Both registries use trusted publishing: they trust this repository's workflow directly, so no tokens are
 stored anywhere. npm only stages, so a stolen GitHub login alone can't publish a new version.
 

@@ -194,7 +194,9 @@ cp .env.example .env          # fill in your keys and OPENRING_PASSWORD
 docker compose up --build     # dashboard and API on http://localhost:8000
 ```
 
-On a server, set `PUBLIC_URL` to its https address so Twilio can reach it.
+On a server, set `PUBLIC_URL` to its https address so Twilio can reach it. There is a ready image,
+`ghcr.io/elifalanrocha/openring`, and a one-click [Render](https://render.com/deploy?repo=https://github.com/elifalanrocha/openring)
+blueprint; [docs/deploy.md](docs/deploy.md) covers those, Railway and a plain VPS.
 
 ## ❓ FAQ
 

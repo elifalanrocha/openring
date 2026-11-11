@@ -1,0 +1,17 @@
+# Render Blueprint: https://render.com/deploy?repo=https://github.com/elifalanrocha/openring
+# The disk keeps the database, recordings and generated API key across deploys; Render only offers disks on paid plans.
+services:
+  - type: web
+    name: openring
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: openring-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: OPENRING_API_KEY
+        generateValue: true
+      - key: OPENRING_PASSWORD  # the dashboard password; you type it when Render asks
+        sync: false

@@ -119,6 +119,20 @@ def reset_password(db_path: str) -> None:
     print()
 
 
+def adopt_hosted_url() -> None:
+    """On Render, Railway and Fly.io, use the address the platform gives the service when PUBLIC_URL is empty."""
+    if os.environ.get("PUBLIC_URL", "").strip():
+        return
+    env = os.environ.get
+    url = (env("RENDER_EXTERNAL_URL") or "").strip()
+    if not url and (env("RAILWAY_PUBLIC_DOMAIN") or "").strip():
+        url = f"https://{env('RAILWAY_PUBLIC_DOMAIN').strip()}"
+    if not url and (env("FLY_APP_NAME") or "").strip():
+        url = f"https://{env('FLY_APP_NAME').strip()}.fly.dev"
+    if url:
+        os.environ["PUBLIC_URL"] = url
+
+
 def load_settings() -> tuple[bool, bool]:
     """Create the settings file on the first run, then read the settings into the environment.
 
@@ -130,6 +144,7 @@ def load_settings() -> tuple[bool, bool]:
     created = first_run_setup()
     example_key |= load_env_file(Path.cwd() / ".env")  # a project-local .env takes precedence
     example_key |= load_env_file(ENV_FILE)
+    adopt_hosted_url()
     if example_key and not os.environ.get("OPENRING_API_KEY"):
         save_new_api_key()
     return created, example_key

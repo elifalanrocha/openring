@@ -62,6 +62,31 @@ def _start(cli):
     return os.environ.get("OPENRING_API_KEY", "")
 
 
+@pytest.mark.parametrize("name, value, expected", [
+    ("RENDER_EXTERNAL_URL", "https://openring-ab12.onrender.com", "https://openring-ab12.onrender.com"),
+    ("RAILWAY_PUBLIC_DOMAIN", "openring-prod.up.railway.app", "https://openring-prod.up.railway.app"),
+    ("FLY_APP_NAME", "my-openring", "https://my-openring.fly.dev"),
+])
+def test_the_hosting_platforms_address_becomes_public_url(home, monkeypatch, name, value, expected):
+    import os
+
+    for other in ("RENDER_EXTERNAL_URL", "RAILWAY_PUBLIC_DOMAIN", "FLY_APP_NAME"):
+        monkeypatch.delenv(other, raising=False)
+    monkeypatch.setenv("PUBLIC_URL", "")
+    monkeypatch.setenv(name, value)
+    home.load_settings()
+    assert os.environ["PUBLIC_URL"] == expected
+
+
+def test_a_public_url_you_set_beats_the_hosting_platforms(home, monkeypatch):
+    import os
+
+    monkeypatch.setenv("PUBLIC_URL", "https://voice.example.com")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://openring-ab12.onrender.com")
+    home.load_settings()
+    assert os.environ["PUBLIC_URL"] == "https://voice.example.com"
+
+
 def test_an_example_key_in_the_environment_is_replaced_and_kept(home, monkeypatch):
     # Docker: env_file .env (copied from .env.example) sets OPENRING_API_KEY=change-me.
     monkeypatch.setenv("OPENRING_API_KEY", "change-me")

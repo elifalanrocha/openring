@@ -6,6 +6,12 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A Docker image, `ghcr.io/elifalanrocha/openring`, published on every release (amd64), and a deploy guide
+  (`docs/deploy.md`) with a Render blueprint (`render.yaml`) and a Railway config (`railway.json`).
+- On Render, Railway and Fly.io, `PUBLIC_URL` defaults to the address the platform gives the service.
+
 ## [0.1.6] - 2026-11-09
 
 ### Added
