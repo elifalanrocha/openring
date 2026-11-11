@@ -122,7 +122,9 @@ of `variableValues`: `"firstMessage": "Hi {{customer.name}}, I'm calling to conf
 `POST /call` takes `assistantOverrides` too. Calling starts at `earliestAt` (or right away), and no new call
 starts after `latestAt`. `GET /campaign/{id}` has Vapi's counters (`callsCounterScheduled`,
 `callsCounterEnded`, ...) and each call; `PATCH` with `{"status": "cancelled"}` stops it. A restarted server
-picks its campaigns back up without calling anyone twice. Workflows, squads and campaign webhooks are not
+picks its campaigns back up without calling anyone twice. To call again whoever didn't answer or was busy, add
+`"retryPlan": {"maxAttempts": 3, "delayMinutes": 60}` (OpenRing's own field: up to 5 calls each, 5 to 1440
+minutes apart; a voicemail or a failed call isn't retried, and nothing is called after `latestAt`). Workflows, squads and campaign webhooks are not
 supported yet.
 
 Only call people who agreed to get the call, at hours the law allows: automated calls are regulated (the

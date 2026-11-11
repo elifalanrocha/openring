@@ -2,6 +2,7 @@
 runs fast so a whole campaign fits in a test."""
 
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -147,6 +148,9 @@ def test_campaign_bodies_are_checked_like_a_run_would(server):
         ({"schedulePlan": {"earliestAt": "tomorrow"}}, "ISO 8601"),
         ({"schedulePlan": {"earliestAt": "2026-11-03T13:00:00Z", "latestAt": "2026-11-03T12:00:00Z"}}, "latestAt"),
         ({"squadId": "s1"}, "squadId"),
+        ({"retryPlan": {"maxAttempts": 6}}, "maxAttempts"),
+        ({"retryPlan": {"delayMinutes": 1}}, "delayMinutes"),
+        ({"retryPlan": "twice"}, "retryPlan"),
         ({"dialPlan": [{"phoneNumberId": n["id"], "customers": PEOPLE}]}, "not both"),
         ({"customers": [{"number": "+5511912340001", "assistantOverrides": {"voice": {"provider": "playht"}}}]},
          "playht"),
@@ -235,3 +239,60 @@ def test_customer_numbers_must_be_phone_numbers(server):
         assert r.status_code == 400 and "country code" in r.json()["detail"], bad
         r = client.post("/call", json={"phoneNumberId": n["id"], "customer": {"number": bad}}, headers=AUTH)
         assert r.status_code == 400 and "country code" in r.json()["detail"], bad
+
+
+def end(store, campaign, number_index, reason):
+    """One call ends the way Twilio's status callback would end it."""
+    call_id = [i for i, e in campaign["calls"].items() if e["index"] == number_index and e["status"] != "ended"][0]
+    store.claim("calls", call_id, "queued", {"status": "ended", "endedReason": reason})
+
+
+def backdate(store, campaign_id, minutes):
+    """The ended calls ended `minutes` ago, so a retry's wait is over."""
+    old = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+    calls = store.get("campaigns", campaign_id)["calls"]
+    store.update("campaigns", campaign_id, {"calls": {k: {**v, "endedAt": old} if v["status"] == "ended" else v
+                                                      for k, v in calls.items()}})
+
+
+def test_someone_who_did_not_answer_is_called_again_after_the_wait(server, placed):
+    client, store, a, n = server
+    body = {"name": "Retry", "phoneNumberId": n["id"], "customers": PEOPLE[:2], "maxConcurrency": 5,
+            "retryPlan": {"maxAttempts": 2, "delayMinutes": 5}}
+    c = client.post("/campaign", json=body, headers=AUTH).json()
+    assert c["retryPlan"] == {"maxAttempts": 2, "delayMinutes": 5}
+    first = wait(client, c["id"], lambda c: len(c["calls"]) == 2)
+    end(store, first, 0, "customer-did-not-answer")
+    end(store, first, 1, "customer-ended-call")
+    waiting = wait(client, c["id"], lambda c: c["callsCounterRetrying"] == 1)
+    time.sleep(0.1)
+    assert len(placed) == 2 and waiting["status"] == "in-progress"  # the wait is not over: no call, campaign open
+
+    backdate(store, c["id"], 10)
+    again = wait(client, c["id"], lambda c: len(c["calls"]) == 3)
+    assert placed[2] == "+5511912340001"
+    assert sorted((e["index"], e["attempt"]) for e in again["calls"].values()) == [(0, 1), (0, 2), (1, 1)]
+    end(store, again, 0, "customer-did-not-answer")  # the last attempt: nobody is called a third time
+    done = wait(client, c["id"], lambda c: c["status"] == "ended")
+    assert done["endedReason"] == "campaign.ended.success" and len(placed) == 3 and done["callsCounterRetrying"] == 0
+
+
+def test_only_busy_and_unanswered_calls_are_retried(server, placed):
+    client, store, a, n = server
+    people = [{"number": f"+551190000{i:04d}"} for i in range(4)]
+    body = {"name": "Which", "phoneNumberId": n["id"], "customers": people, "maxConcurrency": 5,
+            "retryPlan": {"maxAttempts": 3}}
+    c = client.post("/campaign", json=body, headers=AUTH).json()
+    assert c["retryPlan"]["delayMinutes"] == 60
+    started = wait(client, c["id"], lambda c: len(c["calls"]) == 4)
+    for i, reason in enumerate(("customer-busy", "voicemail", "twilio-failed-to-connect-call", "customer-ended-call")):
+        end(store, started, i, reason)
+    waiting = wait(client, c["id"], lambda c: c["callsCounterEnded"] == 4)
+    assert waiting["callsCounterRetrying"] == 1 and waiting["callsCounterScheduled"] == 0
+    client.patch(f"/campaign/{c['id']}", json={"status": "cancelled"}, headers=AUTH)
+
+
+def test_calls_saved_before_retries_existed_still_count():
+    campaign = {"customers": PEOPLE, "calls": {"a": {"status": "ended"}, "b": {"status": "queued"}}}
+    counted = campaigns.counters(campaign)
+    assert counted["callsCounterScheduled"] == 1 and counted["callsCounterRetrying"] == 0

@@ -481,6 +481,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
       <div class="field"><label for="cmpStart">Start</label><p class="hint">Empty starts now.</p><input id="cmpStart" type="datetime-local"></div>
       <div class="field"><label for="cmpEnd">Stop calling at</label><p class="hint">Optional.</p><input id="cmpEnd" type="datetime-local"></div>
       <div class="field narrow"><label for="cmpLines">At a time</label><p class="hint">Calls at once.</p><input id="cmpLines" type="number" min="1" max="500" value="3" required></div>
+      <div class="field narrow"><label for="cmpTries">Tries each</label><p class="hint">Again after 1 hour if no answer or busy.</p><input id="cmpTries" type="number" min="1" max="5" value="1"></div>
     </div>
     <p class="hours-warning" id="cmpHours" role="status" hidden></p>
     <label class="consent"><input type="checkbox" id="cmpConsent" required><span>Everyone on this list agreed to get this call from an automated assistant. Automated calls are regulated (the TCPA in the US, Anatel's rules in Brazil), including the hours you may call.</span></label>
@@ -1415,6 +1416,8 @@ function newCampaign(assistants, nums) {
     const { people } = count();
     if (!people.length) return $("#cmpErr").textContent = "Add at least one phone number, with its country code.";
     const body = { name: $("#cmpName").value.trim(), phoneNumberId: $("#cmpFrom").value, assistantId: $("#cmpAssistant").value, customers: people, maxConcurrency: Number($("#cmpLines").value) || 3 };
+    const tries = Math.min(5, Math.max(1, Math.floor(Number($("#cmpTries").value) || 1)));
+    if (tries > 1) body.retryPlan = { maxAttempts: tries, delayMinutes: 60 };
     const start = $("#cmpStart").value, end = $("#cmpEnd").value;
     if (start || end) body.schedulePlan = { earliestAt: new Date(start || Date.now()).toISOString(), ...(end ? { latestAt: new Date(end).toISOString() } : {}) };
     try {
@@ -1440,12 +1443,13 @@ async function viewCampaign(id) {
   const start = c.schedulePlan?.earliestAt;
   setPage("campaigns", c.name, `${campaignAssistant(c, assistants, nums)} · ${c.status === "scheduled" && start ? "starts " + when(start) : "created " + when(c.createdAt)}`);
   const people = campaignPeople(c), calls = Object.entries(c.calls || {});
-  const waiting = people.slice(calls.length);
+  const called = new Set(calls.map(([, e], n) => e.index ?? n));  // a retry is another call to someone already called
+  const waiting = people.filter((_, i) => !called.has(i));
   const answered = calls.filter(([, e]) => e.status === "ended" && !UNREACHED.test(e.endedReason || "")).length;
   const person = p => p?.name ? `<b>${esc(p.name)}</b> <span class="muted">${esc(p.number)}</span>` : `<b>${esc(p?.number || "?")}</b>`;
   const panes = {
     calls: () => calls.length ? `<div class="scroll"><table class="table"><thead><tr><th>Person</th><th>Status</th><th class="hide-sm">How it ended</th></tr></thead><tbody>
-      ${calls.map(([callId, e]) => `<tr class="link" tabindex="0" data-call="${esc(callId)}"><td>${person(e.customer)}</td><td>${statusBadge(e)}</td><td class="hide-sm muted">${e.endedReason ? esc(endedLabel(e.endedReason)) : ""}</td></tr>`).join("")}
+      ${calls.map(([callId, e]) => `<tr class="link" tabindex="0" data-call="${esc(callId)}"><td>${person(e.customer)}${e.attempt > 1 ? ` <span class="muted">· try ${e.attempt}</span>` : ""}</td><td>${statusBadge(e)}</td><td class="hide-sm muted">${e.endedReason ? esc(endedLabel(e.endedReason)) : ""}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="empty">${c.status === "scheduled" ? `Nobody called yet. Calling starts ${start ? when(start) : "in a moment"}.` : "No calls were made."}</div>`,
     waiting: () => waiting.length ? `<div class="scroll"><table class="table"><thead><tr><th>Person</th></tr></thead><tbody>${waiting.map(p => `<tr><td>${person(p)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Everyone was called.</div>`,
     json: () => `<div class="body"><pre class="json">${esc(JSON.stringify(c, null, 2))}</pre></div>`,
@@ -1454,7 +1458,7 @@ async function viewCampaign(id) {
   v.innerHTML = `<div class="toolbar"><a class="btn ghost" href="#campaigns">← All campaigns</a><span class="spacer"></span>${campaignBadge(c)}${live ? `<button class="btn danger small" id="stopCampaign">Stop campaign</button>` : ""}</div>
   ${c.error ? `<p class="error" role="alert">${esc(c.error)}</p>` : ""}
   <div class="cards">
-    ${card("Called", "phone", `${num(calls.length)} <small class="muted">/ ${num(people.length)}</small>`, "")}
+    ${card("Called", "phone", `${num(called.size)} <small class="muted">/ ${num(people.length)}</small>`, "", c.callsCounterRetrying ? `${num(c.callsCounterRetrying)} to try again` : "")}
     ${card("On a call now", "mic", num((c.callsCounterQueued || 0) + (c.callsCounterInProgress || 0)), "", `${num(c.maxConcurrency)} at a time`)}
     ${card("Answered", "check", num(answered), "", calls.length ? `${Math.round(answered / calls.length * 100)}% of calls` : "")}
     ${card("Not called yet", "clock", num(waiting.length), "", !live && waiting.length ? "the campaign is over" : "")}

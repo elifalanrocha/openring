@@ -139,3 +139,8 @@ def test_provider_disconnect_requires_a_second_click_before_expiry():
     """)
     assert got == {"ok": True}
     assert 'run[b.dataset.action](byCard(b.dataset.card), b)' in PAGE
+
+
+def test_the_campaign_form_asks_for_retries_only_above_one_try_and_counts_people_not_calls():
+    assert 'id="cmpTries"' in PAGE and "body.retryPlan = { maxAttempts: tries, delayMinutes: 60 }" in PAGE
+    assert "const called = new Set(calls.map(([, e], n) => e.index ?? n))" in PAGE

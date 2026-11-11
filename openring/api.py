@@ -1296,6 +1296,19 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         if not 1 <= concurrency <= campaigns.MAX_CONCURRENCY:
             raise HTTPException(status_code=400, detail=f"maxConcurrency goes from 1 to {campaigns.MAX_CONCURRENCY}")
         doc["maxConcurrency"] = concurrency
+        if (retry := doc.get("retryPlan")) is not None:
+            lo, hi = campaigns.RETRY_MINUTES
+            try:
+                attempts = int(retry.get("maxAttempts", 1))
+                minutes = int(retry.get("delayMinutes", campaigns.DEFAULT_RETRY_MINUTES))
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise HTTPException(status_code=400, detail="retryPlan is {maxAttempts, delayMinutes}") from exc
+            if not 1 <= attempts <= campaigns.MAX_ATTEMPTS:
+                raise HTTPException(status_code=400,
+                                    detail=f"retryPlan.maxAttempts goes from 1 to {campaigns.MAX_ATTEMPTS}")
+            if not lo <= minutes <= hi:
+                raise HTTPException(status_code=400, detail=f"retryPlan.delayMinutes goes from {lo} to {hi}")
+            doc["retryPlan"] = {"maxAttempts": attempts, "delayMinutes": minutes}
         if (schedule := doc.get("schedulePlan")) is not None:
             if not isinstance(schedule, dict) or not schedule.get("earliestAt"):
                 raise HTTPException(status_code=400, detail="schedulePlan.earliestAt is required")

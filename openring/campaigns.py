@@ -23,6 +23,10 @@ LIVE = ("scheduled", "in-progress")
 TICK = 2.0  # seconds between looks at a campaign and its calls
 DIAL_GAP = 1.0  # Twilio starts one outbound call per second by default
 QUEUED_TIMEOUT = 300  # seconds before a call Twilio never reported back on stops holding a slot
+RETRY_REASONS = ("customer-did-not-answer", "customer-busy")  # a voicemail was reached, so nobody is called again
+MAX_ATTEMPTS = 5
+RETRY_MINUTES = (5, 1440)  # allowed `retryPlan.delayMinutes`
+DEFAULT_RETRY_MINUTES = 60
 
 
 class Stop(Exception):
@@ -45,11 +49,40 @@ def dials(campaign: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     return [(str(campaign.get("phoneNumberId") or ""), customer) for customer in campaign.get("customers") or []]
 
 
+def retry_plan(campaign: dict[str, Any]) -> tuple[int, int]:
+    """`retryPlan` (OpenRing's own field): how many calls each customer gets in all, and minutes between tries."""
+    plan = campaign.get("retryPlan") or {}
+    return int(plan.get("maxAttempts") or 1), int(plan.get("delayMinutes") or DEFAULT_RETRY_MINUTES)
+
+
+def _indexed(calls: dict[str, Any]) -> dict[str, Any]:
+    """Each call with the position of its customer in `dials` and its attempt. Calls saved before retries existed
+    carry neither: they were the first and only call of each customer, in order."""
+    return {call_id: entry if "index" in entry else {**entry, "index": n, "attempt": 1}
+            for n, (call_id, entry) in enumerate(calls.items())}
+
+
+def retrying(campaign: dict[str, Any], calls: dict[str, Any]) -> list[tuple[int, int, dict[str, Any]]]:
+    """Customers whose latest call went unanswered and who get another: (index, next attempt, that last call)."""
+    max_attempts, _ = retry_plan(campaign)
+    latest: dict[int, dict[str, Any]] = {}
+    for entry in calls.values():
+        if entry["index"] not in latest or entry["attempt"] > latest[entry["index"]]["attempt"]:
+            latest[entry["index"]] = entry
+    return sorted((index, entry["attempt"] + 1, entry) for index, entry in latest.items()
+                  if entry.get("status") == "ended" and entry.get("endedReason") in RETRY_REASONS
+                  and entry["attempt"] < max_attempts)
+
+
 def counters(campaign: dict[str, Any]) -> dict[str, int]:
-    """Vapi's call counters. "Scheduled" counts the customers not called yet."""
-    calls = list((campaign.get("calls") or {}).values())
+    """Vapi's call counters. "Scheduled" counts the customers not called yet; "Retrying" (ours) those waiting for
+    another try."""
+    indexed = _indexed(campaign.get("calls") or {})
+    calls = list(indexed.values())
+    called = {entry["index"] for entry in calls}
     return {
-        "callsCounterScheduled": max(len(dials(campaign)) - len(calls), 0),
+        "callsCounterScheduled": max(len(dials(campaign)) - len(called), 0),
+        "callsCounterRetrying": len(retrying(campaign, indexed)),
         "callsCounterQueued": sum(c.get("status") == "queued" for c in calls),
         "callsCounterInProgress": sum(c.get("status") == "in-progress" for c in calls),
         "callsCounterEndedVoicemail": sum(c.get("endedReason") == "voicemail" for c in calls),
@@ -62,6 +95,8 @@ def _entry(call: dict[str, Any]) -> dict[str, Any]:
     entry = {"customer": call.get("customer"), "status": call.get("status")}
     if call.get("endedReason"):
         entry["endedReason"] = call["endedReason"]
+    if call.get("status") == "ended":
+        entry["endedAt"] = call.get("endedAt") or now_iso()  # when a retry's wait starts
     return entry
 
 
@@ -125,11 +160,16 @@ class Dialer:
                 return True  # changed meanwhile; the next look sees how
             logger.info("campaign {} started: {} customers", campaign_id, len(dials(campaign)))
 
-        calls = self._refresh(campaign.get("calls") or {})
+        calls = self._refresh(_indexed(campaign.get("calls") or {}))
         active = sum(c.get("status") != "ended" for c in calls.values())
-        todo = dials(campaign)[len(calls):]
+        plan = dials(campaign)
+        called = {entry["index"] for entry in calls.values()}
+        work = [(i, 1, *plan[i]) for i in range(len(plan)) if i not in called]
+        waiting = retrying(campaign, calls)
+        _, delay = retry_plan(campaign)
+        work += [(i, attempt, *plan[i]) for i, attempt, last in waiting if _age(last.get("endedAt")) >= delay * 60]
         closed = latest is not None and now >= latest  # past the window: no new calls
-        if not active and (closed or not todo):
+        if not active and (closed or not (work or waiting)):
             done = {"status": "ended", "endedReason": "campaign.ended.success", "endedAt": now_iso(), "calls": calls,
                     **counters({**campaign, "calls": calls})}
             if self.store.claim("campaigns", campaign_id, "in-progress", done):
@@ -137,7 +177,7 @@ class Dialer:
             return False
 
         free = 0 if closed else max(int(campaign.get("maxConcurrency") or DEFAULT_CONCURRENCY) - active, 0)
-        for number_id, customer in todo[:free]:
+        for index, attempt, number_id, customer in work[:free]:
             if (self.store.get("campaigns", campaign_id) or {}).get("status") != "in-progress":
                 return True  # cancelled or deleted while dialing
             try:
@@ -146,7 +186,7 @@ class Dialer:
                 self._save(campaign_id, campaign, calls)
                 self._stop(campaign_id, str(exc))
                 return False
-            calls[call["id"]] = _entry(call)
+            calls[call["id"]] = {**_entry(call), "index": index, "attempt": attempt}
             self._save(campaign_id, campaign, calls)  # saved per call, so a restart never calls anyone twice
             await asyncio.sleep(DIAL_GAP)
         if calls != (campaign.get("calls") or {}):
@@ -175,7 +215,7 @@ class Dialer:
             elif call.get("status") == "queued" and _age(call.get("createdAt")) > QUEUED_TIMEOUT:
                 call = self.store.claim("calls", call_id, "queued", {
                     "status": "ended", "endedReason": "twilio-failed-to-connect-call", "endedAt": now_iso()}) or call
-            out[call_id] = _entry(call)
+            out[call_id] = {**_entry(call), "index": entry["index"], "attempt": entry["attempt"]}
         return out
 
 

@@ -87,7 +87,7 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
 - `openring/campaigns.py` + `/campaign` (Vapi's shape; the list is `{results, metadata}`): `Dialer` runs one
   asyncio task per live campaign (started on create, resumed from the app lifespan), dials through the same
   `dial()` as `POST /call` with `campaignId`, keeps `calls` (callId -> customer, status, endedReason) and
-  Vapi's `callsCounter*`, saves after every dial so a restart never calls anyone twice, and ends calls cut off
+  Vapi's `callsCounter*`, saves after every dial so a restart never calls anyone twice, `retryPlan` (OpenRing's own: `maxAttempts` up to 5, `delayMinutes` 5-1440) calls again whoever got `customer-did-not-answer`/`customer-busy` (each call entry keeps `index` and `attempt`), and ends calls cut off
   by a restart (`worker-shutdown`). Cancel claims the status atomically (`Store.update` is atomic too).
 - Call limits (`bot.CallLimits`, `providers.call_limits`): Vapi's `maxDurationSeconds` (600) and
   `silenceTimeoutSeconds` (30, without activity: the clock waits while someone talks, the model thinks or a tool
