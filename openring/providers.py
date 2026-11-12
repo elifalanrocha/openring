@@ -305,6 +305,12 @@ class StackPlan:
     max_latency_ms: int | None = None
     # The model route the models came from (`routes.expand`): {"id", "name", "cooldownMinutes"}.
     route: dict[str, Any] | None = None
+    # The transcriber and voice routes they came from, and who they are in them ((provider, model or voiceId),
+    # as the route's member wrote it): a route rests them after a failure.
+    stt_route: dict[str, Any] | None = None
+    tts_route: dict[str, Any] | None = None
+    stt_ident: tuple[str, str] = ("", "")
+    tts_ident: tuple[str, str] = ("", "")
     # Vapi's call limits, in seconds: the call ends when it has lasted this long, or when the caller has said
     # nothing for this long; Vapi's defaults. `end_call_message` is said before the line is hung up.
     max_duration_seconds: float = 600
@@ -564,6 +570,10 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         server_url=server.get("url") or assistant.get("serverUrl"),
         assistant=assistant,
         route=model.get("route"),
+        stt_route=transcriber.get("route"),
+        tts_route=voice.get("route"),
+        stt_ident=(str(transcriber.get("provider")), str(transcriber.get("model") or "")),
+        tts_ident=(str(voice.get("provider")), str(voice.get("voiceId") or "")),
         max_latency_ms=(model.get("route") or {}).get("maxLatencyMs") or model.get("maxLatencyMs"),
         stt_words=words,
         warnings=word_warnings,
@@ -782,6 +792,10 @@ def _labeled(service: Any, layer: str, plan: StackPlan) -> Any:
     }[layer]
     if layer == "model":  # which model this is, so a route can rest it after it fails or is slow
         service.openring_model = (plan.llm_provider, plan.llm_model)
+    elif layer == "transcriber":
+        service.openring_member = plan.stt_ident
+    else:
+        service.openring_member = plan.tts_ident
     return service
 
 

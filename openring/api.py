@@ -237,10 +237,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def _validate_assistant(doc: dict[str, Any], current: dict[str, Any] | None = None) -> None:
-        route_id = (doc.get("model") or {}).get("routeId")
-        kept = current is not None and route_id == (current.get("model") or {}).get("routeId")
-        if route_id and not kept and store.get("routes", str(route_id)) is None:
-            raise HTTPException(status_code=400, detail=f"model.routeId: model route {route_id} not found")
+        for layer in routes.KINDS:  # a route for the model, the transcriber or the voice
+            route_id = (doc.get(layer) or {}).get("routeId")
+            kept = current is not None and route_id == (current.get(layer) or {}).get("routeId")
+            if not route_id or kept:
+                continue
+            route = store.get("routes", str(route_id))
+            if route is None:
+                raise HTTPException(status_code=400, detail=f"{layer}.routeId: {layer} route {route_id} not found")
+            if (route.get("kind") or "model") != layer:
+                raise HTTPException(status_code=400, detail=f"{layer}.routeId: route {route_id} holds "
+                                    f"{route.get('kind') or 'model'}s, not {layer}s")
         try:
             _plan(doc, check_keys=False)
             model = doc.get("model") or {}
@@ -736,9 +743,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             doc = routes.clean({**(current or {}), **body})
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        layer = doc.get("kind") or "model"
         for i, model in enumerate(doc["models"]):
             try:
-                resolve_plan({"model": model}, check_keys=False, with_fallbacks=False)
+                resolve_plan({layer: model}, check_keys=False, with_fallbacks=False)
             except ProviderError as exc:
                 raise HTTPException(status_code=400, detail=f"models[{i}]: {exc}") from exc
         return doc
@@ -748,8 +756,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         return routes.with_status(store.create("routes", _route_doc(body)))
 
     @app.get("/model-route", dependencies=auth_deps)
-    def list_routes() -> list[dict[str, Any]]:
-        return [routes.with_status(r) for r in store.list("routes", limit=1000)]
+    def list_routes(kind: str | None = None) -> list[dict[str, Any]]:
+        """Every route, or only those of a `kind` ("model", "transcriber" or "voice")."""
+        return [routes.with_status(r) for r in store.list("routes", limit=1000)
+                if kind is None or (r.get("kind") or "model") == kind]
 
     @app.get("/model-route/{route_id}", dependencies=auth_deps)
     def get_route(route_id: str) -> dict[str, Any]:
@@ -758,6 +768,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.patch("/model-route/{route_id}", dependencies=auth_deps)
     def update_route(route_id: str, body: dict[str, Any]) -> dict[str, Any]:
         current = _get_or_404("routes", route_id)
+        if (body.get("kind") or current.get("kind") or "model") != (current.get("kind") or "model"):
+            raise HTTPException(status_code=400, detail="a route's kind can't change: make a new route, and "
+                                "point the assistants that use it to that one")
         if "preset" not in body and any(k in body for k in routes.SETTINGS):
             body = {**body, "preset": "custom"}  # changing what a preset decides makes the route custom
         return routes.with_status(store.update("routes", route_id, _route_doc(body, current)))
@@ -767,6 +780,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """Ask each model of the route for one short answer and time its first word, as a call would (a few
         tokens each). "fastest" routes order by these times and by the ones calls measure."""
         route = _get_or_404("routes", route_id)
+        if (route.get("kind") or "model") != "model":
+            raise HTTPException(status_code=400, detail="only a route of models can be measured")
 
         async def measure(model: dict[str, Any]) -> dict[str, Any]:
             try:  # a model saved before a rule it breaks now (a refused model.url) gets its reason, not a 500
@@ -787,13 +802,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
     @app.delete("/model-route/{route_id}", dependencies=auth_deps)
     def delete_route(route_id: str) -> dict[str, Any]:
-        """Assistants on a deleted route go back to the model saved in their own `model`."""
+        """Assistants on a deleted route go back to what their own `model`, `transcriber` or `voice` says."""
         _get_or_404("routes", route_id)
         for assistant in store.list("assistants", limit=100_000):
-            model = assistant.get("model") or {}
-            if model.get("routeId") == route_id:
-                own = {k: v for k, v in model.items() if k != "routeId"}
-                store.update("assistants", assistant["id"], {"model": own})
+            for layer in routes.KINDS:
+                config = assistant.get(layer) or {}
+                if config.get("routeId") == route_id:
+                    own = {k: v for k, v in config.items() if k != "routeId"}
+                    store.update("assistants", assistant["id"], {layer: own})
         return store.delete("routes", route_id)
 
     # ---- Tools (Vapi's /tool: saved once, used by assistants through model.toolIds) ----

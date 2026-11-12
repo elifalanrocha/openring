@@ -371,6 +371,16 @@ measured or priced yet come after the others, in your order. Changing the order 
 route makes it `custom`. Without a route, `"maxLatencyMs"` on an assistant's `model` does the same for its
 `fallbackModels`.
 
+A route can also hold **transcribers** or **voices**: `POST /model-route` with `"kind": "transcriber"` (or
+`"voice"`) and members like `{"provider": "deepgram", "model": "nova-3"}` or `{"provider": "11labs", "voiceId": "..."}`,
+then `"transcriber": {"routeId": "ROUTE_ID"}` (or `"voice"`) on the assistant. The first member answers, the others
+take over in order when it fails, and one that failed rests for `cooldownMinutes` across calls, so the next calls start on
+the next one. They are ordered as listed or by price (`"order": "cheapest"`, per minute of audio or per 1M characters;
+free local ones first). There is no `fastest` order and no latency limit for them, because nothing measures how fast a
+transcriber or a voice answers. What the assistant's `transcriber` or `voice` says besides the provider (language,
+keyterms, speed) applies to every member. For now these routes are made through the API; the dashboard's Model routes
+page lists model routes only, and the assistant JSON tab sets `routeId`. `GET /model-route?kind=voice` lists one kind.
+
 ### What a call costs
 
 Every call records what its providers charge, at list prices, in Vapi's fields: `cost` (US$) and

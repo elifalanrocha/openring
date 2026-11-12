@@ -69,7 +69,11 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   (fastest/cheapest/reliable, `routes.PRESETS`) sets `order` + `maxLatencyMs` + `cooldownMinutes`; `custom` keeps
   its own; a PATCH touching one of them makes the route custom. "fastest" orders by the median time to first
   answer token (`routes._speed`, last 20 per model, from Pipecat's `TTFATMetricsData` on calls and from
-  `routes.probe` via `POST /model-route/{id}/measure`; saved in the settings table as `model_speed`).
+  `routes.probe` via `POST /model-route/{id}/measure`; saved in the settings table as `model_speed`). A route with
+  `kind` `transcriber`/`voice` (API only; the dashboard lists `?kind=model`) is used by `transcriber.routeId`/`voice.routeId`:
+  `routes._expand_layer` puts its first member in the layer and the rest in `fallbackPlan`; members rest under
+  `(kind, provider, model|voiceId)` (`StackPlan.stt_ident`/`tts_ident`, `service.openring_member`), `rest_after_switch`
+  is called by `bot` on any layer's switch; order `listed`/`cheapest` only, no latency limit.
 - `openring/prices.py`: list prices. Models from `llm_prices.json` (regenerate with `scripts/update_prices.py`:
   LiteLLM + OpenRouter), STT per minute and TTS per 1M characters hand-kept in `STT`/`TTS`, user overrides in
   `~/.openring/prices.json`; unknown is None, never guessed. `bot.Usage` keeps usage per Pipecat processor and

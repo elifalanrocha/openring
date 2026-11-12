@@ -509,8 +509,8 @@ async def run_call(
                 switches.append({"layer": layer, "to": to, "at": now_iso(), "reason": reason})
                 logger.warning("call {}: {} switched to {} ({})", call_id, layer, to, reason)
                 left, current["service"] = current["service"], active
+                routes.rest_after_switch(who["plan"], layer, left)  # so the next calls start on the next one
                 if layer == "model":
-                    routes.let_down(who["plan"].route, left)  # so the next calls start on the next model
                     if watch is not None:
                         await watch.replaced(left)
                     await task.queue_frames([LLMRunFrame()])

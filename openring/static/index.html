@@ -703,7 +703,7 @@ function pathChips(a, routes = []) {
 
 async function viewAssistants() {
   setPage("assistants");
-  const [items, numbers, routes] = await Promise.all([api("/assistant"), api("/phone-number"), api("/model-route")]);
+  const [items, numbers, routes] = await Promise.all([api("/assistant"), api("/phone-number"), api("/model-route?kind=model")]);
   const lines = id => numbers.filter(n => n.assistantId === id).map(n => n.number);
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><span class="muted">${items.length} assistant${items.length === 1 ? "" : "s"}</span><span class="spacer"></span><button class="btn ghost" id="import" title="Copy assistants, tools and Twilio numbers from a Vapi-compatible API">Import</button><button class="btn" id="new">${ICON.plus}New assistant</button></div>
@@ -887,7 +887,7 @@ async function viewSquad(id) {
 }
 
 async function viewAssistant(id) {
-  const [a, routes, files] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => [])]);
+  const [a, routes, files] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route?kind=model").catch(() => []), api("/file").catch(() => [])]);
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
   const m = a.model || {}, vo = a.voice || {}, t = a.transcriber || {};
@@ -1514,7 +1514,7 @@ function nextOrder(models, order, info) {
 
 async function viewRoutes() {
   setPage("routes");
-  const [list, assistants] = await Promise.all([api("/model-route"), api("/assistant")]);
+  const [list, assistants] = await Promise.all([api("/model-route?kind=model"), api("/assistant")]);
   const users = r => assistants.filter(a => a.model?.routeId === r.id).length;
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><span class="muted">Assistants on a route start on the first model in its order: the fastest, the cheapest or yours. When a model fails (a rejected key, no credit, a rate limit, an outage) or is slow to answer, the next one takes over, and the one that let the route down rests for a while, so the next calls start on the next model.</span><span class="spacer"></span><a class="btn" href="#routes/new">${ICON.plus}New route</a></div>
