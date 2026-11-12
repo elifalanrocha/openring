@@ -1,6 +1,6 @@
 {
   "name": "openring",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Open-source, self-hosted Vapi alternative for voice AI agents. Vapi-compatible API, no per-minute platform fee. One command: npx openring",
   "license": "MIT",
   "bin": { "openring": "bin/openring.js" },

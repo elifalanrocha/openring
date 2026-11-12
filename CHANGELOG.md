@@ -6,6 +6,8 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-11
+
 ### Added
 
 - A Docker image, `ghcr.io/elifalanrocha/openring`, published on every release (amd64), and a deploy guide
