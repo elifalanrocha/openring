@@ -16,7 +16,8 @@ def run_js(code: str):
     node = shutil.which("node")
     if not node:
         pytest.skip("needs Node.js")
-    out = subprocess.run([node, "-e", code], capture_output=True, text=True, timeout=60, check=True).stdout
+    out = subprocess.run([node, "-e", code], capture_output=True, text=True, encoding="utf-8", timeout=60,
+                         check=True).stdout  # Node prints UTF-8; the system default would garble "·" on Windows
     return json.loads(out)
 
 
