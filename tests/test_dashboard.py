@@ -199,3 +199,13 @@ def test_the_editor_orders_a_route_of_voices_and_transcribers_by_price_and_names
     assert got["defaults"] == [{"provider": "deepgram", "model": "nova-3"},
                                {"provider": "kokoro", "voiceId": "af_heart"}, {"provider": "11labs", "voiceId": ""}]
 
+
+
+def test_a_routes_member_names_reach_the_page_only_escaped():
+    """A provider, model or voice ID may come from an import or the API: it must never run as HTML."""
+    uses = [line for line in PAGE.splitlines()
+            if ("memberLabel(" in line or "memberName(" in line) and "const memberLabel" not in line
+            and "const memberName" not in line and "const keyOf" not in line]  # keyOf is a map key, never shown
+    assert len(uses) >= 3
+    for line in uses:
+        assert "textContent" in line or "esc(memberLabel(" in line, line.strip()[:100]
