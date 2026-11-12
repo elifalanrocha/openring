@@ -61,6 +61,7 @@ Direct dependencies:
 | [aiortc](https://github.com/aiortc/aiortc) | 1.15 | BSD-3-Clause |
 | [cryptography](https://github.com/pyca/cryptography) | 50.0 | Apache-2.0 or BSD-3-Clause |
 | [pypdf](https://github.com/py-pdf/pypdf) | 6.2 | BSD-3-Clause |
+| [audioop-lts](https://github.com/AbstractUmbra/audioop) (Python 3.13 and later only) | 0.2 | PSF-2.0 |
 | [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) (`kokoro` extra) | 0.6 | MIT |
 | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`whisper` extra, through Pipecat's) | 1.2 | MIT |
 

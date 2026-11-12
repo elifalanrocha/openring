@@ -21,6 +21,9 @@ dependencies = [
   "cryptography>=42",
   # Reads PDFs for knowledge bases; pure Python.
   "pypdf>=5,<7",
+  # SIP's G.711 audio (openring/sip.py): the standard library lost `audioop` in Python 3.13, and Pipecat 1.16
+  # stopped bringing this replacement.
+  "audioop-lts>=0.2.1; python_version >= '3.13'",
 ]
 
 [project.optional-dependencies]

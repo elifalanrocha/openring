@@ -22,6 +22,8 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Fixed
 
+- Installing on Python 3.13 works again: `audioop-lts` is a declared dependency there (SIP's audio needs it, and Pipecat 1.16
+  stopped bringing it, which made every import of the server fail).
 - OAuth sign-ins survive a restart: the key that encrypts them is made once and kept in the settings file
   (`OAUTH_ENCRYPTION_KEY`), not generated anew at every start.
 
