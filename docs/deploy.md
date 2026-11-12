@@ -7,7 +7,7 @@ Tags: `latest`, a version (`0.2.0`) and a minor (`0.2`). Every server needs thre
 | --- | --- |
 | `OPENRING_PASSWORD` | The dashboard password. Nobody opens the dashboard on the server itself, so you can't choose it on first visit. |
 | `PUBLIC_URL` | The https address phone providers reach. Render, Railway and Fly.io set it for you; elsewhere write it yourself. |
-| A volume at `/data` | The database, recordings and the generated API key. Without it, every deploy starts empty. |
+| A volume at `/data` | The database, recordings, the generated keys and the downloaded voice and speech models (about 120 MB for the free voice). Without it, every deploy starts empty and downloads them again. |
 
 Provider keys (Twilio, Deepgram, Groq...) can be connected on the dashboard's Providers page afterwards.
 The API key is under Settings, or in `/data/.env` if you didn't set `OPENRING_API_KEY`.

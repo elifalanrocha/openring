@@ -18,6 +18,8 @@ All notable changes to OpenRing are listed here. The format follows
   routes. API only for now; the Model routes page lists model routes. `GET /model-route?kind=`.
 - `transferCall` on Telnyx (beta): the live call is given a `<Dial>` with TeXML's Update call, using the account id Telnyx sends
   with each webhook.
+- The Docker image keeps the downloaded Kokoro and Whisper models on the `/data` volume (`HOME=/data`), so a new container
+  doesn't fetch them again.
 - On Render, Railway and Fly.io, `PUBLIC_URL` defaults to the address the platform gives the service.
 
 ### Fixed

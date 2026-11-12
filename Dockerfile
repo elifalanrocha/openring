@@ -6,7 +6,8 @@ COPY pyproject.toml README.md ./
 COPY openring ./openring
 RUN pip install --no-cache-dir ".[kokoro,whisper]"
 
-ENV OPENRING_DB_PATH=/data/openring.db HOST=0.0.0.0 OPENRING_HOME=/data PYTHONUNBUFFERED=1
+# HOME is the volume too: the voice and speech models download to ~/.cache, and a new container must not fetch them again.
+ENV OPENRING_DB_PATH=/data/openring.db HOST=0.0.0.0 OPENRING_HOME=/data HOME=/data PYTHONUNBUFFERED=1
 VOLUME ["/data"]
 EXPOSE 8000
 CMD ["openring"]
