@@ -378,8 +378,8 @@ take over in order when it fails, and one that failed rests for `cooldownMinutes
 the next one. They are ordered as listed or by price (`"order": "cheapest"`, per minute of audio or per 1M characters;
 free local ones first). There is no `fastest` order and no latency limit for them, because nothing measures how fast a
 transcriber or a voice answers. What the assistant's `transcriber` or `voice` says besides the provider (language,
-keyterms, speed) applies to every member. For now these routes are made through the API; the dashboard's Model routes
-page lists model routes only, and the assistant JSON tab sets `routeId`. `GET /model-route?kind=voice` lists one kind.
+keyterms, speed) applies to every member. In the dashboard, the Model routes page has a button for each kind, and the
+assistant editor offers a route for the transcriber and for the voice. `GET /model-route?kind=voice` lists one kind.
 
 ### What a call costs
 

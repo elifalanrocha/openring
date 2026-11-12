@@ -697,13 +697,14 @@ async function viewHome() {
 
 function pathChips(a, routes = []) {
   const t = a.transcriber || {}, m = a.model || {}, v = a.voice || {};
-  const route = m.routeId && routes.find(r => r.id === m.routeId);
-  return `<div class="path"><span class="node">${esc(t.provider || "deepgram")} ${esc(t.language || "")}</span><span class="wire"></span><span class="node">${route ? "route: " + esc(route.name) : esc(m.model || "default model")}</span><span class="wire"></span><span class="node">${esc(v.provider || "kokoro")}${v.voiceId ? " · " + esc(v.voiceId) : ""}</span></div>`;
+  const routeOf = (layer, c) => c.routeId && routes.find(r => r.id === c.routeId && kindOf(r) === layer);
+  const route = routeOf("model", m), tRoute = routeOf("transcriber", t), vRoute = routeOf("voice", v);
+  return `<div class="path"><span class="node">${tRoute ? "route: " + esc(tRoute.name) : esc(t.provider || "deepgram")} ${esc(t.language || "")}</span><span class="wire"></span><span class="node">${route ? "route: " + esc(route.name) : esc(m.model || "default model")}</span><span class="wire"></span><span class="node">${vRoute ? "route: " + esc(vRoute.name) : `${esc(v.provider || "kokoro")}${v.voiceId ? " · " + esc(v.voiceId) : ""}`}</span></div>`;
 }
 
 async function viewAssistants() {
   setPage("assistants");
-  const [items, numbers, routes] = await Promise.all([api("/assistant"), api("/phone-number"), api("/model-route?kind=model")]);
+  const [items, numbers, routes] = await Promise.all([api("/assistant"), api("/phone-number"), api("/model-route")]);
   const lines = id => numbers.filter(n => n.assistantId === id).map(n => n.number);
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><span class="muted">${items.length} assistant${items.length === 1 ? "" : "s"}</span><span class="spacer"></span><button class="btn ghost" id="import" title="Copy assistants, tools and Twilio numbers from a Vapi-compatible API">Import</button><button class="btn" id="new">${ICON.plus}New assistant</button></div>
@@ -887,7 +888,8 @@ async function viewSquad(id) {
 }
 
 async function viewAssistant(id) {
-  const [a, routes, files] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route?kind=model").catch(() => []), api("/file").catch(() => [])]);
+  const [a, allRoutes, files] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => [])]);
+  const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
   const m = a.model || {}, vo = a.voice || {}, t = a.transcriber || {};
@@ -925,9 +927,9 @@ async function viewAssistant(id) {
     pane.innerHTML = `<form id="f">
     <div class="line-diagram">
       <div class="stage caller"><h3>Caller</h3><span class="muted" style="font-size:12.5px">Phone or browser</span></div><div class="cable"></div>
-      <div class="stage"><h3>Transcriber</h3><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
+      <div class="stage"><h3>Transcriber</h3>${sttRoutes.length ? `<label>Route</label><select name="tr">${option("", "None: one transcriber", t.routeId || "")}${sttRoutes.map(r => option(r.id, r.name, t.routeId || "")).join("")}</select>` : ""}<div id="tfixed"><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select></div><p class="hint stage-hint plain" id="troute" hidden></p><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
       <div class="stage"><h3>Model</h3>${routes.length ? `<label>Route</label><select name="mr">${option("", "None: one model", m.routeId || "")}${routes.map(r => option(r.id, r.name, m.routeId || "")).join("")}</select>` : ""}<div id="mfixed"><label>Provider</label><select name="mp">${LLM.map(p => option(p, p, m.provider === "deep-seek" ? "deepseek" : m.provider)).join("")}</select><label>Model</label><input name="mm" value="${esc(m.model || "")}" list="ollamaModels"><datalist id="ollamaModels"></datalist></div><p class="hint stage-hint plain" id="mroute" hidden></p></div><div class="cable"></div>
-      <div class="stage"><h3>Voice</h3><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><input name="vv" value="${esc(vo.voiceId || "")}"><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
+      <div class="stage"><h3>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><input name="vv" value="${esc(vo.voiceId || "")}"></div><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
     </div>
     <div class="free-stack"><button type="button" class="btn ghost small" id="freeStack">Use the free local stack</button><span class="muted">Whisper, Ollama and Kokoro, all on this computer: no per-minute cost, and the call's audio never leaves it.</span><span class="muted" id="freeNote" role="status"></span></div>
     <div class="field" style="margin-top:22px"><label for="name">Name</label><input id="name" name="name" required value="${esc(a.name || "")}" placeholder="Front desk"></div>
@@ -964,17 +966,32 @@ async function viewAssistant(id) {
     };
     if (mr) mr.onchange = showRoute;
     showRoute();
+    // The same for the transcriber and the voice: a route's members answer, the fixed fields step aside.
+    const tr = $("[name=tr]"), vr = $("[name=vr]");
+    const layerRoute = (select, list) => select && list.find(x => x.id === select.value);
+    const showLayerRoutes = () => {
+      const t1 = layerRoute(tr, sttRoutes), v1 = layerRoute(vr, ttsRoutes);
+      $("#tfixed").hidden = !!t1; $("#troute").hidden = !t1;
+      $("#vfixed").hidden = !!v1; $("#vroute").hidden = !v1;
+      if (t1) $("#troute").textContent = `${PRESET_NAME[t1.preset] || "Custom"}: ` + t1.next.map(i => memberLabel("transcriber", t1.models[i])).join(" → ");
+      if (v1) $("#vroute").textContent = `${PRESET_NAME[v1.preset] || "Custom"}: ` + v1.next.map(i => memberLabel("voice", v1.models[i])).join(" → ");
+      showModel();
+    };
     const tp = $("[name=tp]"), tm = $("[name=tm]");
-    const showModel = () => { $("#tmodel").hidden = tp.value !== "whisper"; };
+    const showModel = () => { $("#tmodel").hidden = tp.value !== "whisper" || !!layerRoute(tr, sttRoutes); };
     tp.onchange = showModel;
-    showModel();
+    if (tr) tr.onchange = showLayerRoutes;
+    if (vr) vr.onchange = showLayerRoutes;
+    showLayerRoutes();
     // Models pulled into the local Ollama, offered while it is the model provider.
     let ollama = { running: false, models: [] };
     const offer = () => { $("#ollamaModels").innerHTML = mp.value === "ollama" ? ollama.models.map(n => `<option value="${esc(n)}">`).join("") : ""; };
     api("/providers/ollama/models").then(r => { ollama = r; offer(); }).catch(() => {});
     mp.addEventListener("change", offer);
     $("#freeStack").onclick = () => {
-      tp.value = "whisper"; tm.value = tm.value || "base"; showModel();
+      if (tr) tr.value = "";
+      if (vr) vr.value = "";
+      tp.value = "whisper"; tm.value = tm.value || "base"; showLayerRoutes();
       if (mr) { mr.value = ""; showRoute(); }
       mp.value = "ollama"; mm.value = ollama.models[0] || SUGGESTED_MODEL.ollama; offer();
       if (vp.value !== "kokoro") { vp.value = "kokoro"; vv.value = tl.value === "pt-BR" ? "pf_dora" : SUGGESTED_VOICE.kokoro; }
@@ -988,9 +1005,9 @@ async function viewAssistant(id) {
       save({
         name: f.get("name"), firstMessage: f.get("greet") || undefined,
         // Keep the transcriber's model only while its provider stays the same; each provider has its own.
-        transcriber: { ...t, provider: f.get("tp"), model: f.get("tp") === "whisper" ? f.get("tm") : f.get("tp") === (t.provider || "deepgram") ? t.model : undefined, language: f.get("tl") || "multi", keyterm: wordsTyped(f.get("twords")), keytermsPrompt: undefined },
+        transcriber: { ...t, ...layerSaved("transcriber", sttRoutes.find(r => r.id === f.get("tr")), f, t), language: f.get("tl") || "multi", keyterm: wordsTyped(f.get("twords")), keytermsPrompt: undefined },
         model: { ...withKnowledge({ ...m, ...routeModel(routes.find(r => r.id === f.get("mr")), f) }, f.getAll("kb")), messages: [...(m.messages || []).filter(x => x.role !== "system"), ...(f.get("sys") ? [{ role: "system", content: f.get("sys") }] : [])] },
-        voice: { ...vo, provider: f.get("vp"), voiceId: f.get("vv") || undefined, model: f.get("vp") === (vo.provider || "kokoro") ? vo.model : undefined },
+        voice: { ...vo, ...layerSaved("voice", ttsRoutes.find(r => r.id === f.get("vr")), f, vo) },
         server: f.get("hook") ? { ...(a.server || {}), url: f.get("hook") } : undefined,
         artifactPlan: f.get("recOn") ? { ...(a.artifactPlan || {}), recordingEnabled: true } : a.artifactPlan?.recordingEnabled ? { ...a.artifactPlan, recordingEnabled: false } : a.artifactPlan,
         voicemailDetection: f.get("vmOn") ? (voicemailOn && typeof a.voicemailDetection === "object" && a.voicemailDetection) || { provider: "twilio" } : voicemailOn || a.voicemailDetection ? "off" : undefined,
@@ -1429,6 +1446,12 @@ function newCampaign(assistants, nums) {
 }
 
 // The model part of an assistant: a route (its first model saved too, so the JSON stays valid Vapi), or one model.
+// The transcriber's or the voice's own fields: a route's first member (so the JSON stays valid, as for the model) or the form's.
+function layerSaved(kind, route, f, saved) {
+  if (route) { const first = route.models[0]; return { routeId: route.id, provider: first.provider, model: first.model, ...(kind === "voice" ? { voiceId: first.voiceId } : {}) }; }
+  if (kind === "voice") return { routeId: undefined, provider: f.get("vp"), voiceId: f.get("vv") || undefined, model: f.get("vp") === (saved.provider || "kokoro") ? saved.model : undefined };
+  return { routeId: undefined, provider: f.get("tp"), model: f.get("tp") === "whisper" ? f.get("tm") : f.get("tp") === (saved.provider || "deepgram") ? saved.model : undefined };
+}
 function routeModel(route, f) {
   if (route) return { routeId: route.id, provider: route.models[0].provider, model: route.models[0].model };
   return { routeId: undefined, provider: f.get("mp"), model: f.get("mm") };
@@ -1489,8 +1512,26 @@ const PRESETS = [
 const PRESET_NAME = Object.fromEntries(PRESETS.map(([k, n]) => [k, n]));
 const PRESET_VALUES = { fastest: { order: "fastest", maxLatencyMs: 1500, cooldownMinutes: 5 }, cheapest: { order: "cheapest", maxLatencyMs: 3000, cooldownMinutes: 5 }, reliable: { order: "listed", maxLatencyMs: 2000, cooldownMinutes: 15 } };
 const ORDER_NAMES = { listed: "Your order", fastest: "Fastest first", cheapest: "Cheapest first" };
+// A route holds models, transcribers or voices (`kind`). Only models have a measured speed and a latency limit.
+const kindOf = r => r.kind || "model";
+const memberName = (kind, m) => (kind === "voice" ? m.voiceId : m.model) || "";
+const memberLabel = (kind, m) => [m.provider, memberName(kind, m)].filter(Boolean).join(" · ");
+const KIND_TITLE = { model: "model", transcriber: "transcriber", voice: "voice" };
+const LAYER_PRESETS = [
+  ["cheapest", "Cheapest", "The lowest price goes first, free local ones before paid ones."],
+  ["reliable", "Reliable", "Your order. One that fails rests 15 minutes."],
+  ["custom", "Custom", "You choose the order and how long one rests."],
+];
+const unitPrice = (kind, m) => { const t = priceList?.[kind === "voice" ? "tts" : "stt"]?.[m.provider] || {}; return t[m.model] ?? t["*"] ?? null; };
+const unitText = (kind, m) => { const x = unitPrice(kind, m); return x == null ? "price unknown" : x === 0 ? "free" : kind === "voice" ? `${usd(x)} per 1M characters` : `${usd(x)} per minute`; };
+const DEFAULT_MEMBER = {
+  model: p => ({ provider: p, model: SUGGESTED_MODEL[p] ?? "" }),
+  transcriber: p => ({ provider: p, model: { deepgram: "nova-3", whisper: "base" }[p] ?? "" }),
+  voice: p => ({ provider: p, voiceId: SUGGESTED_VOICE[p] ?? "" }),
+};
+const FIRST_MEMBER = { model: "groq", transcriber: "deepgram", voice: "kokoro" };
 const routeRules = r => [PRESET_VALUES[r.preset] ? "" : ORDER_NAMES[r.order] || ORDER_NAMES.listed, `switches on errors${r.maxLatencyMs ? ` and after ${(r.maxLatencyMs / 1000).toFixed(1)} s without an answer` : ""}`,
-  r.cooldownMinutes ? `rests a model ${r.cooldownMinutes} min` : "never rests a model"].filter(Boolean).join(" · ");
+  r.cooldownMinutes ? `rests a ${kindOf(r)} ${r.cooldownMinutes} min` : `never rests a ${kindOf(r)}`].filter(Boolean).join(" · ");
 // List prices per 1M tokens, [input, output], from GET /prices (loaded once).
 let priceList = null;
 const loadPrices = async () => priceList ??= await api("/prices").catch(() => ({ llm: {} }));
@@ -1503,9 +1544,9 @@ const blended = x => x ? x[0] * 0.75 + x[1] * 0.25 : null;  // a call's bill is 
 const priceText = x => !x ? "price unknown" : !x[0] && !x[1] ? "free" : `${usd(x[0])} in · ${usd(x[1])} out per 1M tokens`;
 // The order the next call tries the models in, as routes.ordered does: resting ones last, then the measured
 // (fastest) or priced (cheapest) ones, the others as listed.
-function nextOrder(models, order, info) {
+function nextOrder(models, order, info, kind = "model") {
   const key = (m, i) => {
-    const s = info(m), fig = order === "fastest" ? s.firstTokenMs ?? null : order === "cheapest" ? blended(llmPrice(m.provider, m.model)) : 0;
+    const s = info(m), fig = order === "fastest" ? s.firstTokenMs ?? null : order === "cheapest" ? (kind === "model" ? blended(llmPrice(m.provider, m.model)) : unitPrice(kind, m)) : 0;
     return [s.restingSeconds > 0 ? 1 : 0, fig == null ? 1 : 0, fig || 0, i];
   };
   const cmp = (a, b) => { for (let j = 0; j < a.k.length; j++) if (a.k[j] !== b.k[j]) return a.k[j] - b.k[j]; return 0; };
@@ -1514,13 +1555,13 @@ function nextOrder(models, order, info) {
 
 async function viewRoutes() {
   setPage("routes");
-  const [list, assistants] = await Promise.all([api("/model-route?kind=model"), api("/assistant")]);
-  const users = r => assistants.filter(a => a.model?.routeId === r.id).length;
+  const [list, assistants] = await Promise.all([api("/model-route"), api("/assistant")]);
+  const users = r => assistants.filter(a => a[kindOf(r)]?.routeId === r.id).length;
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar"><span class="muted">Assistants on a route start on the first model in its order: the fastest, the cheapest or yours. When a model fails (a rejected key, no credit, a rate limit, an outage) or is slow to answer, the next one takes over, and the one that let the route down rests for a while, so the next calls start on the next model.</span><span class="spacer"></span><a class="btn" href="#routes/new">${ICON.plus}New route</a></div>
+  v.innerHTML = `<div class="toolbar"><span class="muted">Assistants on a route start on the first one in its order: the fastest, the cheapest or yours. When it fails (a rejected key, no credit, a rate limit, an outage) or, for a model, is slow to answer, the next one takes over, and the one that let the route down rests for a while, so the next calls start on the next one. A route can hold models, transcribers or voices.</span><span class="spacer"></span><a class="btn" href="#routes/new">${ICON.plus}New model route</a><a class="btn ghost" href="#routes/new-transcriber">${ICON.plus}Transcriber route</a><a class="btn ghost" href="#routes/new-voice">${ICON.plus}Voice route</a></div>
   ${list.length ? `<div class="tiles">${list.map(r => `<article class="tile link" tabindex="0" data-id="${esc(r.id)}">
-      <div class="head"><span class="avatar">${r.models.length}</span><div class="grow"><div class="name">${esc(r.name)}</div><div class="sub">${users(r) ? `Used by ${users(r)} assistant${users(r) === 1 ? "" : "s"}` : "No assistant uses it yet"}</div></div></div>
-      <ol class="route-chain">${r.next.map(i => r.models[i]).map(m => `<li><span>${esc(m.provider)} · ${esc(m.model)}</span>${m.firstTokenMs != null ? `<span class="muted">${ms(m.firstTokenMs)}</span>` : ""}${m.restingSeconds ? `<span class="badge warn">${esc(restLabel(m.restingSeconds))}</span>` : ""}</li>`).join("")}</ol>
+      <div class="head"><span class="avatar">${r.models.length}</span><div class="grow"><div class="name">${esc(r.name)}${kindOf(r) === "model" ? "" : ` <span class="badge">${esc(KIND_TITLE[kindOf(r)])}</span>`}</div><div class="sub">${users(r) ? `Used by ${users(r)} assistant${users(r) === 1 ? "" : "s"}` : "No assistant uses it yet"}</div></div></div>
+      <ol class="route-chain">${r.next.map(i => r.models[i]).map(m => `<li><span>${esc(memberLabel(kindOf(r), m))}</span>${m.firstTokenMs != null ? `<span class="muted">${ms(m.firstTokenMs)}</span>` : ""}${m.restingSeconds ? `<span class="badge warn">${esc(restLabel(m.restingSeconds))}</span>` : ""}</li>`).join("")}</ol>
       <div class="sub"><b>${esc(PRESET_NAME[r.preset] || "Custom")}</b> · ${esc(routeRules(r))}</div>
     </article>`).join("")}</div>`
     : `<div class="panel empty">No routes yet. Put a fast model first and a cheaper or local one after it, so calls keep going when a provider runs out of credit or slows down.<br><a class="btn" href="#routes/new">${ICON.plus}New route</a></div>`}`;
@@ -1528,48 +1569,56 @@ async function viewRoutes() {
 }
 
 async function viewRoute(id) {
-  const [r] = await Promise.all([id === "new" ? { name: "", preset: "fastest", ...PRESET_VALUES.fastest, models: [{ provider: "groq", model: SUGGESTED_MODEL.groq }] } : api("/model-route/" + id), loadPrices()]);
-  setPage("routes", r.id ? r.name : "New route", "Models in order: the next one takes over when a model fails or is slow");
+  const fresh = id === "new" || id.startsWith("new-");
+  const newKind = id === "new" ? "model" : id.slice(4);
+  if (fresh && !(newKind in KIND_TITLE)) throw new Error("There is no such kind of route.");
+  const [r] = await Promise.all([fresh ? { name: "", kind: newKind, preset: newKind === "model" ? "fastest" : "reliable", ...PRESET_VALUES[newKind === "model" ? "fastest" : "reliable"], models: [DEFAULT_MEMBER[newKind](FIRST_MEMBER[newKind])] } : api("/model-route/" + id), loadPrices()]);
+  const kind = kindOf(r), isModel = kind === "model";
+  setPage("routes", r.id ? r.name : isModel ? "New route" : `New ${kind} route`, isModel ? "Models in order: the next one takes over when a model fails or is slow" : `${kind === "voice" ? "Voices" : "Transcribers"} in order: the next one takes over when one fails`);
   const models = r.models.map(({ restingSeconds: _r, firstTokenMs: _f, samples: _s, price: _p, ...m }) => m);
-  // What the server knows of each saved model: measured speed, rest left; and the last measurement's error.
-  const known = new Map(r.models.map(m => [m.provider + "|" + m.model, m]));
+  // What the server knows of each saved member: measured speed, rest left; and the last measurement's error.
+  const keyOf = m => m.provider + "|" + memberName(kind, m);
+  const known = new Map(r.models.map(m => [keyOf(m), m]));
   const errors = new Map();
-  const info = m => known.get(m.provider + "|" + m.model) || {};
+  const info = m => known.get(keyOf(m)) || {};
   let ollama = [];
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><a class="btn ghost" href="#routes">← All routes</a></div>
   <section class="panel"><div class="body"><form id="f">
     <div class="field"><label for="rn">Name</label><input id="rn" required value="${esc(r.name)}" placeholder="Fast, then cheap"></div>
-    <fieldset class="route-how"><legend>How it picks a model</legend>
-      <div class="presets">${PRESETS.map(([k, n, d]) => `<label class="preset"><input type="radio" name="preset" value="${k}" ${(r.preset || "custom") === k ? "checked" : ""}><b>${n}</b><span>${d}</span></label>`).join("")}</div>
+    <fieldset class="route-how"><legend>How it picks ${isModel ? "a model" : `a ${kind}`}</legend>
+      <div class="presets">${(isModel ? PRESETS : LAYER_PRESETS).map(([k, n, d]) => `<label class="preset"><input type="radio" name="preset" value="${k}" ${(r.preset || "custom") === k ? "checked" : ""}><b>${n}</b><span>${d}</span></label>`).join("")}</div>
       <div class="route-settings">
-        <label>Order <select id="ro">${Object.entries(ORDER_NAMES).map(([k, n]) => option(k, n, r.order || "listed")).join("")}</select></label>
-        <label><input type="checkbox" id="rl" ${r.maxLatencyMs ? "checked" : ""}>Switch after <input id="rlms" type="number" min="300" max="30000" step="100" value="${r.maxLatencyMs || 2000}" class="inline-num" aria-label="Milliseconds"> ms without an answer</label>
-        <label>Rest a model that let the route down <input id="rc" type="number" min="0" max="1440" value="${r.cooldownMinutes ?? 5}" class="inline-num" aria-label="Minutes"> min</label>
+        <label>Order <select id="ro">${Object.entries(ORDER_NAMES).filter(([k]) => isModel || k !== "fastest").map(([k, n]) => option(k, n, r.order || "listed")).join("")}</select></label>
+        <label ${isModel ? "" : "hidden"}><input type="checkbox" id="rl" ${r.maxLatencyMs && isModel ? "checked" : ""}>Switch after <input id="rlms" type="number" min="300" max="30000" step="100" value="${r.maxLatencyMs || 2000}" class="inline-num" aria-label="Milliseconds"> ms without an answer</label>
+        <label>Rest ${isModel ? "a model" : `a ${kind}`} that let the route down <input id="rc" type="number" min="0" max="1440" value="${r.cooldownMinutes ?? 5}" class="inline-num" aria-label="Minutes"> min</label>
       </div>
       <p class="hint muted">A preset fills these in; change one and the route becomes Custom.</p>
     </fieldset>
-    <div class="field"><label>Models</label><p class="hint" id="nextOrder"></p><div id="rows"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn ghost small" id="add">${ICON.plus}Add a model</button>${r.id ? `<button type="button" class="btn ghost small" id="measure" title="Asks each saved model for one short answer (a few tokens each) and times its first word">${ICON.bolt}Measure speed</button>` : ""}</div></div>
+    <div class="field"><label>${isModel ? "Models" : kind === "voice" ? "Voices" : "Transcribers"}</label><p class="hint" id="nextOrder"></p><div id="rows"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn ghost small" id="add">${ICON.plus}Add ${isModel ? "a model" : `a ${kind}`}</button>${r.id && isModel ? `<button type="button" class="btn ghost small" id="measure" title="Asks each saved model for one short answer (a few tokens each) and times its first word">${ICON.bolt}Measure speed</button>` : ""}</div></div>
     <div class="error" id="err" role="alert"></div>
     <div class="row-actions">${r.id ? `<button type="button" class="btn danger" id="del">Delete</button>` : ""}<span class="spacer"></span><a class="btn ghost" href="#routes">Cancel</a><button class="btn">${r.id ? "Save changes" : "Create route"}</button></div>
   </form></div></section>`;
   const preset = () => $("#f").querySelector("[name=preset]:checked")?.value || "custom";
   const order = () => $("#ro").value;
   const meta = m => {
-    const s = info(m), err = errors.get(m.provider + "|" + m.model);
+    const s = info(m), err = errors.get(keyOf(m));
+    if (!isModel) return [unitText(kind, m), s.restingSeconds ? restLabel(s.restingSeconds) : ""].filter(Boolean).join(" · ");
     return [s.firstTokenMs != null ? `<span title="median of the last ${s.samples} answers">answers in ${ms(s.firstTokenMs)}</span>` : "speed not measured yet",
       priceText(llmPrice(m.provider, m.model)), s.restingSeconds ? restLabel(s.restingSeconds) : "", err ? `<span class="bad">${esc(err)}</span>` : ""].filter(Boolean).join(" · ");
   };
   const showNext = () => {
-    const list = nextOrder(models.filter(m => m.provider && m.model), order(), info);
-    $("#nextOrder").textContent = list.length ? "Next call tries: " + list.map(m => m.model).join(" → ") : "";
+    const list = nextOrder(models.filter(m => m.provider && (isModel ? m.model : kind === "voice" ? m.voiceId : true)), order(), info, kind);
+    $("#nextOrder").textContent = list.length ? "Next call tries: " + list.map(m => memberName(kind, m) || m.provider).join(" → ") : "";
   };
+  const memberField = kind === "voice" ? "voiceId" : "model";
+  const providers = kind === "model" ? LLM.map(p => [p, p]) : kind === "voice" ? VOICES : TRANSCRIBERS;
   const rows = () => {
     showNext();
     $("#rows").innerHTML = models.map((m, i) => `<div class="route-row" data-i="${i}"><span class="muted num">${i + 1}</span>
-      <select data-k="provider" aria-label="Provider">${LLM.map(p => option(p, p, m.provider)).join("")}</select>
-      <input data-k="model" value="${esc(m.model || "")}" aria-label="Model" ${m.provider === "ollama" ? 'list="routeOllama"' : ""} placeholder="model name">
+      <select data-k="provider" aria-label="Provider">${providers.map(([k, l]) => option(k, l, m.provider)).join("")}</select>
+      <input data-k="${memberField}" value="${esc(m[memberField] || "")}" aria-label="${kind === "voice" ? "Voice ID" : "Model"}" ${isModel && m.provider === "ollama" ? 'list="routeOllama"' : ""} placeholder="${kind === "voice" ? "voice ID" : kind === "transcriber" ? "model (optional)" : "model name"}">
       ${m.provider === "custom-llm" ? `<input data-k="url" value="${esc(m.url || "")}" aria-label="Base URL" placeholder="https://…/v1">` : ""}
       <button type="button" class="iconbtn" data-move="-1" aria-label="Move up" ${i ? "" : "disabled"}>↑</button><button type="button" class="iconbtn" data-move="1" aria-label="Move down" ${i < models.length - 1 ? "" : "disabled"}>↓</button><button type="button" class="iconbtn" data-del="${i}" aria-label="Remove" ${models.length > 1 ? "" : "disabled"}>✕</button><span class="route-meta" data-meta="${i}">${meta(m)}</span></div>`).join("")
       + `<datalist id="routeOllama">${ollama.map(n => `<option value="${esc(n)}">`).join("")}</datalist>`;
@@ -1578,7 +1627,7 @@ async function viewRoute(id) {
       row.querySelectorAll("[data-k]").forEach(el => el.oninput = el.onchange = () => {
         const before = models[i].provider;
         models[i][el.dataset.k] = el.value;
-        if (el.dataset.k === "provider" && el.value !== before) { models[i].model = SUGGESTED_MODEL[el.value] ?? ""; rows(); }
+        if (el.dataset.k === "provider" && el.value !== before) { Object.assign(models[i], DEFAULT_MEMBER[kind](el.value)); rows(); }
         else { row.querySelector("[data-meta]").innerHTML = meta(models[i]); showNext(); }
       });
       row.querySelectorAll("[data-move]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.move); [models[i], models[j]] = [models[j], models[i]]; rows(); });
@@ -1586,39 +1635,39 @@ async function viewRoute(id) {
     });
   };
   rows();
-  api("/providers/ollama/models").then(o => { ollama = o.models; rows(); }).catch(() => {});
-  $("#add").onclick = () => { models.push({ provider: "openrouter", model: SUGGESTED_MODEL.openrouter }); rows(); };
+  if (isModel) api("/providers/ollama/models").then(o => { ollama = o.models; rows(); }).catch(() => {});
+  $("#add").onclick = () => { models.push(DEFAULT_MEMBER[kind]({ model: "openrouter", transcriber: "assembly-ai", voice: "cartesia" }[kind])); rows(); };
   // A preset fills in the settings; touching a setting makes the route custom (as OmniRoute's mode packs do).
   $("#f").querySelectorAll("[name=preset]").forEach(x => x.onchange = () => {
     const p = PRESET_VALUES[preset()];
-    if (p) { $("#ro").value = p.order; $("#rl").checked = true; $("#rlms").value = p.maxLatencyMs; $("#rc").value = p.cooldownMinutes; }
+    if (p) { $("#ro").value = p.order; $("#rl").checked = isModel; $("#rlms").value = p.maxLatencyMs; $("#rc").value = p.cooldownMinutes; }
     showNext();
   });
   ["#ro", "#rl", "#rlms", "#rc"].forEach(s => $(s).oninput = $(s).onchange = () => { $("#f").querySelector("[name=preset][value=custom]").checked = true; showNext(); });
   const measure = () => api("/model-route/" + (r.id || "") + "/measure", { method: "POST" });
-  if (r.id) $("#measure").onclick = async () => {
+  if (r.id && isModel) $("#measure").onclick = async () => {
     const b = $("#measure");
     b.disabled = true; b.lastChild.textContent = "Measuring…";
     try {
       const done = await measure();
-      done.models.forEach((m, i) => { known.set(m.provider + "|" + m.model, m); errors.set(m.provider + "|" + m.model, done.measured[i]?.error); });
+      done.models.forEach((m, i) => { known.set(keyOf(m), m); errors.set(keyOf(m), done.measured[i]?.error); });
       rows();
     } catch (err) { $("#err").textContent = err.message; }
     b.disabled = false; b.lastChild.textContent = "Measure speed";
   };
   $("#f").onsubmit = async e => {
     e.preventDefault();
-    const body = { name: $("#rn").value, models, preset: preset() };
-    if (body.preset === "custom") Object.assign(body, { order: order(), maxLatencyMs: $("#rl").checked ? Number($("#rlms").value) : null, cooldownMinutes: Number($("#rc").value) });
+    const body = { name: $("#rn").value, models, preset: preset(), ...(isModel ? {} : { kind }) };
+    if (body.preset === "custom") Object.assign(body, { order: order(), maxLatencyMs: isModel && $("#rl").checked ? Number($("#rlms").value) : null, cooldownMinutes: Number($("#rc").value) });
     try {
       const saved = await api(r.id ? "/model-route/" + r.id : "/model-route", { method: r.id ? "PATCH" : "POST", body: JSON.stringify(body) });
       // A new "fastest" route has nothing to go by yet: time its models in the background.
-      if (saved.order === "fastest" && saved.models.some(m => m.firstTokenMs == null))
+      if (isModel && saved.order === "fastest" && saved.models.some(m => m.firstTokenMs == null))
         api("/model-route/" + saved.id + "/measure", { method: "POST" }).then(() => location.hash === "#routes" && viewRoutes()).catch(() => {});
       go("routes");
     } catch (err) { $("#err").textContent = err.message; }
   };
-  if (r.id) $("#del").onclick = async () => { if (confirm("Delete this route? Its assistants go back to the first model, as saved.")) { await api("/model-route/" + r.id, { method: "DELETE" }); go("routes"); } };
+  if (r.id) $("#del").onclick = async () => { if (confirm(`Delete this route? Its assistants go back to the ${kind} they have saved.`)) { await api("/model-route/" + r.id, { method: "DELETE" }); go("routes"); } };
 }
 
 // One line of a call's transcript: a bubble per side, a quiet row for each tool call and its result.

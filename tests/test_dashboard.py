@@ -146,7 +146,56 @@ def test_the_campaign_form_asks_for_retries_only_above_one_try_and_counts_people
     assert "const called = new Set(calls.map(([, e], n) => e.index ?? n))" in PAGE
 
 
-def test_the_dashboard_lists_only_model_routes_and_the_editor_keeps_a_layers_route_id():
-    assert "/model-route\")" not in PAGE.replace("/model-route?kind=model", "")  # no unfiltered list
-    assert PAGE.count("/model-route?kind=model") == 3
-    assert "transcriber: { ...t, provider:" in PAGE and "voice: { ...vo, provider:" in PAGE  # spreads keep routeId
+def test_routes_of_transcribers_and_voices_are_listed_edited_and_chosen_in_the_assistant_editor():
+    # Every kind is listed, told apart by kindOf.
+    assert "/model-route?kind" not in PAGE and PAGE.count('api("/model-route")') == 3
+    assert 'href="#routes/new-transcriber"' in PAGE and 'href="#routes/new-voice"' in PAGE
+    assert 'name="tr"' in PAGE and 'name="vr"' in PAGE  # a route for the transcriber and for the voice
+    assert "layerSaved(" in PAGE and "routeId: route.id, provider: first.provider" in PAGE
+    # A route of transcribers or voices has no speed to measure and no latency limit.
+    assert "${r.id && isModel ?" in PAGE and 'isModel && $("#rl").checked' in PAGE
+
+
+EDITOR_PRELUDE = """
+const usd = n => n == null ? "—" : "$" + (n === 0 ? "0" : n >= 1 ? n.toFixed(2) : n.toPrecision(2));
+const SUGGESTED_MODEL = { groq: "openai/gpt-oss-20b" }, SUGGESTED_VOICE = { kokoro: "af_heart" };
+const ORDER_NAMES = {}, PRESET_VALUES = {}, PRESETS = [], restLabel = s => s, ms = n => n;
+"""
+
+EDITOR_CHECKS = """
+priceList = { llm: {},
+  stt: { deepgram: { "*": 0.0077, "nova-3:multi": 0.0092 }, soniox: { "*": 0.002 }, whisper: { "*": 0 } },
+  tts: { "11labs": { "*": 40 }, kokoro: { "*": 0 }, cartesia: { "*": 39.2 }, inworld: { "inworld-tts-2": 25 } } };
+const none = () => ({});
+const names = (kind, order, models) => nextOrder(models, order, none, kind).map(m => m.provider);
+const p = n => ({ provider: n });
+const resting = m => m.provider === "kokoro" ? { restingSeconds: 60 } : {};
+console.log(JSON.stringify({
+  voices: names("voice", "cheapest", [p("11labs"), p("inworld"), p("kokoro"), p("cartesia")]),
+  listen: names("transcriber", "cheapest", [p("deepgram"), p("made-up"), p("soniox")]),
+  listed: names("voice", "listed", [p("11labs"), p("kokoro")]),
+  resting: nextOrder([p("kokoro"), p("cartesia")], "cheapest", resting, "voice").map(m => m.provider),
+  label: [memberLabel("voice", { provider: "11labs", voiceId: "v1", model: "x" }),
+          memberLabel("transcriber", { provider: "deepgram", model: "nova-3" }),
+          memberLabel("transcriber", p("soniox")), memberLabel("model", { provider: "groq", model: "m" })],
+  kinds: [kindOf({}), kindOf({ kind: "voice" })],
+  text: [unitText("voice", p("kokoro")), unitText("voice", p("11labs")), unitText("transcriber", p("deepgram")),
+         unitText("voice", p("inworld")), unitText("transcriber", p("nope"))],
+  defaults: [DEFAULT_MEMBER.transcriber("deepgram"), DEFAULT_MEMBER.voice("kokoro"), DEFAULT_MEMBER.voice("11labs")],
+}));
+"""
+
+
+def test_the_editor_orders_a_route_of_voices_and_transcribers_by_price_and_names_their_members():
+    start = PAGE.index("const kindOf")
+    got = run_js(EDITOR_PRELUDE + PAGE[start:PAGE.index("async function viewRoutes")] + EDITOR_CHECKS)
+    # A price that is unknown (a member priced only per model, one nobody priced) comes last, in the order listed.
+    assert got["voices"] == ["kokoro", "cartesia", "11labs", "inworld"]
+    assert got["listen"] == ["soniox", "deepgram", "made-up"]
+    assert got["listed"] == ["11labs", "kokoro"] and got["resting"] == ["cartesia", "kokoro"]  # resting goes last
+    assert got["label"] == ["11labs · v1", "deepgram · nova-3", "soniox", "groq · m"]
+    assert got["kinds"] == ["model", "voice"]
+    assert got["text"] == ["free", "$40.00 per 1M characters", "$0.0077 per minute", "price unknown", "price unknown"]
+    assert got["defaults"] == [{"provider": "deepgram", "model": "nova-3"},
+                               {"provider": "kokoro", "voiceId": "af_heart"}, {"provider": "11labs", "voiceId": ""}]
+

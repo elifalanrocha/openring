@@ -15,7 +15,8 @@ All notable changes to OpenRing are listed here. The format follows
   Each call in a campaign records its customer's position (`index`) and `attempt`.
 - Routes of transcribers and voices (`"kind": "transcriber"` or `"voice"` on `POST /model-route`, used with
   `transcriber.routeId` or `voice.routeId`): in order or by price, failing over and resting after a failure like model
-  routes. API only for now; the Model routes page lists model routes. `GET /model-route?kind=`.
+  routes. The Model routes page has a button for each kind and the assistant editor picks a route for the transcriber and the
+  voice. `GET /model-route?kind=`.
 - `transferCall` on Telnyx (beta): the live call is given a `<Dial>` with TeXML's Update call, using the account id Telnyx sends
   with each webhook.
 - The Docker image keeps the downloaded Kokoro and Whisper models on the `/data` volume (`HOME=/data`), so a new container
