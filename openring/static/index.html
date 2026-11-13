@@ -766,6 +766,27 @@ const MULTILINGUAL_VOICES = ["11labs", "openai"];
 const WHISPER_MODELS = [["tiny", "tiny: fastest, ~0.6 s"], ["base", "base: balanced, ~1.2 s"], ["small", "small: accurate, ~4 s"], ["medium", "medium: needs a GPU"], ["large-v3-turbo", "large-v3-turbo: needs a GPU"]];
 const SUGGESTED_VOICE = { kokoro: "af_heart", deepgram: "thalia", openai: "alloy" };
 const option = (value, label, current) => `<option value="${esc(value)}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
+// Kokoro's voices by language, from the Kokoro-82M model card (VOICES.md).
+const KOKORO_VOICES = {
+  "American English": ["af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa"],
+  "British English": ["bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis"],
+  "Japanese": ["jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo"],
+  "Mandarin Chinese": ["zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi", "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang"],
+  "Spanish": ["ef_dora", "em_alex", "em_santa"],
+  "French": ["ff_siwis"],
+  "Hindi": ["hf_alpha", "hf_beta", "hm_omega", "hm_psi"],
+  "Italian": ["if_sara", "im_nicola"],
+  "Brazilian Portuguese": ["pf_dora", "pm_alex", "pm_santa"],
+};
+const KOKORO_VOICE_IDS = Object.values(KOKORO_VOICES).flat();
+// Kokoro has a list; the other providers need a voice ID from their library.
+function voiceField(provider, current) {
+  if (provider !== "kokoro") return `<input name="vv" aria-label="Voice ID" value="${esc(current || "")}">`;
+  const groups = Object.entries(KOKORO_VOICES).map(([language, voices]) =>
+    `<optgroup label="${esc(language)}">${voices.map(id => option(id, id, current)).join("")}</optgroup>`).join("");
+  const other = current && !KOKORO_VOICE_IDS.includes(current) ? `<optgroup label="Other">${option(current, current, current)}</optgroup>` : "";
+  return `<select name="vv" aria-label="Voice ID">${groups}${other}</select>`;
+}
 const NEW_ASSISTANT = { model: { provider: "openai", model: "gpt-4.1-mini" }, voice: { provider: "kokoro", voiceId: "af_heart" }, transcriber: { provider: "deepgram", model: "nova-3", language: "multi" } };
 
 function wordsTyped(text) {
@@ -929,7 +950,7 @@ async function viewAssistant(id) {
       <div class="stage caller"><h3>Caller</h3><span class="muted" style="font-size:12.5px">Phone or browser</span></div><div class="cable"></div>
       <div class="stage"><h3>Transcriber</h3>${sttRoutes.length ? `<label>Route</label><select name="tr">${option("", "None: one transcriber", t.routeId || "")}${sttRoutes.map(r => option(r.id, r.name, t.routeId || "")).join("")}</select>` : ""}<div id="tfixed"><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select></div><p class="hint stage-hint plain" id="troute" hidden></p><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
       <div class="stage"><h3>Model</h3>${routes.length ? `<label>Route</label><select name="mr">${option("", "None: one model", m.routeId || "")}${routes.map(r => option(r.id, r.name, m.routeId || "")).join("")}</select>` : ""}<div id="mfixed"><label>Provider</label><select name="mp">${LLM.map(p => option(p, p, m.provider === "deep-seek" ? "deepseek" : m.provider)).join("")}</select><label>Model</label><input name="mm" value="${esc(m.model || "")}" list="ollamaModels"><datalist id="ollamaModels"></datalist></div><p class="hint stage-hint plain" id="mroute" hidden></p></div><div class="cable"></div>
-      <div class="stage"><h3>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><input name="vv" value="${esc(vo.voiceId || "")}"></div><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
+      <div class="stage"><h3>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><div id="vvoice">${voiceField(vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro", vo.voiceId)}</div></div><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
     </div>
     <div class="free-stack"><button type="button" class="btn ghost small" id="freeStack">Use the free local stack</button><span class="muted">Whisper, Ollama and Kokoro, all on this computer: no per-minute cost, and the call's audio never leaves it.</span><span class="muted" id="freeNote" role="status"></span></div>
     <div class="field" style="margin-top:22px"><label for="name">Name</label><input id="name" name="name" required value="${esc(a.name || "")}" placeholder="Front desk"></div>
@@ -950,10 +971,18 @@ async function viewAssistant(id) {
     ${footer}</form>`;
     const mp = $("[name=mp]"), mm = $("[name=mm]");
     mp.onchange = () => { if (!mm.value || Object.values(SUGGESTED_MODEL).includes(mm.value)) mm.value = SUGGESTED_MODEL[mp.value] ?? ""; };
-    const vp = $("[name=vp]"), vv = $("[name=vv]"), tl = $("[name=tl]");
+    const vp = $("[name=vp]"), tl = $("[name=tl]"), vvoice = $("#vvoice");
+    let voiceId = vo.voiceId || "";
+    const renderVoice = () => { vvoice.innerHTML = voiceField(vp.value, voiceId); };
     // "Follow the caller" needs a voice that reads any language; the others speak one each.
     const hint = () => { $("#vhint").hidden = !(tl.value === "multi" && !MULTILINGUAL_VOICES.includes(vp.value)); };
-    vp.onchange = () => { if (!vv.value || Object.values(SUGGESTED_VOICE).includes(vv.value)) vv.value = SUGGESTED_VOICE[vp.value] ?? ""; hint(); };
+    vp.onchange = () => {
+      const field = vvoice.querySelector("[name=vv]");
+      if (field) voiceId = field.value;
+      if (!voiceId || Object.values(SUGGESTED_VOICE).includes(voiceId)) voiceId = SUGGESTED_VOICE[vp.value] ?? "";
+      renderVoice();
+      hint();
+    };
     tl.onchange = hint;
     hint();
     // On a route, the route's models answer; the fixed model fields step aside.
@@ -994,7 +1023,7 @@ async function viewAssistant(id) {
       tp.value = "whisper"; tm.value = tm.value || "base"; showLayerRoutes();
       if (mr) { mr.value = ""; showRoute(); }
       mp.value = "ollama"; mm.value = ollama.models[0] || SUGGESTED_MODEL.ollama; offer();
-      if (vp.value !== "kokoro") { vp.value = "kokoro"; vv.value = tl.value === "pt-BR" ? "pf_dora" : SUGGESTED_VOICE.kokoro; }
+      if (vp.value !== "kokoro") { vp.value = "kokoro"; voiceId = tl.value === "pt-BR" ? "pf_dora" : SUGGESTED_VOICE.kokoro; renderVoice(); }
       hint();
       $("#freeNote").textContent = ollama.running ? `Ollama is running with ${ollama.models.length ? ollama.models.join(", ") : "no models yet: run ollama pull llama3.2"}.`
         : "Ollama isn't running here: install it from ollama.com, then run ollama pull llama3.2. Whisper downloads its model when you save.";

@@ -157,6 +157,32 @@ def test_routes_of_transcribers_and_voices_are_listed_edited_and_chosen_in_the_a
     assert "${r.id && isModel ?" in PAGE and 'isModel && $("#rl").checked' in PAGE
 
 
+def test_the_assistant_editor_picks_a_kokoro_voice_from_a_list_grouped_by_language():
+    start = PAGE.index("// Kokoro's voices by language")
+    code = PAGE[start:PAGE.index("const NEW_ASSISTANT", start)]
+    got = run_js("""
+    const esc = value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const option = (value, label, current) =>
+      `<option value="${esc(value)}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
+    """ + code + """
+    console.log(JSON.stringify({
+      english: voiceField("kokoro", "am_adam"),
+      portuguese: voiceField("kokoro", "pf_dora"),
+      other: voiceField("11labs", "custom-voice"),
+      unknown: voiceField("kokoro", "custom"),
+    }));
+    """)
+    assert '<optgroup label="American English">' in got["english"]
+    assert '<option value="am_adam" selected>am_adam</option>' in got["english"]
+    assert '<option value="af_heart" selected>af_heart</option>' not in got["english"]
+    assert '<optgroup label="Brazilian Portuguese">' in got["portuguese"]
+    assert '<option value="pf_dora" selected>pf_dora</option>' in got["portuguese"]
+    assert got["other"] == '<input name="vv" aria-label="Voice ID" value="custom-voice">'
+    # A voice from an import that the list does not know is kept, not silently replaced.
+    assert '<optgroup label="Other"><option value="custom" selected>custom</option></optgroup>' in got["unknown"]
+
+
 EDITOR_PRELUDE = """
 const usd = n => n == null ? "—" : "$" + (n === 0 ? "0" : n >= 1 ? n.toFixed(2) : n.toPrecision(2));
 const SUGGESTED_MODEL = { groq: "openai/gpt-oss-20b" }, SUGGESTED_VOICE = { kokoro: "af_heart" };
