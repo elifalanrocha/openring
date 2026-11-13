@@ -12,7 +12,8 @@ something, or pick an item and say you're on it. Shipped work moves to the [chan
 2. **The rest of Vapi's server messages and tools:** `model-output`, `voice-input`, `transfer-update`, and tools from an
    MCP server. `speech-update`, `user-interrupted`, `hang` and `transcript` are in.
 3. **Memory per caller:** the assistant remembers who called before, kept on your server, at no charge.
-4. **Calls over WhatsApp**, incoming first.
+4. **Calls over WhatsApp.** In and out through Wavoip (unofficial) are in, untried on a real call; Meta's
+   official Calling API comes next.
 5. **Answering other AI agents.** More and more callers are assistants calling for a person: notice it, answer
    briefly and in a form a program can read, and mark those calls. Then an open way for two agents to recognize each
    other on a call and finish in seconds.

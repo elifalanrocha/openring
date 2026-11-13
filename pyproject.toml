@@ -30,7 +30,8 @@ dependencies = [
 kokoro = ["pipecat-ai[kokoro]>=1.15,<2"]
 # Free speech-to-text on this computer (faster-whisper).
 whisper = ["pipecat-ai[whisper]>=1.15,<2"]
-dev = ["pytest>=8", "ruff>=0.13"]
+# python-socketio is the pretend Wavoip of tests/test_wavoip.py; OpenRing itself doesn't use it.
+dev = ["pytest>=8", "ruff>=0.13", "python-socketio>=5.11"]
 
 [project.scripts]
 openring = "openring.__main__:main"

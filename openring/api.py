@@ -41,6 +41,7 @@ from . import (
     telnyx,
     twilio,
     vonage,
+    wavoip,
 )
 from .config import Settings, get_settings, is_placeholder_key
 from .importer import SourceError, import_account
@@ -90,7 +91,7 @@ class Refused(Exception):
 
 
 # The phone providers a number can call out through, by its `provider`.
-OUTBOUND = ("twilio", "telnyx", "plivo", "vonage", "byo-phone-number")
+OUTBOUND = ("twilio", "telnyx", "plivo", "vonage", "byo-phone-number", "wavoip")
 LINE_NAMES = {"twilio": "Twilio", "telnyx": "Telnyx", "plivo": "Plivo", "vonage": "Vonage"}
 # How long a transfer's instructions wait for the carrier to fetch them.
 TRANSFER_WAIT_SECONDS = 120
@@ -117,9 +118,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             _prepare_squad(squad)
         if store.list("credentials", limit=1):
             await sip_server.start()
+        await whatsapp.refresh()
         cleaning = asyncio.create_task(clean_recordings_forever())
         yield
         cleaning.cancel()
+        await whatsapp.stop()
         await sip_server.stop()
         await dialer.close()
 
@@ -988,6 +991,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
     # ---- Phone numbers --------------------------------------------------------
     def _check_number(doc: dict[str, Any]) -> None:
+        if doc.get("provider") == "wavoip" and not wavoip.is_token(doc.get("wavoipToken")):
+            raise HTTPException(status_code=400, detail="wavoipToken is required: the token of the Wavoip device "
+                                                        "linked to this WhatsApp number")
         trunk = doc.get("provider") == "byo-phone-number"
         if trunk:
             if store.get("credentials", str(doc.get("credentialId") or "")) is None:
@@ -999,42 +1005,57 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(status_code=400, detail="number must be a phone number with its country code "
                                                         "(E.164, e.g. +15551234567)")
 
+    def _number_view(doc: dict[str, Any]) -> dict[str, Any]:
+        """A phone number as the API shows it. A WhatsApp number (Wavoip) keeps its token and says how its device is."""
+        if doc.get("provider") != "wavoip":
+            return doc
+        return {**wavoip.without_token(doc), **whatsapp.view(doc["id"])}
+
+    async def _number_saved(doc: dict[str, Any], was: dict[str, Any] | None = None) -> dict[str, Any]:
+        if "wavoip" in (doc.get("provider"), (was or {}).get("provider")):
+            await whatsapp.refresh()
+        return _number_view(doc)
+
     @app.post("/phone-number", status_code=201, dependencies=auth_deps)
-    def create_phone_number(body: dict[str, Any]) -> dict[str, Any]:
+    async def create_phone_number(body: dict[str, Any]) -> dict[str, Any]:
         _check_number(body)
         if body.get("assistantId"):
             _get_or_404("assistants", body["assistantId"])
         if body.get("squadId"):
             _get_or_404("squads", body["squadId"])
         body.setdefault("provider", "twilio")
-        return store.create("phone_numbers", body)
+        return await _number_saved(store.create("phone_numbers", body))
 
     @app.get("/phone-number", dependencies=auth_deps)
     def list_phone_numbers(
         limit: int = 100, createdAtGt: str | None = None, createdAtLt: str | None = None,
         createdAtGe: str | None = None, createdAtLe: str | None = None,
     ) -> list[dict[str, Any]]:
-        return store.list("phone_numbers", limit, **_created(createdAtGt, createdAtLt, createdAtGe, createdAtLe))
+        found = store.list("phone_numbers", limit, **_created(createdAtGt, createdAtLt, createdAtGe, createdAtLe))
+        return [_number_view(doc) for doc in found]
 
     @app.get("/phone-number/{number_id}", dependencies=auth_deps)
     def get_phone_number(number_id: str) -> dict[str, Any]:
-        return _get_or_404("phone_numbers", number_id)
+        return _number_view(_get_or_404("phone_numbers", number_id))
 
     @app.patch("/phone-number/{number_id}", dependencies=auth_deps)
-    def update_phone_number(number_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    async def update_phone_number(number_id: str, body: dict[str, Any]) -> dict[str, Any]:
         current = _get_or_404("phone_numbers", number_id)
-        if "number" in body or "credentialId" in body or "provider" in body:
+        if "number" in body or "credentialId" in body or "provider" in body or "wavoipToken" in body:
             _check_number({**current, **body})
         if body.get("assistantId"):
             _get_or_404("assistants", body["assistantId"])
         if body.get("squadId"):
             _get_or_404("squads", body["squadId"])
-        return store.update("phone_numbers", number_id, body)
+        return await _number_saved(store.update("phone_numbers", number_id, body), current)
 
     @app.delete("/phone-number/{number_id}", dependencies=auth_deps)
-    def delete_phone_number(number_id: str) -> dict[str, Any]:
+    async def delete_phone_number(number_id: str) -> dict[str, Any]:
         _get_or_404("phone_numbers", number_id)
-        return store.delete("phone_numbers", number_id)
+        gone = store.delete("phone_numbers", number_id)
+        if gone.get("provider") == "wavoip":
+            await whatsapp.refresh()
+        return wavoip.without_token(gone)
 
     # ---- Calls ------------------------------------------------------------------
     @app.get("/call", dependencies=auth_deps)
@@ -1176,6 +1197,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 raise HTTPException(status_code=400, detail="the number's SIP trunk was deleted")
             return
         provider = number.get("provider") or "twilio"
+        if provider == "wavoip":  # the device's token is on the number, and Wavoip is reached from here
+            return
         if provider == "telnyx":
             if not (settings.telnyx_api_key and (number.get("texmlApplicationId") or settings.telnyx_application_id)):
                 raise HTTPException(status_code=400, detail="outbound calls through Telnyx need TELNYX_API_KEY and a "
@@ -1217,6 +1240,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 patch = {"status": "ended", "endedReason": "sip-failed-to-connect-call", "endedAt": now_iso()}
                 raise Refused(store.update("calls", call["id"], patch), str(exc)) from exc
             return store.update("calls", call["id"], {"phoneCallProvider": "sip"})
+        if number.get("provider") == "wavoip":
+            try:
+                wavoip_id = await whatsapp.place_call(call["id"], to, number)
+            except wavoip.WavoipError as exc:
+                patch = {"status": "ended", "endedReason": "wavoip-failed-to-connect-call", "endedAt": now_iso()}
+                raise Refused(store.update("calls", call["id"], patch), str(exc)) from exc
+            return store.update("calls", call["id"], {"phoneCallProvider": "wavoip", "phoneCallProviderId": wavoip_id})
         provider = number.get("provider") or "twilio"
         here, there = settings.public_url, _e164(number["number"])
         try:
@@ -1922,6 +1952,35 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     def sip_call_failed(call_id: str, reason: str) -> None:
         """A SIP call that never reached the assistant."""
         store.claim("calls", call_id, "queued", {"status": "ended", "endedReason": reason, "endedAt": now_iso()})
+
+    async def run_wavoip_call(call_id: str, session: wavoip.Session) -> None:
+        """A WhatsApp call that's connected, either way: it runs like any phone call, and is hung up when it ends."""
+        call = store.claim("calls", call_id, "queued", {"status": "in-progress", "startedAt": now_iso()})
+        if call is None:
+            logger.warning("refused WhatsApp call {}: unknown or already connected", call_id)
+            await session.hang_up()
+            return
+
+        async def refuse(_why: str) -> None:
+            await session.hang_up()
+
+        try:
+            await run_phone_call(call, refuse, lambda: wavoip.transport_for(session), None,
+                                 sample_rate=wavoip.SAMPLE_RATE)
+        finally:
+            await session.hang_up()
+
+    async def answer_wavoip(number_id: str, caller: str, wavoip_id: str) -> dict[str, Any] | str:
+        number = store.get("phone_numbers", number_id)
+        if number is None:
+            return "This number was deleted."
+        return await answer_inbound(caller, str(number.get("number") or ""), wavoip_id, "wavoip")
+
+    whatsapp = wavoip.Hub(
+        lambda: store.list("phone_numbers", limit=10_000), answer=answer_wavoip, run=run_wavoip_call,
+        failed=sip_call_failed, url=settings.wavoip_url,
+    )
+    app.state.whatsapp = whatsapp
 
     async def answer_sip(caller: str, called: str, sip_call_id: str) -> dict[str, Any] | str:
         return await answer_inbound(caller, called, sip_call_id, "sip")

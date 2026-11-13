@@ -13,6 +13,10 @@ All notable changes to OpenRing are listed here. The format follows
   sent by default as on Vapi; and `transcript`, partial and final, for an assistant that lists it in `serverMessages`
   (`transcript[transcriptType="final"]` for the final ones alone). A server that falls behind loses partial
   transcripts, never anything else. Tested on simulated calls only.
+- Calls over WhatsApp (beta, unofficial, never tried on a real call): a phone number with `"provider": "wavoip"` and a
+  `wavoipToken` answers and places WhatsApp voice calls with an assistant through Wavoip, with no public URL. The token is
+  never shown by the API; the number says how its device is (`wavoipStatus`). WhatsApp may ban a number used through an
+  unofficial client: the docs and the dashboard say so.
 - `PATCH /call/{id}` renames a call and `DELETE /call/{id}` deletes it for good, record, transcript and recording, as
   on Vapi; a call still going on is refused.
 - `scripts/vapi_sdk_check.py` runs Vapi's official Python SDK against an OpenRing server: 34 of the 38 calls it tries

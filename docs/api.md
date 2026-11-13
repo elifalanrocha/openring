@@ -479,6 +479,36 @@ Vonage lets you download) and `VONAGE_SIGNATURE_SECRET` (Settings > API settings
 page. Calls in and out, campaigns and `transferCall` work, with audio at 16 kHz; voicemail detection isn't available on
 Vonage yet.
 
+### WhatsApp calls
+
+Beta and **unofficial**, never tried on a real call. An assistant answers and places WhatsApp voice calls through
+[Wavoip](https://wavoip.com), a service that links a WhatsApp account as a "device" and carries its calls. It is not
+Meta's Calling API:
+
+- WhatsApp doesn't allow unofficial clients, and may restrict or ban a number used this way. Use a number you can lose.
+- The call's audio goes through Wavoip's servers, and Wavoip has its own plans and limits.
+- OpenRing speaks the protocol of Wavoip's open-source browser client; Wavoip can change it without notice.
+
+In Wavoip's panel, create a device, link the WhatsApp account (QR code) and copy the device's token. Then add the
+number, here or under **Phone numbers** in the dashboard (provider **WhatsApp**):
+
+```bash
+curl -X POST http://localhost:8000/phone-number \
+  -H "Authorization: Bearer $OPENRING_API_KEY" -H "Content-Type: application/json" \
+  -d '{"provider": "wavoip", "number": "+5511999990000", "wavoipToken": "DEVICE_TOKEN", "assistantId": "ASSISTANT_ID"}'
+```
+
+OpenRing connects to the device from your server, so it needs no `PUBLIC_URL` and no tunnel. A WhatsApp call to the
+number is answered by its assistant or squad; `POST /call` and campaigns with this `phoneNumberId` ring people on
+WhatsApp. The token is never shown again: the number comes back with `wavoipTokenSet`, `wavoipConnected`,
+`wavoipStatus` (`ready`, or what is missing) and `wavoipLinkedNumber`. A call that isn't picked up ends as
+`customer-busy`, `customer-did-not-answer` or `wavoip-failed-to-connect-call`.
+
+Not there: `transferCall` (a WhatsApp call can't be moved to a phone line), voicemail detection, and devices of
+Wavoip's official kind (Meta's Calling API over WebRTC), whose calls are left ringing. Wavoip charges per device, not
+per minute, so the line shows as `phone line (wavoip)` in a call's `unpriced`. WAHA can tell that a call is coming and
+reject it, but can't carry its audio (its docs, November 2026), which is why this goes through Wavoip.
+
 ### Genesys Cloud
 
 If your contact center runs on Genesys Cloud, an assistant can take calls inside your Architect flows,

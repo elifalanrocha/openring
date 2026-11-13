@@ -75,6 +75,8 @@ class Settings:
 
     # SIP trunks (sip.py): nothing listens until a trunk is saved. The carrier must reach this UDP port and the RTP
     # ports. SIP_PUBLIC_IP is the address it should send to, when this computer doesn't have it (behind a NAT).
+    # Where Wavoip's devices are reached (WhatsApp calls); only tests change it.
+    wavoip_url: str = field(default_factory=lambda: _env("WAVOIP_URL", "https://devices.wavoip.com"))
     sip_host: str = field(default_factory=lambda: _env("SIP_HOST", "0.0.0.0"))
     sip_port: int = field(default_factory=lambda: int(_env("SIP_PORT", "5060")))
     sip_public_ip: str = field(default_factory=lambda: _env("SIP_PUBLIC_IP"))

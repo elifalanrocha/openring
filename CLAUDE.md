@@ -159,6 +159,15 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
 - Memory per caller (`openring/memory.py`, `callerMemory`, beta, OpenRing's own field): `api._remember` appends a system
   message with the number's last calls with the same assistant or squad (`Store.calls_of`, an index on
   `$.customer.number`) to each plan that asks; ids go to the call's `rememberedCallIds`. Transcripts only, no model, off by default.
+- WhatsApp calls (`openring/wavoip.py`, beta, unofficial, never tried on a real call): a phone number with
+  `provider: "wavoip"` + `wavoipToken` (hidden by `api._number_view`). `wavoip.Hub` (`app.state.whatsapp`, refreshed on
+  number changes and at startup) keeps one `Device` per number: a hand-written Socket.IO v4 client (`SocketIO`) to
+  `WAVOIP_URL` (`devices.wavoip.com`, path `/<token>/websocket`). `call:offer` with a relay is acknowledged, recorded
+  (`answer_inbound`, provider `wavoip`), accepted (`call.accept`, `{"type": "none"}`), and its `Session` opens the relay
+  WebSocket (16-bit PCM, 16 kHz, a 20 ms message every 20 ms, silence included; a 4-byte message is a ping, answered
+  `pong`); `api.dial` places calls with `call.start` and `call:answered` brings the relay. `transport_for` is the Pipecat
+  transport; `run_wavoip_call` runs it at 16 kHz with no transfer. WebRTC offers (official devices) are left ringing.
+  Tests use python-socketio's server (a dev dependency) as the pretend Wavoip.
 - `openring/store.py` SQLite document store (JSON docs) for assistants, phone_numbers, calls, tools, campaigns, routes, files,
   knowledge_bases, squads, credentials.
 - `openring/static/index.html` single-file dashboard (vanilla JS, no build step), styled after OmniRoute:
