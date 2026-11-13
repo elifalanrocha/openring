@@ -17,13 +17,17 @@ from loguru import logger
 from . import netguard
 from .tools import without_secrets
 
-# What Vapi sends when the assistant doesn't list `serverMessages`. OpenRing sends these three of them;
-# tool-calls go to each tool's server (see tools.py).
+# What Vapi sends when the assistant doesn't list `serverMessages`. OpenRing sends status-update,
+# conversation-update, speech-update, user-interrupted, hang and end-of-call-report of them; tool-calls go to each
+# tool's server (see tools.py). Transcripts go only to an assistant that lists them (`transcript_kind`).
 DEFAULT_MESSAGES = (
     "conversation-update", "end-of-call-report", "function-call", "hang", "speech-update", "status-update",
     "tool-calls", "transfer-destination-request", "user-interrupted",
 )
 ASSISTANT_REQUEST_TIMEOUT = 7.5  # seconds; Vapi's limit for answering assistant-request
+FINAL_TRANSCRIPTS = 'transcript[transcriptType="final"]'  # Vapi's name for finished sentences only
+HANG_SECONDS = 5.0  # a caller who has waited this long for an answer gets a `hang` message sent about it
+BACKLOG = 20  # a partial transcript is dropped when this many messages still wait for the server
 
 
 def server_of(doc: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -95,16 +99,24 @@ class Outbox:
         self.assistant = assistant
         self.current_call = current_call
         self._chain: asyncio.Future | None = None
+        self._waiting = 0
 
-    def send(self, kind: str, **fields: Any) -> None:
+    def send(self, kind: str, *, droppable: bool = False, **fields: Any) -> None:
+        """Queue a message. A `droppable` one is left out when the server is far behind: it is out of date by then."""
         if server_of(self.assistant) is None or not wants(self.assistant, kind):
             return
+        if droppable and self._waiting >= BACKLOG:
+            return
         previous, call = self._chain, self.current_call()
+        self._waiting += 1
 
         async def deliver():
-            if previous is not None:
-                await asyncio.shield(previous)
-            await send(self.assistant, kind, call, **fields)
+            try:
+                if previous is not None:
+                    await asyncio.shield(previous)
+                await send(self.assistant, kind, call, **fields)
+            finally:
+                self._waiting -= 1
 
         self._chain = asyncio.ensure_future(deliver())
 
@@ -114,6 +126,99 @@ class Outbox:
                 await asyncio.wait_for(asyncio.shield(self._chain), timeout)
             except TimeoutError:
                 logger.warning("server messages still pending after {} s; sending the report anyway", timeout)
+
+
+def transcript_kind(assistant: dict[str, Any], final: bool) -> str | None:
+    """The message type a transcript goes out as, or None when the assistant didn't ask for it.
+
+    Transcripts are not among Vapi's defaults: `transcript` asks for partial and final ones, and
+    `transcript[transcriptType="final"]` for the final ones alone, under that same name.
+    """
+    chosen = assistant.get("serverMessages") or ()
+    if "transcript" in chosen:
+        return "transcript"
+    return FINAL_TRANSCRIPTS if final and FINAL_TRANSCRIPTS in chosen else None
+
+
+class Live:
+    """What happens on a call, told as it happens: Vapi's speech-update, user-interrupted, hang and transcript.
+
+    The call tells it who started or stopped speaking and what was heard and said; it keeps the turn count and
+    notices a caller left waiting. `turn` counts the exchanges so far: 0 until the caller first answers the assistant.
+    """
+
+    def __init__(self, outbox: Outbox, hang_seconds: float | None = None):
+        self.outbox = outbox
+        self.hang_seconds = HANG_SECONDS if hang_seconds is None else hang_seconds
+        self.turn = 0
+        self._assistant_speaking = False
+        self._user_speaking = False
+        self._assistant_spoke = False  # since the caller last started a turn
+        self._owed = False  # the caller said something nobody has answered yet
+        self._hang: asyncio.Task | None = None
+
+    def assistant_speaking(self, started: bool) -> None:
+        if started == self._assistant_speaking:  # Pipecat says it twice, up and down the pipeline
+            return
+        self._assistant_speaking = started
+        if started:
+            self._assistant_spoke, self._owed = True, False
+            self._stop_waiting()
+        self.outbox.send("speech-update", status="started" if started else "stopped", role="assistant", turn=self.turn)
+
+    def user_speaking(self, started: bool) -> None:
+        if started == self._user_speaking:
+            return
+        self._user_speaking = started
+        if started:
+            self._stop_waiting()
+            if self._assistant_speaking:
+                self.outbox.send("user-interrupted")
+            if self._assistant_spoke:
+                self.turn += 1
+                self._assistant_spoke = False
+        elif self._owed:
+            self._wait()
+        self.outbox.send("speech-update", status="started" if started else "stopped", role="user", turn=self.turn)
+
+    def heard(self, text: str, final: bool) -> None:
+        """What the transcriber made of the caller's speech."""
+        if not (text or "").strip():
+            return
+        if final:
+            self._owed = True
+            if not self._user_speaking and not self._assistant_speaking:
+                self._wait()
+        self._transcript("user", text, final)
+
+    def said(self, text: str) -> None:
+        """What the assistant said, once it's said."""
+        if (text or "").strip():
+            self._transcript("assistant", text, True)
+
+    def close(self) -> None:
+        self._stop_waiting()
+
+    def _transcript(self, role: str, text: str, final: bool) -> None:
+        kind = transcript_kind(self.outbox.assistant, final)
+        if kind:
+            self.outbox.send(kind, droppable=not final, role=role,
+                             transcriptType="final" if final else "partial", transcript=text)
+
+    def _wait(self) -> None:
+        if self._hang is None and self.hang_seconds > 0 and wants(self.outbox.assistant, "hang"):
+            self._hang = asyncio.ensure_future(self._late())
+
+    def _stop_waiting(self) -> None:
+        if self._hang is not None:
+            self._hang.cancel()
+            self._hang = None
+
+    async def _late(self) -> None:
+        await asyncio.sleep(self.hang_seconds)
+        self._hang = None
+        self._owed = False  # once per wait
+        self.outbox.send("hang")
 
 
 class AssistantRequestError(Exception):

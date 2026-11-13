@@ -3,29 +3,34 @@
 Where OpenRing is heading. Priorities change with what people need, so open an issue to argue for
 something, or pick an item and say you're on it. Shipped work moves to the [changelog](CHANGELOG.md).
 
-## Next (weeks after the first release)
+## Next, in this order
 
-- **Routing speech-to-text and voices by cost and speed**, as model routes already do for models.
-- **Faster local speech-to-text on a CPU:** streaming Moonshine for the languages it covers. The 100% local
-  stack itself (Whisper, Ollama, Kokoro) is in.
-- **More carriers in the cost per call.** The line is priced for Twilio in the US and Canada; next are Telnyx,
-  Plivo, Vonage and other countries, once each price is on a page we can point to.
-- **More telephony:** transfers through Telnyx, voicemail detection beyond Twilio, outbound calls through Genesys Cloud,
-  and Exotel. Telnyx, Plivo and Vonage already take calls in and out.
-- **Campaigns, next steps:** retrying busy and unanswered numbers, calling hours per time zone, and Vapi's
-  campaign webhooks. Campaigns themselves are already in.
-- **Calls over WhatsApp.**
-- **Knowledge base by meaning:** embeddings next to the word search (the word-search knowledge base is already in).
-- **Squads, next steps:** destinations chosen by your server, handing off to a whole squad, and squads in campaigns.
-- **SIP, next steps:** TCP and TLS, and voicemail detection (SIP trunks over UDP are already in).
-- **Deploy in one click:** a published Docker image and templates for Railway and Render.
+1. **Proof before features.** Every beta carrier and feature on a real call (Telnyx, Plivo, Vonage, SIP, outbound,
+   campaigns, transfers), an import from a real Vapi account, and the official Vapi SDK run against OpenRing, with the
+   coverage published. [Testing on a real call](https://github.com/elifalanrocha/openring/labels/needs-testing) is the
+   most useful thing anyone can do.
+2. **The rest of Vapi's server messages and tools:** `model-output`, `voice-input`, `transfer-update`, and tools from an
+   MCP server. `speech-update`, `user-interrupted`, `hang` and `transcript` are in.
+3. **Memory per caller:** the assistant remembers who called before, kept on your server, at no charge.
+4. **Calls over WhatsApp**, incoming first.
+5. **Answering other AI agents.** More and more callers are assistants calling for a person: notice it, answer
+   briefly and in a form a program can read, and mark those calls. Then an open way for two agents to recognize each
+   other on a call and finish in seconds.
+6. **An MCP server,** so any AI agent can place and follow a phone call through OpenRing.
+7. **Speech-to-speech models** (OpenAI Realtime, Gemini Live), next to the transcriber, model and voice stack.
+8. **Load tests,** with the number of simultaneous calls a small server takes, published.
 
 ## Later
 
-- **Agencies:** several clients on one server, each with its own assistants, numbers, limits and
-  branding.
-- **Every Vapi webhook:** live transcripts and the remaining server messages, so existing integrations
-  work unchanged.
-- **Scale:** Postgres and load tests with many simultaneous calls.
+- **Knowledge base by meaning:** embeddings next to the word search.
+- **Campaigns:** calling hours per time zone and Vapi's campaign webhooks.
+- **Squads:** destinations chosen by your server, handing off to a whole squad, and squads in campaigns.
+- **Agencies:** several clients on one server, each with its own assistants, numbers, limits and branding.
+- **Scale:** Postgres.
 - **Dashboard in Portuguese and Spanish.**
-- **Desktop installers** for Windows and macOS, so nobody needs a terminal.
+
+## Waiting for someone to ask
+
+Open an issue if you need one of these: more carriers in the cost per call (Telnyx, Plivo, Vonage, other countries),
+Exotel and outbound calls through Genesys Cloud, SIP over TCP and TLS, voicemail detection beyond Twilio, faster local
+speech-to-text with Moonshine, and desktop installers.

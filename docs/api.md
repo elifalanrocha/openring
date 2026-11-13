@@ -197,9 +197,17 @@ with `server.headers` and `server.secret` (as `X-Vapi-Secret`):
 - `status-update` when the call starts (`in-progress`), is transferred (`forwarding`) and ends (`ended`, with
   `endedReason`);
 - `conversation-update` after each answer, with the transcript so far;
+- `speech-update` when the assistant or the caller starts or stops speaking (`status`, `role`, and `turn`, the number
+  of exchanges so far);
+- `user-interrupted` when the caller talks over the assistant;
+- `hang` when the caller has waited 5 seconds for an answer;
 - `end-of-call-report` with the transcript and per-turn latency.
 
-Pick which ones with `serverMessages`, as on Vapi. A phone number without an assistant but with its own
+Pick which ones with `serverMessages`, as on Vapi. `transcript` is sent only when listed there: each thing the
+transcriber hears (`transcriptType` `partial`, then `final`) and each thing the assistant says, with `role` and
+`transcript`. List `transcript[transcriptType="final"]` instead to get the final ones alone, under that name. Messages
+arrive in order; when your server is slow, partial transcripts are the ones left out. Not sent yet: `model-output`,
+`voice-input` and `transfer-update`. A phone number without an assistant but with its own
 `server.url` asks it on each incoming call (`assistant-request`) and uses the `assistantId` or the transient
 `assistant` it answers. `POST /call` also takes a transient `assistant` instead of an `assistantId`.
 

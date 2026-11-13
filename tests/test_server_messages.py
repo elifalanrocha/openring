@@ -271,3 +271,148 @@ def test_a_call_reports_its_status_to_the_assistants_server(monkeypatch, quiet_p
     assert report["endedReason"] == "customer-ended-call" and report["call"]["id"] == params["callId"]
     assert report["artifact"]["messages"][0]["message"] == ASSISTANT["firstMessage"]
     assert all(url == SERVER["url"] for url, _ in sent)
+
+
+# --- as the call happens: speech-update, user-interrupted, hang, transcript ---
+
+
+def _live(monkeypatch, steps, assistant=None, hang_seconds=None, delays=None):
+    """Run `steps(live)` on a call's live messages and return what its server got, as (type, message) pairs."""
+    sent = capture(monkeypatch, delays=delays)
+
+    async def scenario():
+        box = Outbox({"server": SERVER, **(assistant or {})}, lambda: {"id": "c1"})
+        live = server_messages.Live(box, hang_seconds=hang_seconds)
+        await steps(live)
+        live.close()
+        await box.flush()
+
+    asyncio.run(scenario())
+    return [(m["type"], m) for _, m in sent]
+
+
+def test_speech_updates_say_who_spoke_and_count_the_turns(monkeypatch):
+    async def steps(live):
+        live.assistant_speaking(True)   # the greeting
+        live.assistant_speaking(True)   # Pipecat says it twice, up and down the pipeline
+        live.assistant_speaking(False)
+        live.user_speaking(True)
+        live.user_speaking(False)
+        live.assistant_speaking(True)
+        live.assistant_speaking(False)
+        live.user_speaking(True)
+
+    got = [(m["role"], m["status"], m["turn"]) for kind, m in _live(monkeypatch, steps) if kind == "speech-update"]
+    assert got == [("assistant", "started", 0), ("assistant", "stopped", 0), ("user", "started", 1),
+                   ("user", "stopped", 1), ("assistant", "started", 1), ("assistant", "stopped", 1),
+                   ("user", "started", 2)]
+
+
+def test_a_caller_who_talks_over_the_assistant_is_reported(monkeypatch):
+    async def steps(live):
+        live.user_speaking(True)        # nobody was talking: no interruption
+        live.user_speaking(False)
+        live.assistant_speaking(True)
+        live.user_speaking(True)
+
+    kinds = [kind for kind, _ in _live(monkeypatch, steps)]
+    assert kinds.count("user-interrupted") == 1
+    assert kinds.index("user-interrupted") > kinds.index("speech-update")
+    assert all(m["call"] == {"id": "c1"} for _, m in _live(monkeypatch, steps))
+
+
+def test_a_caller_left_waiting_is_reported_once(monkeypatch):
+    async def unanswered(live):
+        live.user_speaking(True)
+        live.heard("Is anyone there?", True)
+        live.user_speaking(False)
+        await asyncio.sleep(0.3)
+
+    async def answered(live):
+        live.user_speaking(True)
+        live.heard("Hello", True)
+        live.user_speaking(False)
+        await asyncio.sleep(0.05)
+        live.assistant_speaking(True)
+        await asyncio.sleep(0.3)
+
+    async def nothing_said(live):  # a noise on the line: nothing was heard, so nobody owes an answer
+        live.user_speaking(True)
+        live.user_speaking(False)
+        await asyncio.sleep(0.3)
+
+    async def still_talking(live):  # the transcriber finishes a sentence while the caller goes on
+        live.user_speaking(True)
+        live.heard("My number is", True)
+        await asyncio.sleep(0.3)
+
+    def hangs(steps, **assistant):
+        return [kind for kind, _ in _live(monkeypatch, steps, assistant, hang_seconds=0.1)].count("hang")
+
+    assert hangs(unanswered) == 1
+    assert hangs(answered) == hangs(nothing_said) == hangs(still_talking) == 0
+    assert hangs(unanswered, serverMessages=["status-update"]) == 0
+
+
+def test_transcripts_go_only_to_an_assistant_that_asks(monkeypatch):
+    async def steps(live):
+        live.heard("I'd like", False)
+        live.heard("I'd like a table", True)
+        live.heard("   ", True)
+        live.said("For how many?")
+
+    def transcripts(messages):
+        got = _live(monkeypatch, steps, {"serverMessages": messages} if messages is not None else None)
+        return [(kind, m["role"], m["transcriptType"], m["transcript"]) for kind, m in got if "transcript" in m]
+
+    assert transcripts(None) == []  # not among Vapi's defaults
+    assert transcripts(["transcript"]) == [
+        ("transcript", "user", "partial", "I'd like"), ("transcript", "user", "final", "I'd like a table"),
+        ("transcript", "assistant", "final", "For how many?")]
+    final_only = 'transcript[transcriptType="final"]'
+    assert transcripts([final_only]) == [
+        (final_only, "user", "final", "I'd like a table"), (final_only, "assistant", "final", "For how many?")]
+
+
+def test_a_slow_server_loses_partial_transcripts_never_final_ones(monkeypatch):
+    async def steps(live):
+        for n in range(200):
+            live.heard(f"word {n}", False)
+        live.heard("the whole sentence", True)
+
+    got = _live(monkeypatch, steps, {"serverMessages": ["transcript"]}, delays={"transcript": 0.001})
+    partial = [m for _, m in got if m["transcriptType"] == "partial"]
+    assert len(partial) == server_messages.BACKLOG
+    assert got[-1][1]["transcript"] == "the whole sentence"
+
+
+def test_a_call_tells_the_server_what_happens_as_it_happens(monkeypatch):
+    """Through the pipeline: the transcriber hears the caller, the assistant greets."""
+    from pipecat.frames.frames import TranscriptionFrame
+
+    from test_call_flow import _handshake, _scripted_call, _wait_until_ended
+
+    # Pipecat's own turn-taking says when the caller started and stopped, from what the transcriber heard.
+    heard = [TranscriptionFrame("Do you open on Sunday?", "caller", "2026-11-13T12:00:00Z")]
+    client, store, params, _said = _scripted_call(monkeypatch, (1.5, 0), on_start=heard, speaking=0.2)
+    sent = capture(monkeypatch)  # after the helper, which records them its own way
+    assistant = store.list("assistants")[0]
+    client.patch(f"/assistant/{assistant['id']}", headers=AUTH, json={
+        "server": SERVER, "serverMessages": ["speech-update", "transcript", "user-interrupted", "hang"]})
+    with client.websocket_connect("/ws/twilio") as ws:
+        _handshake(ws, params)
+        _wait_until_ended(store, params["callId"])
+    for _ in range(50):
+        if any(m.get("role") == "assistant" and m.get("status") == "stopped" for _, m in sent):
+            break
+        time.sleep(0.1)
+
+    messages = [m for _, m in sent]
+    speech = [(m["role"], m["status"]) for m in messages if m["type"] == "speech-update"]
+    assert speech.count(("user", "started")) == 1 and speech.count(("user", "stopped")) == 1  # each said once
+    assert speech.count(("assistant", "started")) == 1 and speech.count(("assistant", "stopped")) == 1
+    transcripts = {(m["role"], m["transcriptType"], m["transcript"]) for m in messages if m["type"] == "transcript"}
+    assert transcripts == {("user", "final", "Do you open on Sunday?"),
+                           ("assistant", "final", ASSISTANT["firstMessage"])}
+    assert all(m["call"]["id"] == params["callId"] for m in messages)
+    assert not any(m["type"] in ("status-update", "end-of-call-report") for m in messages)  # not asked for

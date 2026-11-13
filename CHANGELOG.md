@@ -6,6 +6,14 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Vapi's live server messages, in Vapi's shape: `speech-update` (who started or stopped speaking, with the `turn`),
+  `user-interrupted` (the caller talked over the assistant) and `hang` (the caller has waited 5 seconds for an answer),
+  sent by default as on Vapi; and `transcript`, partial and final, for an assistant that lists it in `serverMessages`
+  (`transcript[transcriptType="final"]` for the final ones alone). A server that falls behind loses partial
+  transcripts, never anything else. Tested on simulated calls only.
+
 ## [0.1.7] - 2026-11-11
 
 ### Added

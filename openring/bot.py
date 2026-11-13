@@ -416,11 +416,13 @@ async def run_call(
         FunctionCallCancelFrame,
         FunctionCallResultFrame,
         FunctionCallsStartedFrame,
+        InterimTranscriptionFrame,
         LLMFullResponseEndFrame,
         LLMFullResponseStartFrame,
         LLMMessagesAppendFrame,
         LLMRunFrame,
         MetricsFrame,
+        TranscriptionFrame,
         TTSSpeakFrame,
         UserStartedSpeakingFrame,
         UserStoppedSpeakingFrame,
@@ -462,7 +464,8 @@ async def run_call(
     variables: dict[str, Any] = {}  # what handoffs added to the call's variables
     handing_off: set[asyncio.Task] = set()  # a handoff or a transfer under way
     passed_over: set[str] = set()  # handoffs asked for while another was under way
-    outbox =server_messages.Outbox(plan.assistant, lambda: store.get("calls", call_id))
+    outbox = server_messages.Outbox(plan.assistant, lambda: store.get("calls", call_id))
+    live = server_messages.Live(outbox)  # speech-update, user-interrupted, hang and transcript, as they happen
     # The setup runs inside the try as well, so the call record ends however the call does: a caller
     # who hangs up while the services are still being built, or a provider that fails to start.
     try:
@@ -519,6 +522,7 @@ async def run_call(
             watch_fallback(layer, service)
 
         async def speak(text: str) -> None:
+            live.said(text)
             await task.queue_frames([TTSSpeakFrame(text, append_to_context=False)])
 
         async def end_call() -> None:
@@ -698,20 +702,25 @@ async def run_call(
             async def on_push_frame(self, data):
                 if isinstance(data.frame, BotStartedSpeakingFrame):
                     speech["speaking"] = True
+                    live.assistant_speaking(True)
                     if limits:
                         limits.bot(True, time.monotonic())
                     if first_word["connected"] and not first_word["spoke"]:
                         first_word["spoke"] = time.monotonic()
                 elif isinstance(data.frame, BotStoppedSpeakingFrame):
                     speech.update(speaking=False, last_stop=time.monotonic())
+                    live.assistant_speaking(False)
                     if limits:
                         limits.bot(False, time.monotonic())
                 elif isinstance(data.frame, (UserStartedSpeakingFrame, UserStoppedSpeakingFrame)):
                     started = isinstance(data.frame, UserStartedSpeakingFrame)
+                    live.user_speaking(started)
                     if limits:
                         limits.user(started, time.monotonic())
                     if started and plan.idle_reset_on_speech:
                         idle["spoken"] = 0
+                elif isinstance(data.frame, (TranscriptionFrame, InterimTranscriptionFrame)):
+                    live.heard(data.frame.text, isinstance(data.frame, TranscriptionFrame))
                 elif isinstance(data.frame, (LLMFullResponseStartFrame, LLMFullResponseEndFrame)):
                     if limits:
                         limits.model(isinstance(data.frame, LLMFullResponseStartFrame), time.monotonic())
@@ -804,6 +813,7 @@ async def run_call(
             if plan.leave_message or opening(plan) == "speak":
                 # In the context (and transcript) right away, even if the voice fails to say it.
                 context.add_message({"role": "assistant", "content": plan.first_message})
+                live.said(plan.first_message)
                 greeting = TTSSpeakFrame(plan.first_message, append_to_context=False)
                 if plan.leave_message:  # the beep or noise on the line must not cut the message off
                     greeting.interruptible = False
@@ -817,7 +827,8 @@ async def run_call(
             await task.cancel()
 
         @aggregators.assistant().event_handler("on_assistant_turn_stopped")
-        async def _conversation_update(_aggregator, _message):
+        async def _conversation_update(_aggregator, message):
+            live.said(str(getattr(message, "content", "") or ""))
             messages = conversation()
             outbox.send("conversation-update", messages=transcript_messages(messages), messagesOpenAIFormatted=messages)
 
@@ -836,6 +847,7 @@ async def run_call(
         logger.exception("call {} failed", call_id)
         ended_reason = f"pipeline-error: {exc}"
     finally:
+        live.close()
         if watching is not None:
             watching.cancel()
         for moving in list(handing_off):
