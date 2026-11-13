@@ -210,3 +210,23 @@ def test_a_routes_member_names_reach_the_page_only_escaped():
     assert len(uses) >= 3
     for line in uses:
         assert "textContent" in line or "esc(memberLabel(" in line, line.strip()[:100]
+
+
+def test_the_remember_callers_box_turns_memory_on_and_off_keeping_its_other_settings():
+    line = next(x for x in PAGE.splitlines() if x.strip().startswith("callerMemory: f.get("))
+    got = run_js("""
+    const form = ticked => ({ get: () => ticked ? "on" : null });
+    const saved = (ticked, a) => { const f = form(ticked); return ({ %s }).callerMemory ?? "unset"; };
+    console.log(JSON.stringify({
+      never: saved(false, {}),
+      on: saved(true, {}),
+      onKeeps: saved(true, { callerMemory: { enabled: false, calls: 5 } }),
+      off: saved(false, { callerMemory: { enabled: true, calls: 5 } }),
+      offFromTrue: saved(false, { callerMemory: true }),
+      onFromTrue: saved(true, { callerMemory: true }),
+    }));""" % line.strip().rstrip(","))
+    assert got == {"never": "unset", "on": {"enabled": True}, "onKeeps": {"enabled": True, "calls": 5},
+                   "off": {"enabled": False, "calls": 5}, "offFromTrue": {"enabled": False},
+                   "onFromTrue": {"enabled": True}}
+    box = next(x for x in PAGE.splitlines() if 'name="memOn"' in x)
+    assert "A caller ID can be faked" in box  # the warning sits next to the box

@@ -211,6 +211,25 @@ arrive in order; when your server is slow, partial transcripts are the ones left
 `server.url` asks it on each incoming call (`assistant-request`) and uses the `assistantId` or the transient
 `assistant` it answers. `POST /call` also takes a transient `assistant` instead of an `assistantId`.
 
+### Memory per caller
+
+Beta, and OpenRing's own: Vapi has no field for it. An assistant with `callerMemory` on is given, at the start of a phone
+call, what was said on that number's last calls with it, so it can pick up where they left off:
+
+```json
+{"callerMemory": {"enabled": true, "calls": 3, "maxCharacters": 4000}}
+```
+
+`calls` is how many past calls it gets (1 to 10) and `maxCharacters` how much text in all (200 to 20000), split evenly
+and keeping the end of each call. The memory is the transcripts OpenRing already keeps: nothing else is stored, no
+model summarizes anything and nothing is charged. Delete a call and it is forgotten. Tools' requests and results are
+left out. The call's record lists what it was given in `rememberedCallIds`. In a squad, each member with `callerMemory`
+gets the number's last calls with that squad. Browser calls have no number, so no memory.
+
+**A caller is known by the number the carrier reports, and that number can be faked.** Someone calling with another
+person's number is told what that person said before. Leave it off where a past call may hold something private, or
+have the assistant confirm who is calling before it mentions anything.
+
 ### Knowledge base
 
 Upload files, and the assistant looks things up in them during a call. Same calls as Vapi: `POST /file`, then a `query`

@@ -152,6 +152,13 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   silence included). `api.run_sip_call` runs it like any phone call; `dial` branches on `byo-phone-number`. Digest login,
   REGISTER (`sipRegisterPlan`), REFER for `transferCall` (`Session.transfer` waits for the NOTIFY with the final answer,
   `REFER_SECONDS`, and a failure comes back to the assistant). Passwords never leave through the API. Never tried with a real carrier.
+- Live server messages (`server_messages.Live`, fed by `bot.SpeechObserver`): `speech-update` (role, status, `turn`),
+  `user-interrupted`, `hang` (`HANG_SECONDS` after something heard goes unanswered) by default; `transcript` only when
+  `serverMessages` lists it (`transcript_kind`; `transcript[transcriptType="final"]` for finals alone). Partial
+  transcripts are `droppable`: `Outbox` leaves them out past `BACKLOG` undelivered messages.
+- Memory per caller (`openring/memory.py`, `callerMemory`, beta, OpenRing's own field): `api._remember` appends a system
+  message with the number's last calls with the same assistant or squad (`Store.calls_of`, an index on
+  `$.customer.number`) to each plan that asks; ids go to the call's `rememberedCallIds`. Transcripts only, no model, off by default.
 - `openring/store.py` SQLite document store (JSON docs) for assistants, phone_numbers, calls, tools, campaigns, routes, files,
   knowledge_bases, squads, credentials.
 - `openring/static/index.html` single-file dashboard (vanilla JS, no build step), styled after OmniRoute:

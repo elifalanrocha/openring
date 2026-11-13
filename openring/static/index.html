@@ -944,6 +944,7 @@ async function viewAssistant(id) {
       ${files.length ? files.map(file => `<label class="consent" style="margin:4px 0"><input type="checkbox" name="kb" value="${esc(file.id)}" ${knowledgeIds(m).includes(file.id) ? "checked" : ""}><span>${esc(file.name)}</span></label>`).join("") : '<p class="muted" style="margin:0">No files yet.</p>'}
     </div>
     <label class="consent"><input type="checkbox" name="recOn" ${a.artifactPlan?.recordingEnabled === true ? "checked" : ""}><span>Record calls, on this server. About 2 MB per minute on the phone. Many places require telling people they are being recorded, so say it in the greeting.</span></label>
+    <label class="consent"><input type="checkbox" name="memOn" ${a.callerMemory === true || a.callerMemory?.enabled === true ? "checked" : ""}><span>Remember callers. On a phone call, the assistant is given what was said on that number's last 3 calls with it, from the transcripts on this server. A caller ID can be faked, so leave it off where a past call holds something private.</span></label>
     <label class="consent"><input type="checkbox" name="vmOn" ${voicemailOn ? "checked" : ""}><span>On outgoing calls, detect voicemail. A person hears the greeting a few seconds later, and Twilio charges a small fee per call.</span></label>
     <div class="field"><label for="vmMsg">Message to leave on voicemail</label><p class="hint">Optional. A sentence in the assistant's voice, or the URL of a .wav or .mp3. Without one, the call hangs up.</p><input id="vmMsg" name="vmMsg" value="${esc(a.voicemailMessage || "")}" placeholder="Hi, this is Ava from the clinic. Please call us back."></div>
     <div class="field"><label for="hook">Call report URL</label><p class="hint">Optional. We send the transcript here when a call ends.</p><input id="hook" name="hook" value="${esc((a.server || {}).url || "")}" placeholder="https://your-app.com/webhook"></div>
@@ -1010,6 +1011,7 @@ async function viewAssistant(id) {
         voice: { ...vo, ...layerSaved("voice", ttsRoutes.find(r => r.id === f.get("vr")), f, vo) },
         server: f.get("hook") ? { ...(a.server || {}), url: f.get("hook") } : undefined,
         artifactPlan: f.get("recOn") ? { ...(a.artifactPlan || {}), recordingEnabled: true } : a.artifactPlan?.recordingEnabled ? { ...a.artifactPlan, recordingEnabled: false } : a.artifactPlan,
+        callerMemory: f.get("memOn") ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: true } : a.callerMemory ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: false } : undefined,
         voicemailDetection: f.get("vmOn") ? (voicemailOn && typeof a.voicemailDetection === "object" && a.voicemailDetection) || { provider: "twilio" } : voicemailOn || a.voicemailDetection ? "off" : undefined,
         voicemailMessage: f.get("vmMsg") || (a.voicemailMessage ? "" : undefined),
         // Vapi's call limits, in seconds; untouched fields keep what was saved (or Vapi's defaults).

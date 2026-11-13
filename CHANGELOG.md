@@ -13,6 +13,11 @@ All notable changes to OpenRing are listed here. The format follows
   sent by default as on Vapi; and `transcript`, partial and final, for an assistant that lists it in `serverMessages`
   (`transcript[transcriptType="final"]` for the final ones alone). A server that falls behind loses partial
   transcripts, never anything else. Tested on simulated calls only.
+- Memory per caller (beta, OpenRing's own field): with `"callerMemory": {"enabled": true}` an assistant is given, when a
+  phone call starts, what was said on that number's last calls with it (`calls`, 3 by default, and `maxCharacters`,
+  4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is
+  charged, and a deleted call is forgotten. Off by default, because a caller ID can be faked. A "Remember callers" box
+  in the assistant editor; the call records which calls it was given in `rememberedCallIds`.
 
 ## [0.1.7] - 2026-11-11
 

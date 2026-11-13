@@ -27,6 +27,7 @@ from . import (
     genesys,
     keys,
     knowledge,
+    memory,
     netguard,
     overrides,
     plivo,
@@ -213,6 +214,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         plan = _plan(first, **options)
         plan.team = [_plan(other, **options) for other in others]
         return plan
+
+    def _remember(call: dict[str, Any], plan: providers.StackPlan) -> None:
+        """Give each assistant on the call that remembers its callers (`callerMemory`) this caller's last calls."""
+        remembered: list[str] = []
+        for member in (plan, *plan.team):
+            told = memory.recall(store, call, member.assistant)
+            if told:
+                member.messages.append({"role": "system", "content": told[0]})
+                remembered = remembered or told[1]
+        if remembered:
+            store.update("calls", call["id"], {"rememberedCallIds": remembered})
 
     def _call_target(call: dict[str, Any]) -> dict[str, Any] | None:
         """Who a call record says should answer: its squad or its assistant."""
@@ -1800,6 +1812,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             return
         if call.get("answeredBy"):  # a voicemail answered (see left_on_voicemail): leave the message and hang up
             plan.first_message, plan.leave_message = plan.assistant.get("voicemailMessage"), True
+        else:
+            _remember(call, plan)
         await run_call(build(), plan=plan, call_id=call_id, store=store,
                        sample_rate=sample_rate or PHONE_SAMPLE_RATE,
                        transfer=transfer)

@@ -50,6 +50,9 @@ class Store:
                     f"CREATE TABLE IF NOT EXISTS {name} ("
                     "id TEXT PRIMARY KEY, created_at TEXT NOT NULL, doc TEXT NOT NULL)"
                 )
+            # Memory per caller (memory.py) looks a number's calls up when one starts.
+            self._db.execute("CREATE INDEX IF NOT EXISTS calls_customer_number "
+                             "ON calls (json_extract(doc, '$.customer.number'))")
             # Server-wide values (the dashboard password hash) and dashboard login sessions.
             self._db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             self._db.execute(
@@ -187,6 +190,15 @@ class Store:
         with self._lock:
             rows = self._db.execute(
                 f"SELECT doc FROM {collection} {where} ORDER BY created_at DESC, rowid DESC LIMIT ?", (*params,limit,)
+            ).fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def calls_of(self, number: str, limit: int = 50) -> list[dict[str, Any]]:
+        """The calls with a customer's number, newest first."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT doc FROM calls WHERE json_extract(doc, '$.customer.number') = ? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT ?", (number, limit)
             ).fetchall()
         return [json.loads(r[0]) for r in rows]
 
