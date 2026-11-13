@@ -211,6 +211,20 @@ arrive in order; when your server is slow, partial transcripts are the ones left
 `server.url` asks it on each incoming call (`assistant-request`) and uses the `assistantId` or the transient
 `assistant` it answers. `POST /call` also takes a transient `assistant` instead of an `assistantId`.
 
+### Checked with Vapi's SDK
+
+Vapi's official Python SDK (`vapi_server_sdk` 3.0.0), pointed at an OpenRing server, on November 13, 2026: **34 of the
+38 calls we try pass.** The SDK parses every answer into Vapi's own types, so a pass means the JSON is what a Vapi client
+expects. Run it yourself with `scripts/vapi_sdk_check.py`.
+
+- Pass: assistants, tools, phone numbers, squads and files (create, list, get, update, delete); calls (list, filters,
+  get, rename, delete); listing campaigns.
+- Fail, because OpenRing doesn't have them: analytics, chats, sessions and the second version of knowledge bases
+  (`/v2/knowledge-base`; the first, `/knowledge-base`, is in).
+- Not tried: creating calls and campaigns (they would ring someone; the test suite covers them against simulated
+  carriers), recording downloads, and Vapi's evals, simulations, scorecards and structured outputs, which OpenRing
+  doesn't have.
+
 ### Memory per caller
 
 Beta, and OpenRing's own: Vapi has no field for it. An assistant with `callerMemory` on is given, at the start of a phone
@@ -222,7 +236,7 @@ call, what was said on that number's last calls with it, so it can pick up where
 
 `calls` is how many past calls it gets (1 to 10) and `maxCharacters` how much text in all (200 to 20000), split evenly
 and keeping the end of each call. The memory is the transcripts OpenRing already keeps: nothing else is stored, no
-model summarizes anything and nothing is charged. Delete a call and it is forgotten. Tools' requests and results are
+model summarizes anything and nothing is charged. Delete a call (`DELETE /call/{id}`) and it is forgotten. Tools' requests and results are
 left out. The call's record lists what it was given in `rememberedCallIds`. In a squad, each member with `callerMemory`
 gets the number's last calls with that squad. Browser calls have no number, so no memory.
 

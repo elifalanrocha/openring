@@ -1118,6 +1118,29 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     def get_call(call_id: str) -> dict[str, Any]:
         return _get_or_404("calls", call_id)
 
+    @app.patch("/call/{call_id}", dependencies=auth_deps)
+    def update_call(call_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """A call's `name` can change, as on Vapi; the rest is the record of what happened."""
+        _get_or_404("calls", call_id)
+        name = body.get("name")
+        if set(body) - {"name"} or not isinstance(name, str) or len(name) > 40:
+            raise HTTPException(status_code=400, detail="only name can change on a call: a text of up to 40 characters")
+        return store.update("calls", call_id, {"name": name}) or _get_or_404("calls", call_id)
+
+    @app.delete("/call/{call_id}", dependencies=auth_deps)
+    def delete_call(call_id: str) -> dict[str, Any]:
+        """Delete a call for good: its record, its transcript and its recording."""
+        call = _get_or_404("calls", call_id)
+        if call.get("status") == "in-progress" or recordings.is_being_written(call["id"]):
+            raise HTTPException(status_code=409, detail="the call is still going on; delete it once it has ended")
+        path = recordings.path_for(call["id"])
+        try:
+            if path.is_file():
+                path.unlink()
+        except OSError as exc:  # Windows refuses while someone is downloading it
+            raise HTTPException(status_code=409, detail="the recording is in use; try again in a moment") from exc
+        return store.delete("calls", call["id"]) or call
+
     def _outbound_number(number_id: str) -> dict[str, Any]:
         number = _get_or_404("phone_numbers", number_id)
         if (number.get("provider") or "twilio") not in OUTBOUND:

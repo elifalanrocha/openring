@@ -13,6 +13,10 @@ All notable changes to OpenRing are listed here. The format follows
   sent by default as on Vapi; and `transcript`, partial and final, for an assistant that lists it in `serverMessages`
   (`transcript[transcriptType="final"]` for the final ones alone). A server that falls behind loses partial
   transcripts, never anything else. Tested on simulated calls only.
+- `PATCH /call/{id}` renames a call and `DELETE /call/{id}` deletes it for good, record, transcript and recording, as
+  on Vapi; a call still going on is refused.
+- `scripts/vapi_sdk_check.py` runs Vapi's official Python SDK against an OpenRing server: 34 of the 38 calls it tries
+  pass on `vapi_server_sdk` 3.0.0 (the list is in `docs/api.md`).
 - Memory per caller (beta, OpenRing's own field): with `"callerMemory": {"enabled": true}` an assistant is given, when a
   phone call starts, what was said on that number's last calls with it (`calls`, 3 by default, and `maxCharacters`,
   4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is

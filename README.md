@@ -9,7 +9,7 @@
 OpenRing runs AI phone agents, voice AI agents and AI receptionists that answer and place calls over Twilio, Telnyx,
 Plivo, Vonage or any SIP trunk, with your own provider keys or a free, 100% local stack (Whisper, Ollama, Kokoro).
 
-<sub>Latest release 0.1.7 · README updated November 11, 2026</sub>
+<sub>Latest release 0.1.7 · README updated November 13, 2026</sub>
 
 [![CI](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml/badge.svg)](https://github.com/elifalanrocha/openring/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openring?color=e8590c&label=npm)](https://www.npmjs.com/package/openring)
@@ -201,7 +201,8 @@ blueprint; [docs/deploy.md](docs/deploy.md) covers those, Railway and a plain VP
 ## ❓ FAQ
 
 **Can I move my Vapi assistants to OpenRing?** Yes. OpenRing reads the same assistant JSON, provider names, tools
-and webhooks. Point your client at your server's base URL, or press **Import** to copy an account's assistants,
+and webhooks, and Vapi's official Python SDK works against it: 34 of the 38 calls we try pass
+([the list](docs/api.md#checked-with-vapis-sdk)). Point your client at your server's base URL, or press **Import** to copy an account's assistants,
 tools, squads and Twilio numbers.
 
 **Can I run a voice AI agent for free?** Yes, on your own computer: Whisper for speech-to-text, a model through
