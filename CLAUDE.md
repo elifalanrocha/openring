@@ -35,7 +35,8 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
 - `openring/turns.py`: when the caller's turn ends. `FreshTranscriptStopStrategy` (over Pipecat's smart-turn strategy)
   ends a turn only with the transcript of the caller's latest speech; a transcript finished within `LATE_SECONDS` of new
   speech counts with the words before; speech that brings no words ends the turn with the earlier ones after
-  `GRACE_SECONDS`. `keep_words` (on every transcriber, from `providers._labeled`) makes transcripts uninterruptible:
+  `GRACE_SECONDS`; a transcript sent before the speech ended (a segment, not its end) waits `NEWER_SECONDS` for a newer
+  one. `keep_words` (on every transcriber, from `providers._labeled`) makes transcripts uninterruptible:
   Pipecat empties a processor's queue on interruption, and a turn start dropped a final queued behind its interim.
 - HTTP: every client comes from `netguard.client()` (URLs from outside) or `netguard.http_client()` (provider APIs),
   sharing `netguard.tls()`: building a TLS context stalls the event loop ~0.2 s (it froze live calls once per server

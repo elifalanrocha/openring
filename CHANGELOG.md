@@ -75,14 +75,17 @@ All notable changes to OpenRing are listed here. The format follows
 ### Fixed
 
 - Callers lost words: a sentence said after a short pause could be left out of the model's answer, or vanish, seen on
-  real calls (Deepgram, Groq, ElevenLabs and Kokoro, with `scripts/smoke_call.py`). Three causes:
+  real calls (Deepgram, Groq, ElevenLabs and Kokoro, with `scripts/smoke_call.py`). Four causes:
   - every message to the assistant's server built a new HTTPS client, which reads the whole CA bundle: each one froze
     every live call for about 0.2 s. One TLS context, built at startup, now serves all of OpenRing's requests (server
     messages, tools, provider APIs). Turns end sooner too: 0.21 s from silence to end of turn, down from about 0.55 s;
   - the turn ended with the earlier sentence's transcript when its last words came just after the next sentence began:
     a transcript the transcriber finishes within 0.3 s of the caller speaking again now counts with what came before;
   - a turn that starts interrupts, and Pipecat dropped a transcript still waiting in its queue: transcripts are now
-    never dropped by an interruption.
+    never dropped by an interruption;
+  - the transcriber can send part of a sentence while the caller is still saying it, and the turn ended on that part:
+    a transcript sent before the caller stopped now waits up to half a second for the rest (which comes 0.1 to 0.2 s
+    after the stop on the test calls).
 - A turn after the caller interrupted the assistant had no latency recorded (Pipecat 1.15 times it from the connection);
   each turn's time now comes from its own measure, and latency averages count only the turns where a stage was measured.
 - When an ElevenLabs voice gives no audio, the call's `endedReason` says the most common cause: a free account can't use

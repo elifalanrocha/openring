@@ -10,7 +10,7 @@ the first sentence alone, the late transcript reopens the turn, and the second s
 Here a caller who speaks again needs the transcript of that speech: it is cleared when speech starts. If the new speech
 brings no words at all (a cough, a noise), `GRACE_SECONDS` after it ends the turn goes on with what was said before.
 
-Two more ways the words went missing on real calls:
+Three more ways the words went missing on real calls:
 
 - The last words of a sentence can come from the transcriber just after the caller starts the next one ("Calling on
   behalf" ... speech starts ... "of Maria."), or wait in the aggregator's queue behind the audio, which Pipecat handles
@@ -19,6 +19,11 @@ Two more ways the words went missing on real calls:
 - A turn that starts interrupts, and an interruption empties the queues of the processors it reaches. A final
   transcript waiting behind the interim that started the turn was dropped, and the turn ended empty five seconds later.
   `keep_words` makes every transcript uninterruptible: Pipecat's queues keep those.
+- The transcriber can send part of a sentence as final while the caller is still saying it ("Hi. I'm an AI" ...
+  "assistant calling on behalf of Maria."). When the caller stops, that part was in hand, and the turn ended on it;
+  the rest came 0.19 s after the stop, past Pipecat's wait. A transcript the transcriber sent before the caller stopped
+  can't hold their last words: the turn waits up to `NEWER_SECONDS` for one sent after (on calls it comes 0.1 to 0.2 s
+  after the stop), and ends on what it has if none comes.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from typing import Any
 
 GRACE_SECONDS = 1.5  # after speech that brought no transcript, end the turn with the earlier words
 LATE_SECONDS = 0.3  # no transcriber writes down new speech this fast: what it finishes sooner is the speech before
+NEWER_SECONDS = 0.5  # after the caller stops, how long a transcript from before they stopped waits for the rest
 HEARD = "openring_heard"  # frame.metadata key: when the transcriber pushed the transcript (time.time())
 
 
@@ -72,23 +78,38 @@ def fresh_transcript_strategy() -> type:
             super().__init__(**kwargs)
             self._earlier = ""  # what the caller said before their latest speech
             self._speech_began: float | None = None  # when the latest speech was heard (time.time())
+            self._speech_ended: float | None = None  # when it ended: the VAD's stop less its stop_secs
+            self._text_heard: float | None = None  # when the transcript in hand was pushed
             self._grace: asyncio.Task | None = None
+            self._newer: asyncio.Task | None = None  # waiting for a transcript sent after the speech ended
 
         async def _cancel_grace(self) -> None:
             if self._grace is not None:
                 await self.task_manager.cancel_task(self._grace)
                 self._grace = None
 
+        async def _cancel_newer(self) -> None:
+            if self._newer is not None:
+                await self.task_manager.cancel_task(self._newer)
+                self._newer = None
+
         async def _reset(self):
             await self._cancel_grace()
+            await self._cancel_newer()
             self._earlier = ""
-            self._speech_began = None
+            self._speech_began = self._speech_ended = self._text_heard = None
             await super()._reset()
+
+        async def _maybe_report_user_turn_stopped(self):
+            if self._newer is not None:  # the rest of what the caller said is on its way
+                return
+            await super()._maybe_report_user_turn_stopped()
 
         async def _handle_vad_user_started_speaking(self, frame):
             await super()._handle_vad_user_started_speaking(frame)
             await self._cancel_grace()
-            self._speech_began = frame.timestamp
+            await self._cancel_newer()
+            self._speech_began, self._speech_ended = frame.timestamp, None
             if self._text:  # speech again: the turn now needs this speech's transcript
                 self._earlier, self._text = _joined(self._earlier, self._text), ""
 
@@ -100,12 +121,27 @@ def fresh_transcript_strategy() -> type:
                 if not self._vad_user_speaking and self._vad_stopped and not self._text:
                     self._grace = self.task_manager.create_task(self._after_grace(), f"{self}::grace")
                 return
+            if self._speech_ended is not None and heard >= self._speech_ended:
+                await self._cancel_newer()  # sent after the caller stopped: the turn may end on it
+            self._text_heard = heard
             await super()._handle_transcription(frame)
 
         async def _handle_vad_user_stopped_speaking(self, frame):
+            self._speech_ended = frame.timestamp - frame.stop_secs
+            if self._text and self._text_heard is not None and self._text_heard < self._speech_ended:
+                await self._cancel_newer()  # what is in hand was sent while the caller was still talking
+                self._newer = self.task_manager.create_task(self._after_newer(), f"{self}::newer")
             await super()._handle_vad_user_stopped_speaking(frame)
             if not self._text and self._earlier:
                 self._grace = self.task_manager.create_task(self._after_grace(), f"{self}::grace")
+
+        async def _after_newer(self) -> None:
+            try:
+                await asyncio.sleep(NEWER_SECONDS)
+            except asyncio.CancelledError:
+                return
+            self._newer = None
+            await self._maybe_report_user_turn_stopped()  # nothing more came: what was in hand was all of it
 
         async def _after_grace(self) -> None:
             try:

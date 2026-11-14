@@ -232,3 +232,39 @@ def test_no_interruption_drops_what_the_caller_said():
 
 def test_a_call_uses_the_fixed_strategy():
     assert isinstance(turns.stop_strategies()[0], turns.fresh_transcript_strategy())
+
+
+def sent_before_the_end(text):
+    """A final the transcriber sends while the caller is still talking (a segment, not the answer to the VAD's stop)."""
+    return TranscriptionFrame(text, "caller", "2026-11-15T10:00:00Z", finalized=False)
+
+
+def part_of_a_sentence_sent_while_the_caller_talks(rest=True):
+    """A real call (Deepgram, 8 kHz, Pipecat 1.16): "Hi. I'm an AI" came 0.5 s before the caller stopped, the rest
+    0.19 s after the stop, past Pipecat's wait (the STT's p99 latency, 0.35 s, less the VAD's 0.2 s)."""
+    return [
+        STTMetadataFrame(service_name="stt", ttfs_p99_latency=0.35),
+        started(), SleepFrame(sleep=2.0), sent_before_the_end("Hi. I'm an AI"),
+        SleepFrame(sleep=0.5), Stopped(),
+        SleepFrame(sleep=0.19), *([said("assistant calling on behalf of Maria.")] if rest else []),
+        SleepFrame(sleep=1.0),
+    ]
+
+
+def test_pipecats_own_strategy_ends_the_turn_on_part_of_a_sentence():
+    stock = TurnAnalyzerUserTurnStopStrategy(turn_analyzer=Done())
+    got = what_the_model_got(stock, part_of_a_sentence_sent_while_the_caller_talks())
+    assert got and "Maria" not in " ".join(got[0])
+
+
+def test_the_turn_waits_for_the_rest_of_a_sentence_sent_in_parts():
+    strategy = turns.fresh_transcript_strategy()(turn_analyzer=Done())
+    got = what_the_model_got(strategy, part_of_a_sentence_sent_while_the_caller_talks())
+    assert len(got) == 1, got
+    assert "I'm an AI" in " ".join(got[0]) and "Maria" in " ".join(got[0])
+
+
+def test_when_nothing_more_comes_the_turn_ends_on_what_was_sent():
+    strategy = turns.fresh_transcript_strategy()(turn_analyzer=Done())
+    got = what_the_model_got(strategy, part_of_a_sentence_sent_while_the_caller_talks(rest=False))
+    assert len(got) == 1 and "I'm an AI" in " ".join(got[0])
