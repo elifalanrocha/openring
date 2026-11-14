@@ -25,6 +25,7 @@ from . import (
     announcements,
     auth,
     campaigns,
+    drafts,
     genesys,
     keys,
     knowledge,
@@ -716,10 +717,22 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """Totals for the dashboard's overview; `days=0` covers every call."""
         return stats.summarize(store.list("calls", limit=100_000), days or None)
 
+    @app.post("/assistant/draft", dependencies=auth_deps)
+    async def draft_assistant(body: dict[str, Any]) -> dict[str, Any]:
+        """OpenRing's own: a name, greeting and system prompt written from a description by a connected model. Nothing
+        is saved."""
+        try:
+            return await drafts.draft(str(body.get("description") or ""), body.get("model") if isinstance(
+                body.get("model"), dict) else None)
+        except drafts.DraftError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/assistant/{assistant_id}/profile", dependencies=auth_deps)
     def assistant_profile(assistant_id: str) -> dict[str, Any]:
         """OpenRing's own: what this assistant costs per minute and how fast it answers, per layer (stats.profile)."""
         assistant = _get_or_404("assistants", assistant_id)
+        if announcements.plan_of(assistant):  # it plays a recording: the line is all it costs
+            return {"announcement": True}
         try:
             plan = _plan(assistant, check_keys=False)
         except ProviderError as exc:

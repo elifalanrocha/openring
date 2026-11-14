@@ -33,6 +33,14 @@ quiet after the assistant spoke,
  "messagePlan": {"idleMessages": ["Are you still there?"], "idleTimeoutSeconds": 8}}
 ```
 
+### Writing an assistant from a description
+
+OpenRing's own. `POST /assistant/draft` with `{"description": "..."}` asks a model you connected (the first of Groq, OpenAI,
+OpenRouter, Anthropic, Gemini and others with a key, or `model: {provider, model}` to choose) for a name, a greeting and a
+system prompt, and returns them in the assistant's shape. Nothing is saved. In the dashboard, a new assistant has a
+**Describe it** box that fills the form. The model is told never to invent prices, hours or policies the description
+doesn't give.
+
 ### How fast the voice speaks
 
 `voice.speed`, as on Vapi: 1 is normal, 1.2 a little faster. ElevenLabs takes 0.7 to 1.2, Deepgram 0.7 to 1.5, Kokoro

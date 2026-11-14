@@ -1022,6 +1022,7 @@ async function viewSquad(id) {
 // the cost estimated from list prices until it has some.
 function profileStrip(p) {
   if (!p) return "";
+  if (p.announcement) return `<section class="panel profile" style="margin-bottom:18px"><div class="body"><p class="hint">This assistant plays a recording: a call costs only the phone line, with no transcriber, model or voice.</p></div></section>`;
   const layers = [["stt", "transcriberLatency", "Transcriber", "var(--c2)"], ["llm", "modelLatency", "Model", "var(--c4)"], ["tts", "voiceLatency", "Voice", "var(--c1)"]];
   const cost = p.costPerMinute, total = p.totalPerMinute, lat = p.latency, turn = lat.turnLatency;
   const share = (n, of, color, name) => of > 0 && n > 0 ? `<span style="width:${(100 * n / of).toFixed(1)}%;background:${color}" title="${name}"></span>` : "";
@@ -1055,7 +1056,19 @@ async function viewAssistant(id, known) {
   const v = $("#view");
   v.innerHTML = `<div class="split">${assistantList(everyone, a.id)}<div>
   <div class="toolbar">${tabs([["setup", "Setup"], ["json", "JSON"]], tab)}<span class="spacer"></span>${a.id ? `<button type="button" class="btn ghost" id="test">${ICON.mic}Test</button>` : ""}</div>
+  ${a.id ? "" : `<section class="panel" style="margin-bottom:18px"><div class="body"><form id="draftForm"><div class="field" style="margin:0"><label for="draftText">Describe it, and a model you connected writes the first version</label><p class="hint">Who calls, what the assistant does, what it must not do. You check and change it before saving.</p><textarea id="draftText" rows="3" maxlength="2000" placeholder="A receptionist for a dental clinic in São Paulo that books, moves and cancels appointments. It doesn't give prices or medical advice."></textarea></div><div class="error" id="draftErr" role="alert"></div><div class="row-actions" style="margin-top:8px"><span class="spacer"></span><button class="btn" id="draftGo">Write it</button></div></form></div></section>`}
   ${profileStrip(profile)}<section class="panel"><div class="body" id="pane"></div></section></div></div>`;
+  if ($("#draftForm")) $("#draftForm").onsubmit = async e => {
+    e.preventDefault();
+    const go_ = $("#draftGo"); go_.disabled = true; go_.textContent = "Writing…"; $("#draftErr").textContent = "";
+    try {
+      const d = await api("/assistant/draft", { method: "POST", body: JSON.stringify({ description: $("#draftText").value }) });
+      $("#name").value = d.name; $("[name=greet]").value = d.firstMessage; $("#sys").value = d.model.messages[0].content;
+      unsaved = true; $("#name").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+      $("#draftErr").textContent = `Written by ${d.draftedWith}. Check it, then create the assistant.`;
+    } catch (err) { $("#draftErr").textContent = err.message; }
+    go_.disabled = false; go_.textContent = "Write it";
+  };
   $("#newA").onclick = () => go("assistants/new");
   $("#importA").onclick = openImport;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = base + (b.dataset.tab === "json" ? "/json" : ""); });

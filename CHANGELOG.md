@@ -11,6 +11,8 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- Write an assistant from a description: on a new assistant, a model you connected drafts its name, greeting and
+  system prompt (`POST /assistant/draft`, OpenRing's own); nothing is saved until you save it.
 - Recorded messages (beta, Twilio): upload a WAV or MP3 (`POST /announcement`) and give it to an assistant
   (`announcement.audioId`); the call plays it and hangs up, costing only the line. A campaign plays it to a whole list.
 - On-call escalations (beta, Twilio, `/escalation`, an **Escalations** page): call a list in order until someone presses
