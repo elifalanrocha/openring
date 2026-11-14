@@ -312,3 +312,37 @@ def test_call_limits_follow_vapi_fields_and_defaults():
                           ({"messagePlan": {"idleMessages": "hello"}}, "idleMessages")):
         with pytest.raises(ProviderError, match=words):
             resolve_plan({**assistant(), **change}, check_keys=False)
+
+
+def test_the_voice_speaks_as_fast_as_asked_within_what_its_provider_takes():
+    from openring.providers import resolve_plan, voice_speed
+
+    def plan(provider, speed):
+        doc = {"transcriber": {"provider": "deepgram", "language": "en"},
+               "model": {"provider": "groq", "model": "openai/gpt-oss-20b"},
+               "voice": {"provider": provider, "voiceId": "x", "speed": speed}}
+        return resolve_plan(doc, check_keys=False)
+
+    assert plan("kokoro", 1.3).tts_speed == 1.3 and not plan("kokoro", 1.3).warnings
+    assert plan("kokoro", 1).tts_speed is None and plan("kokoro", None).tts_speed is None
+    fast = plan("11labs", 3)
+    assert fast.tts_speed == 1.2 and "0.7x to 1.2x" in fast.warnings[0]
+    assert plan("deepgram", 0.1).tts_speed == 0.7 and plan("openai", 4).tts_speed == 4
+    fixed = plan("cartesia", 1.5)
+    assert fixed.tts_speed is None and "can't change its speed" in fixed.warnings[0]
+    for odd in ("fast", True, [], {}):
+        assert voice_speed("kokoro", odd, []) is None
+
+
+def test_the_speed_reaches_the_voice_service(monkeypatch):
+    import pytest
+
+    monkeypatch.setenv("OPENAI_API_KEY", "fake")
+
+    from openring.providers import _build_tts, resolve_plan
+
+    pytest.importorskip("pipecat.services.openai.tts")
+    doc = {"transcriber": {"provider": "deepgram"}, "model": {"provider": "groq", "model": "openai/gpt-oss-20b"},
+           "voice": {"provider": "openai", "voiceId": "alloy", "speed": 1.25}}
+    service = _build_tts(resolve_plan(doc, check_keys=False))
+    assert service._settings.speed == 1.25

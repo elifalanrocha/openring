@@ -301,6 +301,8 @@ class StackPlan:
     # the reason in `warnings`.
     fallbacks: dict[str, list[StackPlan]] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    # How fast the voice speaks (Vapi's `voice.speed`, 1 is normal), kept within what its provider takes.
+    tts_speed: float | None = None
     # A model slower than this to start answering (ms) hands the turn to the next fallback model.
     max_latency_ms: int | None = None
     # The model route the models came from (`routes.expand`): {"id", "name", "cooldownMinutes"}.
@@ -579,6 +581,7 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         warnings=word_warnings,
         **call_limits(assistant),
     )
+    plan.tts_speed = voice_speed(plan.tts_provider, voice.get("speed"), plan.warnings)
     if multilingual and plan.tts_provider not in MULTILINGUAL_VOICES:
         plan.warnings.append(f"the {plan.tts_provider} voice speaks one language; to follow callers in several "
                              "languages, use an 11labs or openai voice")
@@ -664,11 +667,31 @@ def _deepgram_voice(voice: str | None, model: str | None) -> str:
     return voice if voice.startswith("aura") else f"{model or 'aura-2'}-{voice}-en"
 
 
+# The speeds each voice provider takes (1 is normal). A provider not here speaks at its own speed.
+VOICE_SPEEDS = {"elevenlabs": (0.7, 1.2), "kokoro": (0.5, 2.0), "openai": (0.25, 4.0), "deepgram": (0.7, 1.5)}
+
+
+def voice_speed(provider: str, asked: Any, warnings: list[str]) -> float | None:
+    """Vapi's `voice.speed` as this provider can take it: None for normal, the nearest speed it allows, and a warning
+    when it can't change speed or the speed asked for is out of its range."""
+    if isinstance(asked, bool) or not isinstance(asked, (int, float)) or asked == 1:
+        return None
+    limits = VOICE_SPEEDS.get(provider)
+    if limits is None:
+        warnings.append(f"the {provider} voice can't change its speed; ignoring voice.speed")
+        return None
+    speed = max(limits[0], min(limits[1], float(asked)))
+    if speed != asked:
+        warnings.append(f"the {provider} voice speaks at {limits[0]:g}x to {limits[1]:g}x; using {speed:g}x")
+    return speed
+
+
 def _build_tts(plan: StackPlan):
+    speed = {"speed": plan.tts_speed} if plan.tts_speed else {}
     if plan.tts_provider == "elevenlabs":
         from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 
-        tts_settings: dict[str, Any] = {"voice": plan.tts_voice}
+        tts_settings: dict[str, Any] = {"voice": plan.tts_voice, **speed}
         if plan.tts_model:
             tts_settings["model"] = plan.tts_model
         return ElevenLabsTTSService(
@@ -685,7 +708,7 @@ def _build_tts(plan: StackPlan):
         # Pipecat loads a fresh model for every service it creates; hand it the shared one instead.
         kokoro_tts.Kokoro = lambda *_paths: shared_kokoro()
 
-        kokoro_settings: dict[str, Any] = {"voice": plan.tts_voice}
+        kokoro_settings: dict[str, Any] = {"voice": plan.tts_voice, **speed}
         lang = _language(plan.tts_language)
         if lang and lang != "multi":
             kokoro_settings["language"] = lang
@@ -698,7 +721,7 @@ def _build_tts(plan: StackPlan):
 
     module, name, takes_language = TTS_SERVICES[plan.tts_provider]
     service = _service_class(module, name, plan.tts_provider)
-    settings: dict[str, Any] = {}
+    settings: dict[str, Any] = dict(speed)
     if plan.tts_provider == "deepgram":
         settings["voice"] = _deepgram_voice(plan.tts_voice, plan.tts_model)
     else:
@@ -750,7 +773,7 @@ def _build_team(plan: StackPlan):
         return p.stt_provider, p.stt_model, p.stt_language, str(sorted(p.stt_words.items()))
 
     def tts_key(p: StackPlan) -> Any:
-        return p.tts_provider, p.tts_voice, p.tts_model, p.tts_language
+        return p.tts_provider, p.tts_voice, p.tts_model, p.tts_language, p.tts_speed
 
     built = []
     layers = (("transcriber", _build_stt, stt_key), ("model", _build_llm, id), ("voice", _build_tts, tts_key))

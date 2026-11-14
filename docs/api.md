@@ -33,6 +33,12 @@ quiet after the assistant spoke,
  "messagePlan": {"idleMessages": ["Are you still there?"], "idleTimeoutSeconds": 8}}
 ```
 
+### How fast the voice speaks
+
+`voice.speed`, as on Vapi: 1 is normal, 1.2 a little faster. ElevenLabs takes 0.7 to 1.2, Deepgram 0.7 to 1.5, Kokoro
+0.5 to 2 and OpenAI 0.25 to 4; a speed outside the range is brought to its edge. The other voices speak at their own
+speed. The assistant editor has a slider.
+
 ### Names the transcriber should get right
 
 Give it the words it will hear: names, brands, products. Use Vapi's fields, or **Words to recognize** in the assistant
