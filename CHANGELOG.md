@@ -17,6 +17,9 @@ All notable changes to OpenRing are listed here. The format follows
   `wavoipToken` answers and places WhatsApp voice calls with an assistant through Wavoip, with no public URL. The token is
   never shown by the API; the number says how its device is (`wavoipStatus`). WhatsApp may ban a number used through an
   unofficial client: the docs and the dashboard say so.
+- The assistant editor opens with what the assistant costs per minute and how long it takes to answer, layer by layer:
+  measured on its own last calls, or the cost estimated from list prices until it has some
+  (`GET /assistant/{id}/profile`, OpenRing's own).
 - A new server starts with an assistant to talk to, made once from what costs nothing: Whisper and Kokoro on this
   computer, and Ollama's model when Ollama is running (Groq's otherwise, which needs its free key).
 - The dashboard's menu folds to its icons (a button by the logo, remembered on this browser) and scrolls without

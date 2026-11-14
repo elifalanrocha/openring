@@ -145,3 +145,48 @@ def summarize(calls: list[dict[str, Any]], days: int | None = None, now: datetim
         )[:5],
         "perDay": list(per_day.values()),
     }
+
+
+# What a minute of conversation is taken to be when an assistant has no calls to measure: the assistant speaks about
+# half the time, and the model is asked five times with the conversation so far.
+ESTIMATE = {"spokenCharacters": 450, "modelRequests": 5, "promptTokens": 1200, "answerTokens": 60}
+MEASURED_CALLS = 50
+
+
+def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
+    """What an assistant costs per minute and how long it takes to answer, layer by layer.
+
+    Measured on its own last calls when it has any; otherwise the cost is an estimate from list prices (`ESTIMATE`) and
+    the latency is unknown: OpenRing doesn't guess how fast a provider is.
+    """
+    from . import prices
+
+    done = [c for c in calls if c.get("status") == "ended" and float(c.get("durationSeconds") or 0) > 0
+            and isinstance(c.get("costBreakdown"), dict)][:MEASURED_CALLS]
+    minutes = sum(float(c["durationSeconds"]) for c in done) / 60
+    turns = [t for c in done for t in ((c.get("artifact") or {}).get("performanceMetrics") or {}).get("turns") or []
+             if isinstance(t, dict)]
+    latency = {p: round(sum(t.get(p, 0) for t in turns) / len(turns)) if turns else None for p in LATENCY_PARTS}
+    latency["turnLatency"] = round(sum(t.get("turnLatency", 0) for t in turns) / len(turns)) if turns else None
+    if done and minutes > 0:
+        cost = {k: round(sum(float(c["costBreakdown"].get(k) or 0) for c in done) / minutes, 5)
+                for k in ("stt", "llm", "tts")}
+        unpriced = sorted({str(u) for c in done for u in c["costBreakdown"].get("unpriced") or []})
+        return {"measured": True, "calls": len(done), "minutes": round(minutes, 1), "costPerMinute": cost,
+                "totalPerMinute": round(sum(cost.values()), 5), "unpriced": unpriced, "latency": latency}
+
+    heard = prices.stt(plan.stt_provider, plan.stt_model, plan.stt_language)
+    model = prices.llm(plan.llm_provider, plan.llm_model)
+    voice = prices.tts(plan.tts_provider, plan.tts_model)
+    requests = ESTIMATE["modelRequests"]
+    cost = {
+        "stt": heard,
+        "llm": None if model is None else round(
+            requests * (ESTIMATE["promptTokens"] * model[0] + ESTIMATE["answerTokens"] * model[1]) / 1e6, 5),
+        "tts": None if voice is None else round(ESTIMATE["spokenCharacters"] * voice / 1e6, 5),
+    }
+    known = [v for v in cost.values() if v is not None]
+    names = {"stt": "transcriber", "llm": "model", "tts": "voice"}
+    return {"measured": False, "calls": 0, "minutes": 0, "costPerMinute": cost,
+            "totalPerMinute": round(sum(known), 5) if known else None,
+            "unpriced": [names[k] for k, v in cost.items() if v is None], "latency": latency, "assumes": ESTIMATE}

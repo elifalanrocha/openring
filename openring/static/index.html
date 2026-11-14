@@ -905,8 +905,29 @@ async function viewSquad(id) {
   };
 }
 
+// What an assistant costs a minute and how long it takes to answer, layer by layer: measured on its own calls, or
+// the cost estimated from list prices until it has some.
+function profileStrip(p) {
+  if (!p) return "";
+  const layers = [["stt", "transcriberLatency", "Transcriber", "var(--c2)"], ["llm", "modelLatency", "Model", "var(--c4)"], ["tts", "voiceLatency", "Voice", "var(--c1)"]];
+  const cost = p.costPerMinute, total = p.totalPerMinute, lat = p.latency, turn = lat.turnLatency;
+  const share = (n, of) => of > 0 && n > 0 ? `<span style="width:${(100 * n / of).toFixed(1)}%;background:COLOR"></span>` : "";
+  const costBar = layers.map(([k, , , c]) => share(cost[k], total).replace("COLOR", c)).join("");
+  const latBar = turn ? [share(lat.endpointingLatency, turn).replace("COLOR", "var(--muted)"), ...layers.map(([, k, , c]) => share(lat[k], turn).replace("COLOR", c))].join("") : "";
+  const from = p.measured ? `Measured on this assistant's last ${p.calls} call${p.calls === 1 ? "" : "s"} (${p.minutes} min).` : "Estimated from list prices: no calls yet. The latency shows after the first call.";
+  const missing = p.unpriced.length ? ` No price for: ${esc(p.unpriced.join(", "))}.` : "";
+  return `<section class="panel" style="margin-bottom:18px"><div class="body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+      <div><div class="muted" style="font-size:12.5px">Cost</div><div class="value" style="font-size:24px">${total == null ? "—" : (p.measured ? "" : "~") + usd(total)}<span class="muted" style="font-size:13px"> /min</span></div><div class="stack">${costBar}</div></div>
+      <div><div class="muted" style="font-size:12.5px">Answers in</div><div class="value" style="font-size:24px">${turn == null ? "—" : turn.toLocaleString(LOCALE)}<span class="muted" style="font-size:13px"> ms</span></div><div class="stack">${latBar}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">${layers.map(([k, l, name, c]) => `<div style="border-left:3px solid ${c};padding-left:10px"><strong>${name}</strong><div class="muted" style="font-size:13px">${cost[k] == null ? "no price" : usd(cost[k]) + "/min"} · ${lat[l] == null ? "not measured" : lat[l].toLocaleString(LOCALE) + " ms"}</div></div>`).join("")}</div>
+    <p class="hint" style="margin:12px 0 0">${from}${missing} On top of this, hosted platforms charge about $0.05 a minute; OpenRing charges nothing.</p>
+  </div></section>`;
+}
+
 async function viewAssistant(id) {
-  const [a, allRoutes, files] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => [])]);
+  const [a, allRoutes, files, profile] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null)]);
   const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
@@ -920,7 +941,7 @@ async function viewAssistant(id) {
   const base = "#assistants/" + (a.id || "new");
   const v = $("#view");
   v.innerHTML = `<div class="toolbar">${tabs([["setup", "Setup"], ["json", "JSON"]], tab)}<span class="spacer"></span>${a.id ? `<button type="button" class="btn ghost" id="test">${ICON.mic}Test</button>` : ""}</div>
-  <section class="panel"><div class="body" id="pane"></div></section>`;
+  ${profileStrip(profile)}<section class="panel"><div class="body" id="pane"></div></section>`;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = base + (b.dataset.tab === "json" ? "/json" : ""); });
   if (a.id) $("#test").onclick = () => startTalk(a);
   const pane = $("#pane");

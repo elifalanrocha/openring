@@ -702,6 +702,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """Totals for the dashboard's overview; `days=0` covers every call."""
         return stats.summarize(store.list("calls", limit=100_000), days or None)
 
+    @app.get("/assistant/{assistant_id}/profile", dependencies=auth_deps)
+    def assistant_profile(assistant_id: str) -> dict[str, Any]:
+        """OpenRing's own: what this assistant costs per minute and how fast it answers, per layer (stats.profile)."""
+        assistant = _get_or_404("assistants", assistant_id)
+        try:
+            plan = _plan(assistant, check_keys=False)
+        except ProviderError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        mine = [c for c in store.list("calls", limit=2000) if c.get("assistantId") == assistant_id]
+        return stats.profile(mine, plan)
+
     # ---- Assistants (same JSON shape as Vapi's /assistant) -------------------
     @app.post("/assistant", status_code=201, dependencies=auth_deps)
     def create_assistant(body: dict[str, Any]) -> dict[str, Any]:
