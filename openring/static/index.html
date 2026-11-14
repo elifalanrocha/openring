@@ -244,6 +244,25 @@ a.rowlink:hover { background: var(--panel-2); }
 .path .wire { width: 12px; height: 2px; background: var(--accent); opacity: .4; }
 
 /* Assistant and provider tiles */
+/* Assistants: the list stays beside the one open, as in the call apps people know. */
+.split { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 20px; align-items: start; }
+.sidelist { position: sticky; top: 84px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.sidelist header { display: flex; gap: 8px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
+.sidelist header .btn { flex: 1; }
+.sidelist nav { max-height: calc(100vh - 190px); overflow-y: auto; scrollbar-width: thin; }
+.sidelist a { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); transition: background-color .12s ease-out; }
+.sidelist a:last-child { border-bottom: 0; }
+.sidelist a:hover { background: var(--panel-2); }
+.sidelist a[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.sidelist .who { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--muted); }
+.sidelist .who img { width: 16px; height: 16px; }
+.sidelist .who:has(img) { background: #ffffff; }  /* provider logos are drawn for a light background */
+.sidelist strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidelist small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } .sidelist { position: static; } .sidelist nav { max-height: 220px; } }
+#view > * { animation: enter .18s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { #view > * { animation: none; } }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); min-width: 0; }
 .tile.link { cursor: pointer; }
@@ -690,7 +709,7 @@ async function signOut() { await api("/auth/logout", { method: "POST" }).catch((
 // ---- Pages ------------------------------------------------------------------------------
 const PAGES = {
   home: ["Home", "How your voice agents are doing"],
-  assistants: ["Assistants", "Each assistant answers with its own instructions, model and voice"],
+  assistants: ["Assistants", "Each assistant answers with its own system prompt, model and voice"],
   squads: ["Squads", "Several assistants on one call: each hands the caller to the next when it's the right one"],
   knowledge: ["Knowledge", "Files your assistants can look things up in during a call"],
   numbers: ["Phone numbers", "Your phone numbers and who answers them"],
@@ -722,7 +741,7 @@ async function viewHome() {
   const hasModel = info.providers.some(p => p.kind === "model" && p.id !== "omniroute" && p.ready);
   const steps = [
     [hasModel && (ready("deepgram") || ready("whisper")), "Connect a model", "Listening and speaking already run free on this computer. The model needs Ollama, a sign-in with OpenRouter or a free Groq key.", `<a class="btn ghost small" href="#providers">See providers</a>`],
-    [assistants.length > 0, "Have an assistant", "A first one is made for you; give it your own greeting and instructions.", `<a class="btn ghost small" href="#assistants/new">New assistant</a>`],
+    [assistants.length > 0, "Have an assistant", "A first one is made for you; give it your own greeting and system prompt.", `<a class="btn ghost small" href="#assistants/new">New assistant</a>`],
     [s.byType.webCall > 0 || recent.some(c => c.type === "webCall"), "Talk to it here", "Test it with your microphone, no phone number needed.", assistants[0] ? `<button class="btn ghost small" id="firstTest">Test ${esc(assistants[0].name || "it")}</button>` : ""],
     [numbers.length > 0, "Connect a phone number", "Point a Twilio number at this server.", `<a class="btn ghost small" href="#numbers">Add a number</a>`],
   ];
@@ -777,9 +796,23 @@ function pathChips(a, routes = []) {
   return `<div class="path"><span class="node">${tRoute ? "route: " + esc(tRoute.name) : esc(t.provider || "deepgram")} ${esc(t.language || "")}</span><span class="wire"></span><span class="node">${route ? "route: " + esc(route.name) : esc(m.model || "default model")}</span><span class="wire"></span><span class="node">${vRoute ? "route: " + esc(vRoute.name) : `${esc(v.provider || "kokoro")}${v.voiceId ? " · " + esc(v.voiceId) : ""}`}</span></div>`;
 }
 
+function assistantList(items, current) {
+  const layers = a => [a.transcriber?.provider, a.model?.provider, a.voice?.provider].filter(Boolean).join(" · ");
+  const who = a => { const icon = providerIcon(a.model?.provider === "elevenlabs" ? "11labs" : a.model?.provider || ""); return icon ? `<img src="${esc(icon)}" alt="">` : esc(initials(a.name)); };
+  return `<aside class="sidelist" aria-label="Assistants">
+    <header><button type="button" class="btn small" id="newA">${ICON.plus}New</button><button type="button" class="btn ghost small" id="importA">Import</button></header>
+    <nav>${items.map(a => `<a href="#assistants/${esc(a.id)}"${a.id === current ? ' aria-current="page"' : ""}><span class="who">${who(a)}</span><span><strong>${esc(a.name || "Untitled")}</strong><small>${esc(layers(a) || "Not set up")}</small></span></a>`).join("")}</nav>
+  </aside>`;
+}
+
 async function viewAssistants() {
   setPage("assistants");
   const [items, numbers, routes] = await Promise.all([api("/assistant"), api("/phone-number"), api("/model-route")]);
+  // With assistants, the page opens the first one beside the list; the address names it, so it can be shared.
+  if (items.length) {
+    history.replaceState(null, "", "#assistants/" + items[0].id);
+    return viewAssistant(items[0].id, items);
+  }
   const lines = id => numbers.filter(n => n.assistantId === id).map(n => n.number);
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><span class="muted">${items.length} assistant${items.length === 1 ? "" : "s"}</span><span class="spacer"></span><button class="btn ghost" id="import" title="Copy assistants, tools and Twilio numbers from a Vapi-compatible API">Import</button><button class="btn" id="new">${ICON.plus}New assistant</button></div>
@@ -1004,8 +1037,8 @@ function profileStrip(p) {
   </div></section>`;
 }
 
-async function viewAssistant(id) {
-  const [a, allRoutes, files, profile] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null)]);
+async function viewAssistant(id, known) {
+  const [a, allRoutes, files, profile, everyone] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => [])]);
   const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
@@ -1018,8 +1051,11 @@ async function viewAssistant(id) {
   const limitTyped = (typed, shown, unit, saved) => typed === "" || Number(typed) === shown ? saved : Number(typed) * unit;
   const base = "#assistants/" + (a.id || "new");
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar">${tabs([["setup", "Setup"], ["json", "JSON"]], tab)}<span class="spacer"></span>${a.id ? `<button type="button" class="btn ghost" id="test">${ICON.mic}Test</button>` : ""}</div>
-  ${profileStrip(profile)}<section class="panel"><div class="body" id="pane"></div></section>`;
+  v.innerHTML = `<div class="split">${assistantList(everyone, a.id)}<div>
+  <div class="toolbar">${tabs([["setup", "Setup"], ["json", "JSON"]], tab)}<span class="spacer"></span>${a.id ? `<button type="button" class="btn ghost" id="test">${ICON.mic}Test</button>` : ""}</div>
+  ${profileStrip(profile)}<section class="panel"><div class="body" id="pane"></div></section></div></div>`;
+  $("#newA").onclick = () => go("assistants/new");
+  $("#importA").onclick = openImport;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { location.hash = base + (b.dataset.tab === "json" ? "/json" : ""); });
   if (a.id) $("#test").onclick = () => startTalk(a);
   const pane = $("#pane");
@@ -1051,7 +1087,7 @@ async function viewAssistant(id) {
     <div class="free-stack"><button type="button" class="btn ghost small" id="freeStack">Use the free local stack</button><span class="muted">Whisper, Ollama and Kokoro, all on this computer: no per-minute cost, and the call's audio never leaves it.</span><span class="muted" id="freeNote" role="status"></span></div>
     <div class="field" style="margin-top:22px"><label for="name">Name</label><input id="name" name="name" required value="${esc(a.name || "")}" placeholder="Front desk"></div>
     <div class="field"><label for="greet">Greeting</label><p class="hint">The first thing callers hear.</p><input id="greet" name="greet" value="${esc(a.firstMessage || "")}" placeholder="Hi! How can I help you today?"></div>
-    <div class="field"><label for="sys">Instructions</label><p class="hint">How the assistant should behave on the call.</p><textarea id="sys" name="sys" placeholder="You are a friendly assistant for…">${esc(system)}</textarea></div>
+    <div class="field"><label for="sys">System prompt</label><p class="hint">How the assistant should behave on the call.</p><textarea id="sys" name="sys" placeholder="You are a friendly assistant for…">${esc(system)}</textarea></div>
     <div class="field-row">
       <div class="field narrow"><label for="maxmin">Max length</label><p class="hint">Minutes</p><input id="maxmin" name="maxmin" type="number" min="1" max="720" value="${limitsShown.minutes}"></div>
       <div class="field narrow"><label for="silence">Silence limit</label><p class="hint">Seconds</p><input id="silence" name="silence" type="number" min="5" max="3600" value="${esc(limitsShown.silence)}"></div>

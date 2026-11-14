@@ -301,3 +301,10 @@ def test_the_dashboard_calls_no_font_service_and_serves_its_own_typeface():
     font = client.get("/fonts/archivo.woff2")
     assert font.status_code == 200 and font.headers["content-type"] == "font/woff2" and font.content[:4] == b"wOF2"
     assert (Path(__file__).resolve().parents[1] / "openring" / "static" / "fonts" / "archivo-OFL.txt").is_file()
+
+
+def test_assistants_open_beside_their_list_and_the_prompt_has_the_industrys_name():
+    assert "function assistantList(" in PAGE and 'class="split"' in PAGE
+    assert 'history.replaceState(null, "", "#assistants/" + items[0].id)' in PAGE  # the first one opens, by address
+    assert '<label for="sys">System prompt</label>' in PAGE and ">Instructions<" not in PAGE
+    assert "@media (prefers-reduced-motion: reduce) { #view > * { animation: none; } }" in PAGE
