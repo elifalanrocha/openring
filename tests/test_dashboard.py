@@ -315,3 +315,10 @@ def test_the_dashboard_offers_a_recording_and_an_escalations_page():
     assert 'fetch("/announcement", { method: "POST"' in PAGE
     assert "escalations: viewEscalations" in PAGE and 'href="#escalations"' in PAGE
     assert 'api("/escalation", { method: "POST"' in PAGE
+
+
+def test_motion_is_quiet_and_switching_assistants_keeps_the_list_still():
+    assert "@keyframes grow-x" in PAGE and "@keyframes grow-y" in PAGE
+    assert ".stack span, .bars .bar, .split > .editor-col { animation: none; }" in PAGE  # off with reduced motion
+    assert 'const keptList = v.querySelector(".split > .sidelist");' in PAGE
+    assert 'list.querySelector("nav").scrollTop = keptScroll;' in PAGE
