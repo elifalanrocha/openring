@@ -458,6 +458,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
       <a href="#routes" data-view="routes"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h5l6 10h5M4 17h5l1.5-2.5M15 7h5M17 4l3 3-3 3M17 14l3 3-3 3"/></svg>Model routes</a>
       <div class="group">Activity</div>
       <a href="#calls" data-view="calls"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Calls</a>
+      <a href="#escalations" data-view="escalations"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v3M5.6 5.6l2.1 2.1M18.4 5.6l-2.1 2.1M6 14a6 6 0 0 1 12 0v4H6zM4 21h16"/></svg>Escalations</a>
       <a href="#campaigns" data-view="campaigns"><svg class="i" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6l-5 4H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12"/></svg>Campaigns</a>
       <div class="group">System</div>
       <a href="#providers" data-view="providers"><svg class="i" viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></svg>Providers</a>
@@ -715,6 +716,7 @@ const PAGES = {
   numbers: ["Phone numbers", "Your phone numbers and who answers them"],
   routes: ["Model routes", "Models in order: the next one takes over when a model fails or is slow"],
   calls: ["Calls", "Every call with its transcript and response time"],
+  escalations: ["Escalations", "Call an on-call list in order until someone presses the key that confirms"],
   campaigns: ["Campaigns", "Call a list of people with one assistant, a few at a time"],
   providers: ["Providers", "Speech, model and voice services this server can use"],
   settings: ["Settings", "API access, webhooks and your password"],
@@ -1038,7 +1040,7 @@ function profileStrip(p) {
 }
 
 async function viewAssistant(id, known) {
-  const [a, allRoutes, files, profile, everyone] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => [])]);
+  const [a, allRoutes, files, profile, everyone, recordings] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => []), api("/announcement").catch(() => [])]);
   const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
@@ -1098,10 +1100,23 @@ async function viewAssistant(id, known) {
     </div>
     <label class="consent"><input type="checkbox" name="recOn" ${a.artifactPlan?.recordingEnabled === true ? "checked" : ""}><span>Record calls, on this server. About 2 MB per minute on the phone. Many places require telling people they are being recorded, so say it in the greeting.</span></label>
     <label class="consent"><input type="checkbox" name="memOn" ${a.callerMemory === true || a.callerMemory?.enabled === true ? "checked" : ""}><span>Remember callers. On a phone call, the assistant is given what was said on that number's last 3 calls with it, from the transcripts on this server. A caller ID can be faked, so leave it off where a past call holds something private.</span></label>
+    <div class="field"><label for="annId">Play a recording instead of talking</label><p class="hint">For notices and on-call alerts: the call plays this file and hangs up, with no transcriber, model or voice, so it costs only the line. Use it in a campaign for a whole list, or in an escalation. Twilio numbers only, for now.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="annId" name="annId" style="flex:1;min-width:200px">${option("", "No: the assistant talks", a.announcement?.audioId || "")}${recordings.map(r => option(r.id, r.name + (r.durationSeconds ? ` · ${r.durationSeconds} s` : ""), a.announcement?.audioId || "")).join("")}</select><label class="btn ghost small" style="cursor:pointer">Upload WAV or MP3<input type="file" id="annFile" accept=".wav,.mp3,audio/wav,audio/mpeg" hidden></label></div>
+      <p class="error" id="annErr" role="alert"></p></div>
     <label class="consent"><input type="checkbox" name="vmOn" ${voicemailOn ? "checked" : ""}><span>On outgoing calls, detect voicemail. A person hears the greeting a few seconds later, and Twilio charges a small fee per call.</span></label>
     <div class="field"><label for="vmMsg">Message to leave on voicemail</label><p class="hint">Optional. A sentence in the assistant's voice, or the URL of a .wav or .mp3. Without one, the call hangs up.</p><input id="vmMsg" name="vmMsg" value="${esc(a.voicemailMessage || "")}" placeholder="Hi, this is Ava from the clinic. Please call us back."></div>
     <div class="field"><label for="hook">Call report URL</label><p class="hint">Optional. We send the transcript here when a call ends.</p><input id="hook" name="hook" value="${esc((a.server || {}).url || "")}" placeholder="https://your-app.com/webhook"></div>
     ${footer}</form>`;
+    $("#annFile").onchange = async e => {
+      const file = e.target.files[0]; if (!file) return;
+      const form = new FormData(); form.append("file", file);
+      $("#annErr").textContent = "Uploading…";
+      const res = await fetch("/announcement", { method: "POST", headers: { "X-OpenRing": "dashboard" }, body: form }).catch(() => null);
+      const body = res && await res.json().catch(() => null);
+      if (!res?.ok) { $("#annErr").textContent = body?.detail || "The upload failed."; return; }
+      $("#annErr").textContent = "";
+      $("#annId").insertAdjacentHTML("beforeend", option(body.id, body.name, body.id)); $("#annId").value = body.id; unsaved = true;
+    };
     const mp = $("[name=mp]"), mm = $("[name=mm]");
     mp.onchange = () => { if (!mm.value || Object.values(SUGGESTED_MODEL).includes(mm.value)) mm.value = SUGGESTED_MODEL[mp.value] ?? ""; };
     const vp = $("[name=vp]"), tl = $("[name=tl]"), vvoice = $("#vvoice");
@@ -1175,6 +1190,7 @@ async function viewAssistant(id, known) {
         callerMemory: f.get("memOn") ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: true } : a.callerMemory ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: false } : undefined,
         voicemailDetection: f.get("vmOn") ? (voicemailOn && typeof a.voicemailDetection === "object" && a.voicemailDetection) || { provider: "twilio" } : voicemailOn || a.voicemailDetection ? "off" : undefined,
         voicemailMessage: f.get("vmMsg") || (a.voicemailMessage ? "" : undefined),
+        announcement: f.get("annId") ? { ...(a.announcement || {}), audioId: f.get("annId") } : a.announcement ? null : undefined,
         // Vapi's call limits, in seconds; untouched fields keep what was saved (or Vapi's defaults).
         maxDurationSeconds: limitTyped(f.get("maxmin"), limitsShown.minutes, 60, a.maxDurationSeconds),
         silenceTimeoutSeconds: limitTyped(f.get("silence"), limitsShown.silence, 1, a.silenceTimeoutSeconds),
@@ -1424,6 +1440,46 @@ function progressBar(c) {
 }
 // The number's assistant answers for a campaign that names none.
 const campaignAssistant = (c, assistants, nums) => assistants.find(a => a.id === (c.assistantId || nums.find(n => n.id === c.phoneNumberId)?.assistantId))?.name || "Deleted assistant";
+
+const ESCALATION_END = { acknowledged: "Confirmed", "nobody-confirmed": "Nobody confirmed", cancelled: "Stopped", "worker-shutdown": "Stopped by a restart", "escalation-error": "Failed" };
+async function viewEscalations() {
+  setPage("escalations");
+  const [list, assistants, nums] = await Promise.all([api("/escalation?limit=100"), api("/assistant"), api("/phone-number")]);
+  const players = assistants.filter(a => a.announcement?.audioId), lines = nums.filter(n => (n.provider || "twilio") === "twilio");
+  const status = e => e.status === "in-progress" ? `<span class="badge live">Calling</span>` : `<span class="badge${e.endedReason === "acknowledged" ? " ok" : ""}">${esc(ESCALATION_END[e.endedReason] || e.endedReason || e.status)}</span>`;
+  const v = $("#view");
+  v.innerHTML = `<div class="toolbar"><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
+  <section class="panel" style="margin-bottom:18px"><header><h2>New escalation</h2></header><div class="body">
+    ${!players.length || !lines.length ? `<p class="muted" style="margin:0">It needs ${!players.length ? `an assistant that plays a recording (in its editor, <a href="#assistants">Play a recording instead of talking</a>)` : ""}${!players.length && !lines.length ? " and " : ""}${!lines.length ? `a <a href="#numbers">Twilio number</a>` : ""}. Say in the recording what happened and to press 1 to confirm.</p>` : `
+    <form id="esc">
+      <div class="field"><label for="escName">What happened</label><input id="escName" name="name" maxlength="80" placeholder="Payments are down"></div>
+      <div class="field"><label for="escFrom">Calls from</label><select id="escFrom" name="from">${lines.map(n => option(n.id, n.number, "")).join("")}</select></div>
+      <div class="field"><label for="escPlay">Plays</label><select id="escPlay" name="play">${players.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select></div>
+      <div class="field"><label for="escPeople">On call, in order</label><p class="hint">One per line: number with country code, then name.</p><textarea id="escPeople" name="people" rows="4" required placeholder="+5511912345678 Ana&#10;+5511987654321 Bruno"></textarea></div>
+      <div class="field"><label for="escRounds">Times round the list</label><select id="escRounds" name="rounds">${[1, 2, 3, 4, 5].map(n => option(String(n), String(n), "2")).join("")}</select></div>
+      <div class="error" id="escErr" role="alert"></div>
+      <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.phone}Start calling</button></div>
+    </form>`}
+  </div></section>
+  <section class="panel">${list.length ? `<div class="scroll"><table class="table"><thead><tr><th>What happened</th><th>Status</th><th class="hide-sm">Confirmed by</th><th class="num">Calls</th><th class="hide-sm">Started</th><th></th></tr></thead><tbody>
+    ${list.map(e => `<tr><td>${esc(e.name || "Escalation")}</td><td>${status(e)}</td><td class="hide-sm">${esc(e.acknowledgedBy || "—")}</td><td class="num">${(e.attempts || []).length}</td><td class="hide-sm">${esc(when(e.createdAt))}</td><td class="num">${e.status === "in-progress" ? `<button class="btn ghost small" data-stop="${esc(e.id)}">Stop</button>` : ""}</td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="empty">No escalations yet.</div>`}</section>`;
+  $("#refresh").onclick = viewEscalations;
+  v.querySelectorAll("[data-stop]").forEach(b => b.onclick = async () => {
+    if (!(await ask("Stop this escalation?", "Nobody else gets called; a call already ringing finishes.", "Stop calling"))) return;
+    try { await api("/escalation/" + b.dataset.stop, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) }); }
+    catch (err) { tell("Couldn't stop it", err.message); }
+    viewEscalations();
+  });
+  if ($("#esc")) $("#esc").onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const customers = f.get("people").split("\n").map(l => l.trim()).filter(Boolean).map(l => { const [number, ...name] = l.split(/\s+/); return { number, ...(name.length ? { name: name.join(" ") } : {}) }; });
+    try {
+      await api("/escalation", { method: "POST", body: JSON.stringify({ name: f.get("name") || undefined, phoneNumberId: f.get("from"), assistantId: f.get("play"), rounds: Number(f.get("rounds")), customers }) });
+      viewEscalations();
+    } catch (err) { $("#escErr").textContent = err.message; }
+  };
+}
 
 async function viewCampaigns() {
   setPage("campaigns");
@@ -2368,7 +2424,7 @@ async function openCall(id) {
 $("#talkDialog").addEventListener("close", () => endTalk());
 
 // ---- Routing and shell ------------------------------------------------------------------
-const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, providers: viewProviders, settings: viewSettings };
+const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, providers: viewProviders, settings: viewSettings };
 function go(name) { location.hash = name; }
 async function route() {
   if ($("#app").hidden) return;

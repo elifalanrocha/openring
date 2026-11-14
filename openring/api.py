@@ -22,6 +22,7 @@ from loguru import logger
 
 from . import (
     __version__,
+    announcements,
     auth,
     campaigns,
     genesys,
@@ -114,6 +115,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         routes.load_speed(store)  # how fast each model answered on earlier calls, for "fastest" routes
         await _starter()
         dialer.resume()
+        escalations.resume()
         for assistant in store.list("assistants", limit=10_000):  # their local models load in the background
             providers.prepare_local(assistant)
         for squad in store.list("squads", limit=10_000):
@@ -127,6 +129,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         await whatsapp.stop()
         await sip_server.stop()
         await dialer.close()
+        await escalations.close()
 
     app = FastAPI(title="OpenRing", version=__version__, lifespan=lifespan)
     app.state.settings = settings
@@ -254,6 +257,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def _validate_assistant(doc: dict[str, Any], current: dict[str, Any] | None = None) -> None:
+        if "announcement" in doc and doc["announcement"] is not None:
+            plan = doc["announcement"]
+            if not isinstance(plan, dict) or store.get("announcements", str(plan.get("audioId") or "")) is None:
+                raise HTTPException(status_code=400, detail="announcement.audioId: upload the recording first "
+                                                            "(POST /announcement) and use its id")
         for layer in routes.KINDS:  # a route for the model, the transcriber or the voice
             route_id = (doc.get(layer) or {}).get("routeId")
             kept = current is not None and route_id == (current.get(layer) or {}).get("routeId")
@@ -1219,10 +1227,15 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """Everything an outbound call needs before it's dialed: a working assistant, and Twilio with a public URL or
         a SIP trunk."""
         _validate_assistant(assistant)
-        try:
-            _plan(assistant)
-        except ProviderError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if announcements.plan_of(assistant):
+            if (number.get("provider") or "twilio") != "twilio":
+                raise HTTPException(status_code=400, detail="a recorded message plays through Twilio numbers only, "
+                                                            "for now")
+        else:
+            try:
+                _plan(assistant)
+            except ProviderError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         if number.get("provider") == "byo-phone-number":
             if store.get("credentials", str(number.get("credentialId") or "")) is None:
                 raise HTTPException(status_code=400, detail="the number's SIP trunk was deleted")
@@ -1469,6 +1482,93 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     dialer = campaigns.Dialer(store, dial_for_campaign)
     app.state.dialer = dialer
 
+    # ---- Recorded messages and on-call escalations (announcements.py) ----------------------------
+    @app.post("/announcement", status_code=201, dependencies=auth_deps)
+    async def upload_announcement(file: UploadFile) -> dict[str, Any]:
+        """A recording (WAV or MP3, up to 10 MB) for assistants that play a message instead of talking."""
+        data = await file.read(announcements.MAX_BYTES + 1)
+        name = (file.filename or "recording").replace("\\", "/").rsplit("/", 1)[-1]
+        try:
+            return await asyncio.to_thread(announcements.save, store, name, data)
+        except announcements.AnnouncementError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/announcement", dependencies=auth_deps)
+    def list_announcements(limit: int = 100) -> list[dict[str, Any]]:
+        return store.list("announcements", limit)
+
+    @app.get("/announcement/{audio_id}", dependencies=auth_deps)
+    def get_announcement(audio_id: str) -> dict[str, Any]:
+        return _get_or_404("announcements", audio_id)
+
+    @app.delete("/announcement/{audio_id}", dependencies=auth_deps)
+    def delete_announcement(audio_id: str) -> dict[str, Any]:
+        audio = _get_or_404("announcements", audio_id)
+        users = [a.get("name") or a["id"] for a in store.list("assistants", limit=10_000)
+                 if (announcements.plan_of(a) or {}).get("audioId") == audio_id]
+        if users:
+            raise HTTPException(status_code=409, detail=f"assistants play this recording: {', '.join(users)}")
+        announcements.remove(store, audio)
+        return audio
+
+    async def dial_for_escalation(escalation: dict[str, Any], person: dict[str, Any]) -> dict[str, Any]:
+        number = store.get("phone_numbers", escalation["phoneNumberId"])
+        assistant = store.get("assistants", escalation["assistantId"])
+        record = {"assistantId": escalation["assistantId"], "escalationId": escalation["id"]}
+        if number is None or assistant is None:
+            return store.create("calls", {"type": "outboundPhoneCall", "status": "ended", **record, "customer": person,
+                                          "endedReason": "escalation-number-or-assistant-deleted",
+                                          "endedAt": now_iso()})
+        try:
+            return await dial(number, person, record, assistant)
+        except Refused as exc:
+            return exc.call
+
+    escalations = announcements.Escalations(store, dial_for_escalation)
+    app.state.escalations = escalations
+
+    @app.post("/escalation", status_code=201, dependencies=auth_deps)
+    async def create_escalation(body: dict[str, Any]) -> dict[str, Any]:
+        """Call an on-call list in order until someone presses the confirmation key (OpenRing's own)."""
+        number = _outbound_number(str(body.get("phoneNumberId") or ""))
+        if (number.get("provider") or "twilio") != "twilio":
+            raise HTTPException(status_code=400, detail="escalations call through Twilio numbers only, for now")
+        assistant = _get_or_404("assistants", str(body.get("assistantId") or ""))
+        if announcements.plan_of(assistant) is None:
+            raise HTTPException(status_code=400, detail="assistantId: an assistant that plays a recording "
+                                                        "(its announcement.audioId)")
+        try:
+            checked = announcements.check_escalation(body)
+        except announcements.AnnouncementError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        people = [_customer(c, f"customers[{i}]") for i, c in enumerate(body["customers"])]
+        _check_outbound(assistant, number)
+        prompt = str(body.get("confirmPrompt") or "")[:200]
+        doc = store.create("escalations", {
+            "name": str(body.get("name") or "")[:80], "phoneNumberId": number["id"], "assistantId": assistant["id"],
+            "customers": people, **checked, **({"confirmPrompt": prompt} if prompt else {}),
+            "status": "in-progress", "attempts": []})
+        escalations.start(doc["id"])
+        return doc
+
+    @app.get("/escalation", dependencies=auth_deps)
+    def list_escalations(limit: int = 100) -> list[dict[str, Any]]:
+        return store.list("escalations", limit)
+
+    @app.get("/escalation/{escalation_id}", dependencies=auth_deps)
+    def get_escalation(escalation_id: str) -> dict[str, Any]:
+        return _get_or_404("escalations", escalation_id)
+
+    @app.patch("/escalation/{escalation_id}", dependencies=auth_deps)
+    def cancel_escalation(escalation_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Stop calling (`{"status": "cancelled"}`); a call already ringing finishes."""
+        _get_or_404("escalations", escalation_id)
+        if body != {"status": "cancelled"}:
+            raise HTTPException(status_code=400, detail='an escalation can only be stopped: {"status": "cancelled"}')
+        stopped = store.claim("escalations", escalation_id, "in-progress",
+                              {"status": "ended", "endedReason": "cancelled", "endedAt": now_iso()})
+        return stopped or _get_or_404("escalations", escalation_id)
+
     @app.post("/campaign", status_code=201, dependencies=auth_deps)
     async def create_campaign(body: dict[str, Any]) -> dict[str, Any]:
         doc = _campaign_doc(body)
@@ -1661,6 +1761,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 logger.warning("call {}: Twilio call {} is not this call; not connecting", call_id, form.get("CallSid"))
                 return Response(say_twiml("Sorry, this call could not be connected."), media_type="application/xml")
             if form.get("AnsweredBy") in twilio.MACHINE and (twiml := left_on_voicemail(call, form["AnsweredBy"])):
+                return Response(twiml, media_type="application/xml")
+            if twiml := announced(call):
                 return Response(twiml, media_type="application/xml")
             logger.info("call {} answered; streaming it to its assistant", call_id)
             params = {"callId": call_id, **({"assistantId": call["assistantId"]} if call.get("assistantId") else {})}
@@ -1857,11 +1959,74 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             store.claim("calls", request.query_params.get("callId", ""), "queued", patch)
         return Response(status_code=204)
 
+    def announced(call: dict[str, Any]) -> str | None:
+        """The TwiML of a call whose assistant plays a recording, or None for a conversation."""
+        assistant = call.get("assistant") or store.get("assistants", str(call.get("assistantId") or ""))
+        plan = announcements.plan_of(assistant)
+        if plan is None:
+            return None
+        audio = store.get("announcements", str(plan["audioId"]))
+        if audio is None:
+            store.update("calls", call["id"], {"status": "ended", "endedReason": "announcement-not-found",
+                                               "endedAt": now_iso()})
+            return say_twiml("Sorry, this message is no longer available.")
+        mode = "escalation" if call.get("escalationId") else "announcement"
+        store.claim("calls", call["id"], "queued", {"status": "in-progress", "startedAt": now_iso(), "mode": mode})
+        url = f"{settings.public_url}/announcement/play/{links.make(audio['id'])}"
+        if mode == "announcement":
+            return twilio.play_twiml(url)
+        escalation = store.get("escalations", call["escalationId"]) or {}
+        digit = escalation.get("confirmDigit", "1")
+        prompt = escalation.get("confirmPrompt") or announcements.CONFIRM_PROMPT.format(digit=digit)
+        return twilio.confirm_twiml(url, f"{settings.public_url}/twilio/ack?callId={call['id']}", digit, prompt)
+
+    links = announcements.Links()
+
+    @app.get("/announcement/play/{token}", include_in_schema=False)
+    def play_announcement(token: str) -> FileResponse:
+        """The recording of one call, for the carrier: a one-hour link, never the recording's id."""
+        audio = store.get("announcements", links.audio(token) or "")
+        if audio is None or not announcements.path_for(audio).is_file():
+            raise HTTPException(status_code=404, detail="not found")
+        media = "audio/wav" if audio["format"] == "wav" else "audio/mpeg"
+        return FileResponse(announcements.path_for(audio), media_type=media, headers={"Cache-Control": "no-store"})
+
+    @app.post("/twilio/ack")
+    async def twilio_ack(request: Request) -> Response:
+        """The key someone pressed on an escalation call. The right one stops the escalation."""
+        form = await twilio_form(request)
+        call = store.get("calls", request.query_params.get("callId", ""))
+        if not call or call.get("phoneCallProviderId") not in (None, form.get("CallSid")):
+            return Response(twilio.hangup_twiml(), media_type="application/xml")
+        escalation = store.get("escalations", str(call.get("escalationId") or ""))
+        if escalation and form.get("Digits") == escalation.get("confirmDigit", "1"):
+            store.update("calls", call["id"], {"acknowledged": True})
+            if escalation.get("status") == "in-progress":
+                escalations.acknowledged(escalation["id"], call)
+            logger.info("escalation {}: confirmed by {}", escalation["id"], (call.get("customer") or {}).get("number"))
+            return Response(say_twiml("Confirmed. Thank you."), media_type="application/xml")
+        return Response(announced({**call, "status": "queued"}) or twilio.hangup_twiml(), media_type="application/xml")
+
     @app.post("/twilio/status", status_code=204)
     async def twilio_status(request: Request) -> Response:
-        """Final status of an outbound call. Records the calls that never reached the assistant."""
+        """Final status of an outbound call. Records the calls that never reached the assistant, and ends the ones that
+        played a recording (no stream to end them)."""
         form = await twilio_form(request)
         logger.info("call {}: Twilio status {}", request.query_params.get("callId"), form.get("CallStatus"))
+        played = store.get("calls", request.query_params.get("callId", "")) or {}
+        if played.get("mode") and played.get("status") == "in-progress" and form.get("CallStatus") == "completed":
+            from .bot import line_cost
+
+            seconds = float(form.get("CallDuration") or 0)
+            line = line_cost(played, seconds, store)
+            usd = line[0] if line and line[0] is not None else None
+            breakdown = {"stt": 0, "llm": 0, "tts": 0, "total": round(usd or 0, 6),
+                         **({"line": round(usd, 6)} if usd is not None else {"unpriced": [f"phone line ({line[1]})"]}
+                            if line else {})}
+            store.update("calls", played["id"], {"status": "ended", "endedAt": now_iso(), "durationSeconds": seconds,
+                                                 "endedReason": "assistant-ended-call", "cost": breakdown["total"],
+                                                 "costBreakdown": breakdown})
+            return Response(status_code=204)
         if reason := UNREACHED.get(form.get("CallStatus", "")):
             # Only a call still queued: one whose stream connected is closed by the bot itself.
             patch = {"status": "ended", "endedReason": reason, "endedAt": now_iso()}

@@ -308,3 +308,10 @@ def test_assistants_open_beside_their_list_and_the_prompt_has_the_industrys_name
     assert 'history.replaceState(null, "", "#assistants/" + items[0].id)' in PAGE  # the first one opens, by address
     assert '<label for="sys">System prompt</label>' in PAGE and ">Instructions<" not in PAGE
     assert "@media (prefers-reduced-motion: reduce) { #view > * { animation: none; } }" in PAGE
+
+
+def test_the_dashboard_offers_a_recording_and_an_escalations_page():
+    assert '<label for="annId">Play a recording instead of talking</label>' in PAGE
+    assert 'fetch("/announcement", { method: "POST"' in PAGE
+    assert "escalations: viewEscalations" in PAGE and 'href="#escalations"' in PAGE
+    assert 'api("/escalation", { method: "POST"' in PAGE

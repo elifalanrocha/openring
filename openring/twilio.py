@@ -106,6 +106,14 @@ def play_twiml(url: str) -> str:
     return f'<?xml version="1.0" encoding="UTF-8"?><Response><Play>{escape(url)}</Play><Hangup/></Response>'
 
 
+def confirm_twiml(play_url: str, action_url: str, digit: str, prompt: str) -> str:
+    """Play a recording and ask for a key, twice; the key goes to `action_url`. Silence ends the call."""
+    play = f"<Play>{escape(play_url)}</Play><Say>{escape(prompt)}</Say>"
+    gather = (f'<Gather numDigits="1" timeout="6" action={quoteattr(action_url)} method="POST" '
+              f'finishOnKey="">{play}</Gather>')
+    return f'<?xml version="1.0" encoding="UTF-8"?><Response>{gather}{gather}<Hangup/></Response>'
+
+
 def hangup_twiml() -> str:
     return '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>'
 

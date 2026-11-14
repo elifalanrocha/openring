@@ -18,6 +18,9 @@ PUBLIC_HTTP = {
     "/plivo/voice", "/plivo/status", "/plivo/transfer/{token}", "/vonage/voice", "/vonage/event",
     # Provider logos for the dashboard <img> tags (static files, no data; browsers cannot send a Bearer header).
     "/icons/{name}.svg", "/icons/{name}.ico", "/icons/{name}.png",
+    # Twilio's key-press webhook (signed like the others) and its fetch of one call's recording (a one-hour random
+    # link per call, never the recording's id).
+    "/twilio/ack", "/announcement/play/{token}",
     # The dashboard's typeface (a static file, no data): the sign-in page needs it before anyone has signed in.
     "/fonts/archivo.woff2",
     # The OAuth provider's cross-site redirect; the one-time state from a signed-in session authorizes it.

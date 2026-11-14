@@ -217,6 +217,40 @@ arrive in order; when your server is slow, partial transcripts are the ones left
 `server.url` asks it on each incoming call (`assistant-request`) and uses the `assistantId` or the transient
 `assistant` it answers. `POST /call` also takes a transient `assistant` instead of an `assistantId`.
 
+### Recorded messages and on-call escalations
+
+Beta, OpenRing's own, Twilio numbers only for now, and not yet tried on a real call. Upload a recording, WAV or MP3 up
+to 10 MB and 10 minutes, and give it to an assistant. That assistant doesn't talk: when the call is answered it plays
+the file and hangs up. With no transcriber, model or voice, the call costs only the line.
+
+```bash
+curl -H "Authorization: Bearer $OPENRING_API_KEY" -F file=@notice.wav http://localhost:8000/announcement
+```
+
+```json
+{"name": "Maintenance notice", "announcement": {"audioId": "AUDIO_ID"}}
+```
+
+A campaign with that assistant plays the same message to everyone on its list. Twilio fetches the file from
+`$PUBLIC_URL/announcement/play/<token>`, a random link made for one call that works for an hour; the recording's id is
+never in it. `GET /announcement` lists the recordings; `DELETE /announcement/{id}` refuses while an assistant plays it.
+
+An **escalation** calls an on-call list in order until someone presses the confirmation key, like an incident pager:
+
+```bash
+curl -X POST http://localhost:8000/escalation -H "Authorization: Bearer $OPENRING_API_KEY" \
+  -H "Content-Type: application/json" -d '{"name": "Payments are down", "phoneNumberId": "NUMBER_ID",
+  "assistantId": "PAGER_ASSISTANT_ID", "rounds": 2, "customers": [{"number": "+5511912345678", "name": "Ana"},
+  {"number": "+5511987654321", "name": "Bruno"}]}'
+```
+
+Each person hears the recording, then "Press 1 to confirm." (`confirmDigit` and `confirmPrompt` change them), twice.
+Whoever presses the key stops the escalation (`endedReason: "acknowledged"`, `acknowledgedBy`); otherwise it goes to
+the next person, round the list `rounds` times (1 to 5), and ends as `nobody-confirmed`. `attempts` lists every call.
+`PATCH /escalation/{id}` with `{"status": "cancelled"}` stops it. An escalation cut off by a restart is not called
+again: it ends as `worker-shutdown`. Say in the recording what happened and which key confirms; the dashboard has an
+**Escalations** page.
+
 ### Checked with Vapi's SDK
 
 Vapi's official Python SDK (`vapi_server_sdk` 3.0.0), pointed at an OpenRing server, on November 13, 2026: **34 of the

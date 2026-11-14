@@ -11,6 +11,10 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- Recorded messages (beta, Twilio): upload a WAV or MP3 (`POST /announcement`) and give it to an assistant
+  (`announcement.audioId`); the call plays it and hangs up, costing only the line. A campaign plays it to a whole list.
+- On-call escalations (beta, Twilio, `/escalation`, an **Escalations** page): call a list in order until someone presses
+  the confirmation key, round the list up to 5 times.
 - Assistants open beside their list: each with its model's logo and its three layers, the first one opened at once
   with its cost, answer time and setup. "Instructions" is now "System prompt", the name the field has everywhere else.
   Pages come in with a short, quiet movement (none with reduced motion).
