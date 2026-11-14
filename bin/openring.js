@@ -14,6 +14,9 @@ const SOURCE = process.env.OPENRING_SOURCE;
 const PACKAGE = SOURCE ? `openring[kokoro,whisper] @ ${SOURCE}` : `openring[kokoro,whisper]==${VERSION}`;
 // Flags such as `--port 8001` go on to `openring`; the launcher reads the port to open the browser.
 const userArgs = process.argv.slice(2);
+// `npx openring mcp` is an MCP server: its stdout carries the protocol, so the launcher speaks on stderr only.
+const MCP = userArgs[0] === "mcp";
+const say = (...args) => (MCP ? console.error : console.log)(...args);
 const portArg = userArgs.find((_, i) => userArgs[i - 1] === "--port") || (userArgs.find((a) => a.startsWith("--port=")) || "").slice(7);
 const PORT = portArg || process.env.PORT || "8000";
 const isWin = process.platform === "win32";
@@ -31,10 +34,10 @@ function findUv() {
 }
 
 function installUv() {
-  console.log("  Installing uv (Python manager, one time only)...");
+  say("  Installing uv (Python manager, one time only)...");
   const r = isWin
-    ? spawnSync("powershell", ["-ExecutionPolicy", "ByPass", "-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"], { stdio: "inherit" })
-    : spawnSync("sh", ["-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"], { stdio: "inherit" });
+    ? spawnSync("powershell", ["-ExecutionPolicy", "ByPass", "-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"], { stdio: MCP ? ["ignore", 2, 2] : "inherit" })
+    : spawnSync("sh", ["-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"], { stdio: MCP ? ["ignore", 2, 2] : "inherit" });
   if (r.status !== 0) {
     console.error("\n  Could not install uv automatically. Install it from https://docs.astral.sh/uv/ and run this command again.");
     process.exit(1);
@@ -90,7 +93,7 @@ function run(attempt) {
   });
   child.on("exit", (code) => {
     if (shouldRetry(code, attempt, seen, Boolean(SOURCE))) {
-      console.log(`\n  OpenRing ${VERSION} is brand new and PyPI may not list it everywhere yet; asking again in ${RETRY_WAIT_MS / 1000} s (try ${attempt + 2} of ${RETRIES + 1})...\n`);
+      say(`\n  OpenRing ${VERSION} is brand new and PyPI may not list it everywhere yet; asking again in ${RETRY_WAIT_MS / 1000} s (try ${attempt + 2} of ${RETRIES + 1})...\n`);
       waiting = setTimeout(() => { waiting = null; current = run(attempt + 1); }, RETRY_WAIT_MS);
       return;
     }
@@ -99,7 +102,7 @@ function run(attempt) {
   return child;
 }
 
-console.log("\n  Starting OpenRing (the first run downloads dependencies and can take a few minutes)...\n");
+if (!MCP) console.log("\n  Starting OpenRing (the first run downloads dependencies and can take a few minutes)...\n");
 let current = run(0);
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
@@ -109,4 +112,4 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
 }
 
 const url = `http://localhost:${PORT}`;
-waitForServer(url).then((up) => { if (up) openBrowser(url); });
+if (!MCP) waitForServer(url).then((up) => { if (up) openBrowser(url); });

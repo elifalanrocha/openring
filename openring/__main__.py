@@ -169,6 +169,13 @@ def load_settings() -> tuple[bool, bool]:
 
 
 def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["mcp"]:  # an MCP server over stdio for AI agents; stdout belongs to the protocol
+        load_settings()
+        from .mcp import main as mcp_main
+
+        mcp_main()
+        return
     parser = argparse.ArgumentParser(prog="openring", description="Self-hosted voice AI agents, Vapi-compatible.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--port", type=int, help="port to serve on (default: $PORT, or 8000)")

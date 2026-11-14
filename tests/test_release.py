@@ -76,3 +76,11 @@ def test_the_docker_image_keeps_downloaded_models_on_the_data_volume():
     env = next(line for line in dockerfile.splitlines() if line.startswith("ENV "))
     assert "HOME=/data" in env and "OPENRING_HOME=/data" in env  # ~/.cache is on the volume
     assert 'VOLUME ["/data"]' in dockerfile
+
+
+def test_the_launcher_keeps_stdout_for_the_mcp_protocol():
+    launcher = (ROOT / "bin" / "openring.js").read_text(encoding="utf-8")
+    assert 'const MCP = userArgs[0] === "mcp";' in launcher
+    assert "if (!MCP) waitForServer(url)" in launcher  # no browser for an MCP server
+    assert 'if (!MCP) console.log("\\n  Starting OpenRing' in launcher
+    assert launcher.count('stdio: MCP ? ["ignore", 2, 2] : "inherit"') == 2  # the uv installer writes to stderr

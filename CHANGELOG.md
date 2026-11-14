@@ -11,6 +11,7 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- `openring mcp`: an MCP server, so an AI agent can place a call through OpenRing and read the transcript.
 - Callers that are AI agents ("I'm an AI assistant calling on behalf of…", in English, Portuguese and Spanish) are
   noticed, the call is marked `callerIsAI`, and the model is told to answer briefly and exactly (`aiCallerPlan`).
 - The dashboard moves more smoothly: switching assistants keeps the list still and brings in only the editor, cost and

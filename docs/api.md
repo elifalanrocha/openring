@@ -33,6 +33,21 @@ quiet after the assistant spoke,
  "messagePlan": {"idleMessages": ["Are you still there?"], "idleTimeoutSeconds": 8}}
 ```
 
+### Phone calls for AI agents (MCP)
+
+`openring mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio: an AI agent such as Claude or Cursor can
+place a call through your OpenRing and read the transcript. It calls the running server at `OPENRING_URL`
+(`http://localhost:8000` by default) with `OPENRING_API_KEY` (read from `~/.openring/.env` when not set). For Claude Code:
+
+```bash
+claude mcp add openring -- npx openring mcp
+```
+
+Tools: `list_assistants`, `list_phone_numbers`, `place_call` (`phoneNumberId`, `number`, and optionally `assistantId`, the
+person's `name` and a `context` the assistant gets as `{{context}}`), `get_call` (status, ended reason, duration, cost and
+transcript) and `list_calls`. `place_call` rings a real person and costs money; its description tells the agent to
+confirm with you first.
+
 ### Callers that are AI agents
 
 More and more callers are assistants calling for a person ("Hi, I'm an AI assistant calling on behalf of Maria"). OpenRing
