@@ -263,3 +263,13 @@ def test_the_menu_folds_to_its_icons_and_scrolls_without_a_bar():
     assert ".rail { scrollbar-width: none; }" in PAGE and ".rail::-webkit-scrollbar { display: none; }" in PAGE
     assert 'store.get("openring-menu") === "folded"' in PAGE  # the choice is remembered
     assert "a.title = a.textContent.trim()" in PAGE  # a folded link still says what it is
+
+
+def test_the_language_select_lists_code_and_name_pairs_with_follow_the_caller_first():
+    # Each entry is a [code, name] pair of strings; "multi" (Follow the caller) stays first.
+    line = re.search(r"^const LANGUAGES = (\[.*\]);$", PAGE, re.M).group(1)
+    pairs = json.loads(line)
+    assert pairs[0] == ["multi", "Follow the caller"]
+    assert all(isinstance(p, list) and len(p) == 2 and all(isinstance(s, str) and s for s in p) for p in pairs)
+    assert len({code for code, _ in pairs}) == len(pairs)
+
