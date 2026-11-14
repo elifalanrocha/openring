@@ -351,6 +351,10 @@ class StackPlan:
     keypad_delimiters: tuple[str, ...] = ("#",)
     # OpenRing's own aiCallerPlan: told when the caller is an AI agent, the model answers briefly and exactly.
     ai_caller_hint: bool = True
+    # A speech-to-speech model ("openai" for OpenAI Realtime): it listens and speaks itself, so the call has no
+    # transcriber or voice of its own, and turns come from the provider's own voice activity detection.
+    realtime: str | None = None
+    realtime_voice: str | None = None
     # A model slower than this to start answering (ms) hands the turn to the next fallback model.
     max_latency_ms: int | None = None
     # The model route the models came from (`routes.expand`): {"id", "name", "cooldownMinutes"}.
@@ -581,6 +585,17 @@ def stt_words(transcriber: dict[str, Any], provider: str, model: str | None) -> 
     return {key: value for key, value in settings.items() if value}, warnings
 
 
+# Models that listen and speak themselves, by provider (Vapi names them the same way).
+REALTIME_MODELS = {"openai": ("gpt-realtime", "gpt-4o-realtime", "gpt-4o-mini-realtime")}
+REALTIME_VOICE = {"openai": "marin"}
+
+
+def realtime_of(provider: str, model: str | None) -> str | None:
+    """The speech-to-speech family of a model, or None for a text model."""
+    prefixes = REALTIME_MODELS.get(provider) or ()
+    return provider if any(str(model or "").startswith(p) for p in prefixes) else None
+
+
 def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fallbacks: bool = True) -> StackPlan:
     transcriber = _with_defaults(assistant.get("transcriber") or {}, DEFAULT_TRANSCRIBER, "deepgram")
     model = {**default_model(), **(assistant.get("model") or {})}
@@ -621,7 +636,10 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
     if tts_provider not in TTS_PROVIDERS:
         raise ProviderError(f"voice provider '{tts_provider}' not supported yet: {_supported(TTS_PROVIDERS)}")
 
-    if check_keys:
+    realtime = realtime_of(llm_provider, model.get("model"))
+    if check_keys and realtime:  # the model listens and speaks: only its own key counts
+        _require_key(key_env, f"model provider '{llm_provider}'")
+    elif check_keys:
         _require_key(STT_PROVIDERS[stt_provider], f"transcriber '{stt_provider}'")
         if llm_provider not in LOCAL_LLMS:  # local servers may run without a key
             _require_key(key_env, f"model provider '{llm_provider}'")
@@ -677,6 +695,19 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         **speaking_plans(assistant, word_warnings),
     )
     plan.tts_speed = voice_speed(plan.tts_provider, voice.get("speed"), plan.warnings)
+    if realtime:
+        plan.realtime = realtime
+        if tts_provider == realtime and voice.get("voiceId"):
+            plan.realtime_voice = str(voice["voiceId"])
+        else:
+            plan.realtime_voice = REALTIME_VOICE[realtime]
+            plan.warnings.append(f"{model['model']} speaks with its own voices: using {plan.realtime_voice}; set "
+                                 f"voice.provider to {realtime} to choose one")
+        if any(fallback_layers(assistant).values()):
+            plan.warnings.append("fallbacks don't apply to a speech-to-speech model yet")
+        if plan.idle_messages or assistant.get("endCallMessage") or assistant.get("voicemailMessage"):
+            plan.warnings.append("idle, end-call and voicemail messages aren't spoken by a speech-to-speech model")
+        return plan
     if multilingual and plan.tts_provider not in MULTILINGUAL_VOICES:
         plan.warnings.append(f"the {plan.tts_provider} voice speaks one language; to follow callers in several "
                              "languages, use an 11labs or openai voice")
@@ -841,6 +872,10 @@ def _llm_headers(provider: str) -> dict[str, str] | None:
 def build_services(plan: StackPlan):
     """Instantiate Pipecat STT, LLM and TTS services for a call. A layer with fallbacks becomes one switcher
     that runs the first provider and moves to the next when it fails (see `fallback.py`)."""
+    if plan.realtime and plan.team:
+        raise ProviderError("squads can't use a speech-to-speech model yet")
+    if plan.realtime:  # no transcriber or voice: the model hears and speaks
+        return None, _labeled(_build_realtime(plan), "model", plan), None
     if plan.team:
         return _build_team(plan)
     stt = _labeled(_build_stt(plan), "transcriber", plan)
@@ -898,6 +933,21 @@ def label(layer: str, plan: StackPlan) -> str:
     if layer == "model":
         return f"{plan.llm_provider} {plan.llm_model}"
     return " ".join(x for x in (plan.tts_provider, plan.tts_voice) if x)
+
+
+def _build_realtime(plan: StackPlan) -> Any:
+    """OpenAI Realtime: audio in, audio out, with the assistant's system prompt and tools from the call's context."""
+    try:
+        from pipecat.services.openai.realtime import events
+        from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
+    except ImportError as exc:
+        raise ProviderError("speech-to-speech needs pipecat-ai[openai]: pip install 'pipecat-ai[openai]'") from exc
+    output = events.AudioOutput(voice=plan.realtime_voice, **({"speed": plan.tts_speed} if plan.tts_speed else {}))
+    session = events.SessionProperties(audio=events.AudioConfiguration(output=output))
+    return OpenAIRealtimeLLMService(
+        api_key=os.environ.get(plan.llm_api_key_env or "OPENAI_API_KEY", ""),
+        settings=OpenAIRealtimeLLMService.Settings(model=plan.llm_model, session_properties=session),
+    )
 
 
 def _labeled(service: Any, layer: str, plan: StackPlan) -> Any:

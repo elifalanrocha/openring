@@ -750,9 +750,11 @@ async def run_call(
 
             turn_options["user_turn_strategies"] = UserTurnStrategies(
                 start=[MinWordsUserTurnStartStrategy(min_words=plan.interrupt_words)])
+        # A speech-to-speech model detects turns itself; a local detector too would announce each turn twice.
+        detector = None if plan.realtime else SileroVADAnalyzer(params=VADParams(**vad)) if vad else SileroVADAnalyzer()
         aggregators = LLMContextAggregatorPair(
             context, user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(params=VADParams(**vad)) if vad else SileroVADAnalyzer(), **turn_options,
+                vad_analyzer=detector, **({} if plan.realtime else turn_options),
                 # Pipecat times the caller's silence after the assistant speaks (not during a tool call).
                 user_idle_timeout=plan.idle_timeout_seconds if plan.idle_messages else 0,
             )
@@ -773,12 +775,12 @@ async def run_call(
         pipeline = Pipeline(
             [
                 transport.input(),
-                stt,
+                *([stt] if stt is not None else []),
                 *([keypad_input(plan)] if plan.keypad else []),
                 aggregators.user(),
                 llm,
                 *([watch] if watch is not None else []),
-                tts,
+                *([tts] if tts is not None else []),
                 transport.output(),
                 *([recording] if recording is not None else []),  # after the output: what the caller really heard
                 aggregators.assistant(),
@@ -905,7 +907,11 @@ async def run_call(
             limits = CallLimits(plan.max_duration_seconds, plan.silence_timeout_seconds, time.monotonic())
             watching = asyncio.ensure_future(watch_limits())
             outbox.send("status-update", status="in-progress")
-            if plan.leave_message or opening(plan) == "speak":
+            if plan.realtime and opening(plan) == "speak":  # no voice layer: the model itself says the greeting
+                context.add_message({"role": "system", "content": f"Start the call by saying exactly: "
+                                                                  f"{plan.first_message}"})
+                await task.queue_frames([LLMRunFrame()])
+            elif plan.leave_message or opening(plan) == "speak":
                 # In the context (and transcript) right away, even if the voice fails to say it.
                 context.add_message({"role": "assistant", "content": plan.first_message})
                 live.said(plan.first_message)

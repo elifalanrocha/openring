@@ -11,6 +11,8 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- Speech-to-speech (beta): with `{"provider": "openai", "model": "gpt-realtime"}` the model hears and speaks itself, with no
+  transcriber or voice of the call's own and only `OPENAI_API_KEY` needed. Its voice comes from `voice` when it is an OpenAI one.
 - Calls share the voice activity and turn detectors' models instead of loading them again each: a new call no longer
   stalls the others for about 300 ms, and 20 calls at once take 368 MB instead of 956 MB.
 - `scripts/load_test.py` measures how many calls at once a computer takes (about 20 per process on a 2018 laptop; the

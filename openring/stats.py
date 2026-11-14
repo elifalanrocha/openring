@@ -175,9 +175,9 @@ def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
         return {"measured": True, "calls": len(done), "minutes": round(minutes, 1), "costPerMinute": cost,
                 "totalPerMinute": round(sum(cost.values()), 5), "unpriced": unpriced, "latency": latency}
 
-    heard = prices.stt(plan.stt_provider, plan.stt_model, plan.stt_language)
-    model = prices.llm(plan.llm_provider, plan.llm_model)
-    voice = prices.tts(plan.tts_provider, plan.tts_model)
+    heard = 0.0 if plan.realtime else prices.stt(plan.stt_provider, plan.stt_model, plan.stt_language)
+    model = prices.llm(plan.llm_provider, plan.llm_model)  # a speech-to-speech model's audio isn't priced yet
+    voice = 0.0 if plan.realtime else prices.tts(plan.tts_provider, plan.tts_model)
     requests = ESTIMATE["modelRequests"]
     cost = {
         "stt": heard,

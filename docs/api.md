@@ -33,6 +33,16 @@ quiet after the assistant spoke,
  "messagePlan": {"idleMessages": ["Are you still there?"], "idleTimeoutSeconds": 8}}
 ```
 
+### Speech-to-speech models
+
+Beta, never tried on a real call. A model that hears and speaks itself answers with less delay and its own intonation.
+As on Vapi, pick it as the model: `{"provider": "openai", "model": "gpt-realtime"}` (also `gpt-4o-realtime` and
+`gpt-4o-mini-realtime` models). The call then has no transcriber or voice of its own and needs only `OPENAI_API_KEY`; turns
+come from OpenAI's own voice detection. The voice is `voice.voiceId` when `voice.provider` is `openai` (`marin`, `cedar`,
+`alloy`...), otherwise `marin`; `voice.speed` works. The model says the greeting itself. Not yet: fallbacks, squads, the
+idle, end-call and voicemail messages, and the price of its audio (the call lists the model as unpriced). Gemini Live
+comes next.
+
 ### Phone calls for AI agents (MCP)
 
 `openring mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio: an AI agent such as Claude or Cursor can
