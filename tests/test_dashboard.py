@@ -273,3 +273,16 @@ def test_the_language_select_lists_code_and_name_pairs_with_follow_the_caller_fi
     assert all(isinstance(p, list) and len(p) == 2 and all(isinstance(s, str) and s for s in p) for p in pairs)
     assert len({code for code, _ in pairs}) == len(pairs)
 
+
+
+def test_destructive_actions_ask_in_the_page_never_in_the_browsers_own_box():
+    code = re.sub(r"//.*", "", PAGE)
+    assert not re.search(r"\b(confirm|alert|prompt)\(", code)
+    assert 'id="askDialog"' in PAGE and "function ask(" in PAGE
+    assert PAGE.count("await ask(") >= 9
+
+
+def test_keyboards_can_skip_the_menu_and_labels_point_at_their_controls():
+    assert 'class="skip" href="#view"' in PAGE and '<main id="view" aria-live="polite" tabindex="-1">' in PAGE
+    assert "function linkLabels(" in PAGE and "label.htmlFor = control.id" in PAGE
+    assert 'window.addEventListener("beforeunload"' in PAGE  # an editor with changes asks before leaving
