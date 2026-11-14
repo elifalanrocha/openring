@@ -12,7 +12,8 @@ voice (Kokoro, or --voice), the pipeline and the messages to the assistant's ser
 - keys pressed on the keypad reach the model;
 - the assistant's server gets speech-update, transcript and end-of-call-report, and the call's webhook log lists them;
 - a second call from the same number is given the first one (memory per caller);
-- the latency of each turn and the cost are recorded.
+- the latency of each turn and the cost are recorded;
+- the end-of-call report carries the model's analysis (analysisPlan: summary, data, success).
 
 It needs DEEPGRAM_API_KEY and GROQ_API_KEY, costs a few cents of Deepgram credit and calls nobody.
 """
@@ -239,6 +240,8 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict, background: st
         "voice": voice_of_assistant,
         "server": {"url": hook_url}, "callerMemory": {"enabled": True},
         "keypadInputPlan": {"enabled": True, "timeoutSeconds": 2, "delimiters": ["#"]},
+        "analysisPlan": {"structuredDataPlan": {"enabled": True, "schema": {"type": "object", "properties": {
+            "onBehalfOf": {"type": "string"}, "partySize": {"type": "integer"}}}}},
         "serverMessages": ["status-update", "speech-update", "transcript", "end-of-call-report"],
         **({"backgroundSound": background} if background else {})})
     await asyncio.to_thread(request, port, "/phone-number", {"number": "+15551234567", "assistantId": assistant["id"]})
@@ -279,7 +282,13 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict, background: st
     kinds = {m.get("type") for m in hooks_of(first_id)}
     check({"speech-update", "transcript", "status-update"} <= kinds, f"live server messages arrived: {sorted(kinds)}")
     await asyncio.sleep(2)
-    check(bool(hooks_of(first_id, "end-of-call-report")), "the end-of-call report arrived")
+    reports = hooks_of(first_id, "end-of-call-report")
+    check(bool(reports), "the end-of-call report arrived")
+    found = (reports[0].get("analysis") or {}) if reports else {}
+    data = found.get("structuredData") or {}
+    check(bool(found.get("summary")) and data.get("partySize") == 2 and "maria" in str(data.get("onBehalfOf")).lower()
+          and found.get("successEvaluation") in ("true", "false"),
+          f"the model analyzed the call: {json.dumps(found, ensure_ascii=False)[:300]}")
     log = await asyncio.to_thread(request, port, f"/call/{first_id}/webhooks")
     check(log and all(d.get("status") == 200 for d in log), f"webhook log: {len(log)} deliveries, all HTTP 200")
 

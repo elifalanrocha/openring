@@ -360,3 +360,21 @@ def test_the_background_sound_is_saved_as_vapi_spells_it():
     assert got == {"neverSet": "unset", "office": "office", "url": "https://x.test/rain.mp3", "offAfterOffice": "off",
                    "offStaysOff": "off", "urlWithoutOne": "off"}
     assert 'value="${esc(bgKind === "url" ? a.backgroundSound : "")}"' in PAGE  # a saved URL reaches the page escaped
+
+
+def test_the_analysis_box_keeps_the_plan_and_the_schema_turns_data_on_and_off():
+    fn = re.search(r"^function analysisSaved\(.*?^}$", PAGE, re.M | re.S).group(0)
+    got = run_js(fn + """
+    const schema = { type: "object" };
+    console.log(JSON.stringify({
+      neverOn: analysisSaved(null, null, undefined) ?? "unset",
+      on: analysisSaved("on", null, undefined),
+      withData: analysisSaved("on", schema, { summaryPlan: { messages: [] } }),
+      dataOff: analysisSaved("on", null, { structuredDataPlan: { enabled: true, schema } }),
+      off: analysisSaved(null, null, { summaryPlan: {} }),
+    }));""")
+    assert got == {"neverOn": "unset", "on": {},
+                   "withData": {"summaryPlan": {"messages": []}, "structuredDataPlan": {"enabled": True,
+                                                                                       "schema": {"type": "object"}}},
+                   "dataOff": {"structuredDataPlan": {"enabled": False, "schema": {"type": "object"}}},
+                   "off": None}

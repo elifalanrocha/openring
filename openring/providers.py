@@ -697,6 +697,12 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         **speaking_plans(assistant, word_warnings),
     )
     plan.tts_speed = voice_speed(plan.tts_provider, voice.get("speed"), plan.warnings)
+    from .analysis import AnalysisError, plan_of
+
+    try:
+        plan_of(assistant)  # refused like Vapi refuses it; analysis.py runs it after the call
+    except AnalysisError as exc:
+        raise ProviderError(str(exc)) from exc
     plan.background_sound, sound_warning = ambience.source_of(assistant.get("backgroundSound"))
     if sound_warning:
         plan.warnings.append(sound_warning)

@@ -100,6 +100,26 @@ speed. The assistant editor has a slider.
 one, such as `eleven_flash_v2_5`), Kokoro, Cartesia, Rime, Neuphonic, Smallest and Inworld use it. Deepgram's voices
 carry their language in their name and OpenAI's read whatever they are given. The assistant editor has it under Voice.
 
+### After the call: summary, data and success
+
+`analysisPlan`, as on Vapi. When the call ends, the assistant's own model reads the transcript and writes the call's
+`analysis`: a short `summary` (`summaryPlan`), data in the shape of a JSON schema (`structuredDataPlan`, with `schema`),
+and whether the call did what its system prompt set out to do (`successEvaluationPlan`, on a `rubric`: `PassFail` by
+default, or `NumericScale`, `DescriptiveScale`, `Checklist`, `Matrix`, `PercentageScale`, `LikertScale`,
+`AutomaticRubric`). It is in the call record and in the `end-of-call-report`; its tokens and cost are in
+`costBreakdown.analysisCostBreakdown`. Each part takes Vapi's `enabled`, `messages` (with `{{transcript}}`,
+`{{systemPrompt}}`, `{{endedReason}}`, `{{schema}}`, `{{rubric}}`) and `timeoutSeconds` (5 by default; a part that
+runs out of time is left out). Calls under `minMessagesThreshold` messages (2) are not analyzed.
+
+Unlike Vapi, which analyzes every call by default with a model of its own, OpenRing analyzes only when the assistant
+has an `analysisPlan`, since it spends your model's tokens. `{"analysisPlan": {}}` gives a summary and a pass or fail.
+The assistant editor has it under **Analyze calls when they end**, with an optional schema; the call page shows it.
+
+```json
+{"analysisPlan": {"structuredDataPlan": {"enabled": true, "schema": {"type": "object", "properties": {
+  "name": {"type": "string"}, "partySize": {"type": "integer"}}}}}}
+```
+
 ### Background sound
 
 `backgroundSound`, as on Vapi: `"office"` plays distant chatter and keyboards under the assistant's voice, the URL of an

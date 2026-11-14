@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import WebSocket
 from loguru import logger
 
-from . import ambience, overrides, prices, recordings, routes, server_messages, squads
+from . import ambience, analysis, overrides, prices, recordings, routes, server_messages, squads
 from .config import Settings
 from .providers import StackPlan, build_services
 from .store import Store, now_iso
@@ -1025,10 +1025,12 @@ async def run_call(
             outbox.send("status-update", status="ended", endedReason=ended_reason)
 
             async def report() -> None:
+                ended = await with_analysis(plan, call, store)  # Vapi's analysisPlan, before the report
                 await outbox.flush()
                 await server_messages.send(
-                    plan.assistant, "end-of-call-report", call, endedReason=ended_reason,
-                    artifact=call.get("artifact") or {"messages": transcript},
+                    plan.assistant, "end-of-call-report", ended, endedReason=ended_reason,
+                    artifact=ended.get("artifact") or {"messages": transcript},
+                    **({"analysis": ended["analysis"]} if ended.get("analysis") else {}),
                 )
 
             # When the caller hangs up, the server cancels this call's task; the report still goes out.
@@ -1036,6 +1038,31 @@ async def run_call(
             _reports.add(reporting)
             reporting.add_done_callback(_reports.discard)
             await asyncio.shield(reporting)
+
+
+async def with_analysis(plan: StackPlan, call: dict[str, Any], store: Store) -> dict[str, Any]:
+    """The ended call with what its analysisPlan found (analysis.py) and what that cost; the call as it was when there
+    is nothing to add or the analysis fails."""
+    try:
+        found = await analysis.analyze(plan, call)
+    except Exception as exc:  # the report goes out whatever happens here
+        logger.warning("call {}: analysis failed: {!r}", call.get("id"), exc)
+        return call
+    if not found:
+        return call
+    breakdown = dict(call.get("costBreakdown") or {})
+    costs = found["costs"]
+    spent = round(sum(v for k, v in costs.items() if not k.endswith("Tokens")), 6)
+    breakdown["analysisCostBreakdown"] = costs
+    if found["priced"]:
+        breakdown["analysis"] = spent
+        breakdown["total"] = round((breakdown.get("total") or 0) + spent, 6)
+    elif costs:
+        breakdown["unpriced"] = [*breakdown.get("unpriced", []), f"analysis ({found['model']})"]
+    changes = {"analysis": found["analysis"], "costBreakdown": breakdown}
+    if "total" in breakdown:
+        changes["cost"] = breakdown["total"]
+    return store.update("calls", call["id"], changes) or {**call, **changes}
 
 
 # End-of-call reports still on their way, kept so they are not collected before they finish.
