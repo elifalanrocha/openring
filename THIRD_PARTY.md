@@ -41,6 +41,7 @@ component, install `openring` without the `kokoro` extra and use a cloud voice s
 | --- | --- | --- |
 | Model prices from [LiteLLM](https://github.com/BerriAI/litellm)'s `model_prices_and_context_window.json` | MIT | Copied into `openring/llm_prices.json` by `scripts/update_prices.py` |
 | Model prices from [OpenRouter](https://openrouter.ai)'s public model list | Public API data | Same file, for the `openrouter` provider |
+| The "office" background sound, `openring/sounds/office.ogg` | MIT, as OpenRing | Made by `scripts/make_office_sound.py` from no recording: Kokoro-82M voices reading lines written for it, synthesized typing and hum |
 
 ## Fonts
 

@@ -362,3 +362,15 @@ def test_calls_share_the_voice_and_turn_detectors_models():
     assert first._model is not second._model  # each call keeps its own detector state
     assert first._model.session is second._model.session
     assert LocalSmartTurnAnalyzerV3()._session is LocalSmartTurnAnalyzerV3()._session
+
+
+@pytest.mark.parametrize(("transcriber", "voice_language", "expected"), [
+    ({"provider": "deepgram", "language": "pt-BR"}, None, "pt"),  # the transcriber's, when the voice has none
+    ({"provider": "deepgram", "language": "en"}, "es", "es"),  # the voice's own wins
+    ({"provider": "deepgram", "language": "multi"}, None, None),  # following the caller: the model reads any language
+])
+def test_an_elevenlabs_voice_speaks_the_language_it_is_given(keys, transcriber, voice_language, expected):
+    voice = {"provider": "11labs", "voiceId": "v1", "model": "eleven_flash_v2_5",
+             **({"language": voice_language} if voice_language else {})}
+    _, _, tts = build_services(resolve_plan(assistant(transcriber=transcriber, voice=voice)))
+    assert tts._settings.language == expected  # as ElevenLabs spells it

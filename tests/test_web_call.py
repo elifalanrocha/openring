@@ -63,3 +63,43 @@ def test_web_call_connects_and_ends_when_the_page_hangs_up(monkeypatch, quiet_pr
     call = asyncio.run(asyncio.wait_for(scenario(), 60))
     assert call["type"] == "webCall" and call["endedReason"] == "customer-ended-call"
     assert call["messages"][0] == {"role": "assistant", "message": ASSISTANT["firstMessage"]}
+
+
+def test_a_browser_call_hears_the_background_sound_in_real_time(monkeypatch, quiet_providers):
+    """WebRTC queues whatever audio comes: the office sound must arrive at the pace it plays, not flood the track."""
+    import numpy as np
+
+    for k in ("DEEPGRAM_API_KEY", "GROQ_API_KEY", "ELEVENLABS_API_KEY"):
+        monkeypatch.setenv(k, "fake")
+    store = Store(":memory:")
+    app = create_app(Settings(api_key="test-key", public_url="", db_path=":memory:"), store)
+
+    async def scenario():
+        page = RTCPeerConnection()
+        page.addTrack(AudioStreamTrack())
+        tracks = []
+        page.on("track", tracks.append)
+        await page.setLocalDescription(await page.createOffer())
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+            a = (await http.post("/assistant", json={**ASSISTANT, "backgroundSound": "office"}, headers=AUTH)).json()
+            offer = {"assistantId": a["id"], "sdp": page.localDescription.sdp, "type": page.localDescription.type}
+            r = await http.post("/call/web", json=offer, headers=AUTH)
+            call_id = r.json()["id"]
+            await page.setRemoteDescription(RTCSessionDescription(**r.json()["answer"]))
+            await _until(lambda: page.connectionState == "connected" and tracks)
+            loudest, started, heard = 0.0, None, 0.0
+            while heard < 3.0:
+                frame = await asyncio.wait_for(tracks[0].recv(), 5)
+                samples = frame.to_ndarray().astype(np.float64)
+                loudest = max(loudest, float(np.sqrt(np.mean(samples ** 2))))
+                heard += frame.samples / frame.sample_rate
+                started = started or time.monotonic()
+            took = time.monotonic() - started
+            await page.close()
+            await _until(lambda: store.get("calls", call_id)["status"] == "ended", timeout=15)
+        return loudest, heard, took, store.get("calls", call_id)
+
+    loudest, heard, took, call = asyncio.run(asyncio.wait_for(scenario(), 90))
+    assert loudest > 50  # the providers said nothing; the office did
+    assert took > heard * 0.8  # played as it plays, not a burst
+    assert call["endedReason"] == "customer-ended-call"

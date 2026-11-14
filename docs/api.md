@@ -96,6 +96,23 @@ Not used yet, and named in the call's warnings when set: `backoffSeconds`, `tran
 0.5 to 2 and OpenAI 0.25 to 4; a speed outside the range is brought to its edge. The other voices speak at their own
 speed. The assistant editor has a slider.
 
+`voice.language` is the language the voice speaks; without it, the transcriber's. ElevenLabs (on the models that take
+one, such as `eleven_flash_v2_5`), Kokoro, Cartesia, Rime, Neuphonic, Smallest and Inworld use it. Deepgram's voices
+carry their language in their name and OpenAI's read whatever they are given. The assistant editor has it under Voice.
+
+### Background sound
+
+`backgroundSound`, as on Vapi: `"office"` plays distant chatter and keyboards under the assistant's voice, the URL of an
+audio file plays that file (WAV, MP3, OGG or FLAC, up to 10 MB, looped and brought to the same quiet level), and
+`"off"` plays nothing. It plays on every kind of call, phone or browser. Unlike Vapi, which plays the office on phone
+calls unless told otherwise, OpenRing plays nothing unless asked. The office sound is OpenRing's own, made from no
+recording (`scripts/make_office_sound.py`): a transcriber makes no words of it. A file that can't be fetched or read
+leaves the call without background sound, never without the call.
+
+```json
+{"backgroundSound": "office"}
+```
+
 ### Names the transcriber should get right
 
 Give it the words it will hear: names, brands, products. Use Vapi's fields, or **Words to recognize** in the assistant

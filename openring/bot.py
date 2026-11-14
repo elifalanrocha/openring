@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import WebSocket
 from loguru import logger
 
-from . import overrides, prices, recordings, routes, server_messages, squads
+from . import ambience, overrides, prices, recordings, routes, server_messages, squads
 from .config import Settings
 from .providers import StackPlan, build_services
 from .store import Store, now_iso
@@ -786,6 +786,7 @@ async def run_call(
             async def _on_recording_over(_buffer):
                 recording_over.set()
 
+        ambience.attach(transport, plan.background_sound)  # Vapi's backgroundSound, under the voice
         pipeline = Pipeline(
             [
                 transport.input(),

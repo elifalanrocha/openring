@@ -42,6 +42,7 @@ KEY = "smoke-test-key"
 CALLER = "+15550000042"
 SILENCE = b"\xff" * 160  # 20 ms of silence, 8 kHz mu-law
 NEEDED = ("DEEPGRAM_API_KEY", "GROQ_API_KEY")
+LOUD = 1000  # a 20 ms frame louder than this (RMS, about -30 dBFS) is the assistant talking, not a background sound
 SAID = "Hi, I'm an AI assistant calling on behalf of Maria. Do you have a table for two tonight at eight?"
 PROMPT = ("You are the host of Luna, a small restaurant. Answer in one short sentence. "
           "Tonight there is a table for two at eight. "
@@ -112,6 +113,13 @@ def request(port: int, path: str, data: dict | None = None, form: dict | None = 
     return json.loads(raw) if raw[:1] in (b"{", b"[") else raw
 
 
+def audioop_module():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import audioop  # Python 3.13: from audioop-lts
+    return audioop
+
+
 def voice(text: str) -> bytes:
     """`text` read by Kokoro, as a phone line carries it: 8 kHz mu-law."""
     import numpy as np
@@ -120,12 +128,7 @@ def voice(text: str) -> bytes:
 
     from openring import providers
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        try:
-            import audioop
-        except ImportError:  # Python 3.13: audioop-lts
-            import audioop  # type: ignore[no-redef]
+    audioop = audioop_module()
     model, voices = (str(providers.KOKORO_DIR / name) for name in providers.KOKORO_FILES)
     samples, rate = Kokoro(model, voices).create(text, voice="am_adam", speed=1.0, lang="en-us")
     pcm = (np.clip(soxr.resample(samples, rate, 8000), -1, 1) * 32767).astype("<i2").tobytes()
@@ -137,14 +140,20 @@ class Line:
 
     def __init__(self, ws, sid: str):
         self.ws, self.sid = ws, sid
-        self.heard_bytes, self.last_heard = 0, 0.0
+        self.heard_bytes, self.last_heard, self.received_bytes = 0, 0.0, 0
 
     async def listen(self) -> None:
+        """What the line brings back; only loud frames count as the assistant speaking (a background sound never
+        stops)."""
+        audioop = audioop_module()
         async for raw in self.ws:
             message = json.loads(raw)
             if message.get("event") == "media":
-                self.heard_bytes += len(base64.b64decode(message["media"]["payload"]))
-                self.last_heard = time.monotonic()
+                audio = base64.b64decode(message["media"]["payload"])
+                self.received_bytes += len(audio)
+                if audioop.rms(audioop.ulaw2lin(audio, 2), 2) > LOUD:
+                    self.heard_bytes += len(audio)
+                    self.last_heard = time.monotonic()
 
     async def _frame(self, chunk: bytes, due: float) -> float:
         payload = base64.b64encode(chunk.ljust(160, b"\xff")).decode()
@@ -215,7 +224,8 @@ async def until_ended(port: int, call_id: str, seconds: float = 30) -> dict:
     return found
 
 
-async def run(port: int, hook_url: str, voice_of_assistant: dict) -> list[tuple[bool, str]]:
+async def run(port: int, hook_url: str, voice_of_assistant: dict, background: str | None = None
+              ) -> list[tuple[bool, str]]:
     results: list[tuple[bool, str]] = []
 
     def check(ok: bool, what: str) -> None:
@@ -230,7 +240,8 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict) -> list[tuple[
         "voice": voice_of_assistant,
         "server": {"url": hook_url}, "callerMemory": {"enabled": True},
         "keypadInputPlan": {"enabled": True, "timeoutSeconds": 2, "delimiters": ["#"]},
-        "serverMessages": ["status-update", "speech-update", "transcript", "end-of-call-report"]})
+        "serverMessages": ["status-update", "speech-update", "transcript", "end-of-call-report"],
+        **({"backgroundSound": background} if background else {})})
     await asyncio.to_thread(request, port, "/phone-number", {"number": "+15551234567", "assistantId": assistant["id"]})
     print("Synthesizing the caller's voice with Kokoro...", flush=True)
     sentence = await asyncio.to_thread(voice, SAID)
@@ -283,7 +294,7 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict) -> list[tuple[
     return results
 
 
-async def main_async(port: int, voice_of_assistant: dict) -> int:
+async def main_async(port: int, voice_of_assistant: dict, background: str | None = None) -> int:
     hooks = ThreadingHTTPServer(("127.0.0.1", 0), Hooks)
     threading.Thread(target=hooks.serve_forever, daemon=True).start()
     server = subprocess.Popen([sys.executable, __file__, "--serve", str(port)], stdout=subprocess.PIPE,
@@ -299,7 +310,7 @@ async def main_async(port: int, voice_of_assistant: dict) -> int:
                 break
             except OSError:
                 await asyncio.sleep(0.5)
-        results = await run(port, f"http://127.0.0.1:{hooks.server_port}/hook", voice_of_assistant)
+        results = await run(port, f"http://127.0.0.1:{hooks.server_port}/hook", voice_of_assistant, background)
         failed = [what for ok, what in results if not ok]
         print(f"\n{len(results) - len(failed)} of {len(results)} checks passed.")
         return 1 if failed else 0
@@ -314,6 +325,7 @@ def main() -> None:
     parser.add_argument("--voice", default="kokoro:af_heart",
                         help="the assistant's voice as provider:voiceId[:model], e.g. "
                              "11labs:hpp4J3VqNfWAUOO0d1Us:eleven_flash_v2_5 (default kokoro:af_heart)")
+    parser.add_argument("--background", help="the assistant's backgroundSound: office or a sound file's URL")
     parser.add_argument("--serve", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.serve:
@@ -327,8 +339,9 @@ def main() -> None:
     provider, _, rest = args.voice.partition(":")
     voice_id, _, model = rest.partition(":")
     assistant_voice = {"provider": provider, "voiceId": voice_id, **({"model": model} if model else {})}
-    print(f"The assistant speaks with {args.voice}.", flush=True)
-    raise SystemExit(asyncio.run(main_async(args.port, assistant_voice)))
+    print(f"The assistant speaks with {args.voice}" + (f", over {args.background}." if args.background else "."),
+          flush=True)
+    raise SystemExit(asyncio.run(main_async(args.port, assistant_voice, args.background)))
 
 
 if __name__ == "__main__":

@@ -40,7 +40,13 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
 - HTTP: every client comes from `netguard.client()` (URLs from outside) or `netguard.http_client()` (provider APIs),
   sharing `netguard.tls()`: building a TLS context stalls the event loop ~0.2 s (it froze live calls once per server
   message). A test refuses a bare `httpx.AsyncClient(`.
-- `scripts/smoke_call.py`: a real call with real providers over a simulated Twilio line (Kokoro caller); 11 checks.
+- `scripts/smoke_call.py`: a real call with real providers over a simulated Twilio line (Kokoro caller); 11 checks;
+  `--voice provider:voiceId[:model]`, `--background office|URL`. Only loud frames count as the assistant speaking.
+- `openring/ambience.py`: Vapi's `backgroundSound` ("office" or an audio file's URL; off by default, unlike Vapi's
+  phone default). A Pipecat `BaseAudioMixer` set on the output's params in `bot.run_call` (`attach`): it keeps its own
+  clock (`LEAD_SECONDS`) because WebRTC, SIP and Wavoip outputs queue whatever comes. `sounds/office.ogg` is made by
+  `scripts/make_office_sound.py` (Kokoro babble, dulled until Whisper hears no words; typing; hum). URLs go through
+  netguard, `MAX_BYTES`, loudness brought to `LEVEL_DBFS`; a sound that fails leaves the call without it.
 - `openring/providers.py` maps the Vapi assistant JSON to a stack using Vapi's provider names (`ALIASES`
   for other spellings). LLM: OpenAI-compatible APIs (`LLM_PROVIDERS`: openai, anthropic, google, groq,
   openrouter, deepseek, xai, cerebras, together-ai, deepinfra, perplexity-ai, mistral, fireworks, ollama,

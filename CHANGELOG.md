@@ -63,6 +63,11 @@ All notable changes to OpenRing are listed here. The format follows
   4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is
   charged, and a deleted call is forgotten. Off by default, because a caller ID can be faked. A "Remember callers" box
   in the assistant editor; the call records which calls it was given in `rememberedCallIds`.
+- Background sound, Vapi's `backgroundSound`: `"office"` (distant chatter and keyboards, made by OpenRing from no
+  recording, so a transcriber makes no words of it) or an audio file's URL (WAV, MP3, OGG, FLAC, up to 10 MB, looped at
+  the same quiet level), on phone and browser calls alike. Off unless asked: Vapi plays the office on phone calls by
+  default. The assistant editor has it under Voice, with the voice's language (`voice.language`, which ElevenLabs now
+  takes too).
 - `scripts/smoke_call.py`: a real call on your own computer, with your provider keys (Deepgram, Groq and Kokoro by
   default, another voice with `--voice`), over a simulated phone line and a synthesized caller. It checks eleven things,
   from the caller's words reaching the model to the end-of-call report, costs a few cents and calls nobody.

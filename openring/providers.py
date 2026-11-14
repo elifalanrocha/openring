@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import netguard, whisper
+from . import ambience, netguard, whisper
 
 
 class ProviderError(ValueError):
@@ -351,6 +351,8 @@ class StackPlan:
     keypad_delimiters: tuple[str, ...] = ("#",)
     # OpenRing's own aiCallerPlan: told when the caller is an AI agent, the model answers briefly and exactly.
     ai_caller_hint: bool = True
+    # Vapi's backgroundSound under the assistant's voice: "office" or an audio file's URL (None: off). ambience.py
+    background_sound: str | None = None
     # A speech-to-speech model ("openai" for OpenAI Realtime): it listens and speaks itself, so the call has no
     # transcriber or voice of its own, and turns come from the provider's own voice activity detection.
     realtime: str | None = None
@@ -695,6 +697,9 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         **speaking_plans(assistant, word_warnings),
     )
     plan.tts_speed = voice_speed(plan.tts_provider, voice.get("speed"), plan.warnings)
+    plan.background_sound, sound_warning = ambience.source_of(assistant.get("backgroundSound"))
+    if sound_warning:
+        plan.warnings.append(sound_warning)
     if realtime:
         plan.realtime = realtime
         if tts_provider == realtime and voice.get("voiceId"):
@@ -820,6 +825,9 @@ def _build_tts(plan: StackPlan):
         tts_settings: dict[str, Any] = {"voice": plan.tts_voice, **speed}
         if plan.tts_model:
             tts_settings["model"] = plan.tts_model
+        lang = _language(plan.tts_language)
+        if lang and lang != "multi":  # enforced by the models that take a language (flash and turbo v2.5)
+            tts_settings["language"] = lang
         return ElevenLabsTTSService(
             api_key=os.environ.get("ELEVENLABS_API_KEY", ""),
             settings=ElevenLabsTTSService.Settings(**tts_settings),

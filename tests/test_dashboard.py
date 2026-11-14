@@ -322,3 +322,41 @@ def test_motion_is_quiet_and_switching_assistants_keeps_the_list_still():
     assert ".stack span, .bars .bar, .split > .editor-col { animation: none; }" in PAGE  # off with reduced motion
     assert 'const keptList = v.querySelector(".split > .sidelist");' in PAGE
     assert 'list.querySelector("nav").scrollTop = keptScroll;' in PAGE
+
+
+def test_the_voice_language_is_saved_unless_the_voice_names_its_own():
+    line = next(x for x in PAGE.splitlines() if x.strip().startswith("language: VOICE_LANGUAGE_FREE"))
+    free = re.search(r"^const VOICE_LANGUAGE_FREE = (\[.*\]);$", PAGE, re.M).group(1)
+    got = run_js("""
+    const VOICE_LANGUAGE_FREE = %s;
+    const saved = (vp, vlang, vo) => {
+      const f = { get: k => ({ vp, vlang })[k] };
+      return ({ %s }).language ?? "unset";
+    };
+    console.log(JSON.stringify({
+      picked: saved("11labs", "pt-BR", {}),
+      sameAsTranscriber: saved("kokoro", "", { language: "es" }),
+      deepgramKeeps: saved("deepgram", "fr", { language: "en" }),
+    }));""" % (free, re.sub(r"\s*\},?$", "", line.strip())))
+    assert got == {"picked": "pt-BR", "sameAsTranscriber": "unset", "deepgramKeeps": "en"}
+    assert 'option("", "Same as the transcriber", vo.language || "")' in PAGE  # empty: the transcriber's language
+
+
+def test_the_background_sound_is_saved_as_vapi_spells_it():
+    line = next(x for x in PAGE.splitlines() if x.strip().startswith("backgroundSound: f.get("))
+    got = run_js("""
+    const saved = (bg, bgUrl, a) => {
+      const f = { get: k => ({ bg, bgUrl })[k] };
+      return ({ %s }).backgroundSound ?? "unset";
+    };
+    console.log(JSON.stringify({
+      neverSet: saved("off", "", {}),
+      office: saved("office", "", {}),
+      url: saved("url", " https://x.test/rain.mp3 ", {}),
+      offAfterOffice: saved("off", "", { backgroundSound: "office" }),
+      offStaysOff: saved("off", "", { backgroundSound: "off" }),
+      urlWithoutOne: saved("url", "", { backgroundSound: "https://x.test/a.wav" }),
+    }));""" % line.strip().rstrip(","))
+    assert got == {"neverSet": "unset", "office": "office", "url": "https://x.test/rain.mp3", "offAfterOffice": "off",
+                   "offStaysOff": "off", "urlWithoutOne": "off"}
+    assert 'value="${esc(bgKind === "url" ? a.backgroundSound : "")}"' in PAGE  # a saved URL reaches the page escaped
