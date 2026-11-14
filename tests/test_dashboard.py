@@ -230,3 +230,10 @@ def test_the_remember_callers_box_turns_memory_on_and_off_keeping_its_other_sett
                    "onFromTrue": {"enabled": True}}
     box = next(x for x in PAGE.splitlines() if 'name="memOn"' in x)
     assert "A caller ID can be faked" in box  # the warning sits next to the box
+
+
+def test_the_menu_folds_to_its_icons_and_scrolls_without_a_bar():
+    assert 'id="fold"' in PAGE and ".app.folded .rail nav a { font-size: 0;" in PAGE
+    assert ".rail { scrollbar-width: none; }" in PAGE and ".rail::-webkit-scrollbar { display: none; }" in PAGE
+    assert 'store.get("openring-menu") === "folded"' in PAGE  # the choice is remembered
+    assert "a.title = a.textContent.trim()" in PAGE  # a folded link still says what it is
