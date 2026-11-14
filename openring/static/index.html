@@ -379,6 +379,11 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .cable { align-self: center; height: 2px; background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) 0 0 / 10px 2px repeat-x; }
 
 /* Transcript */
+.eval-msg { display: grid; grid-template-columns: 90px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.eval-msg:first-child { border-top: 0; }
+.eval-msg code { margin-right: 6px; }
+.eval-msg .ok-text { color: var(--ok); margin-top: 4px; }
+.eval-msg .bad-text { color: var(--bad); margin-top: 4px; }
 .analysis { display: grid; grid-template-columns: max-content 1fr; gap: 10px 18px; margin: 0; }
 .analysis dt { color: var(--muted); }
 .analysis dd { margin: 0; }
@@ -466,6 +471,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
       <a href="#squads" data-view="squads"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 15a5 5 0 0 1 6 5"/></svg>Squads</a>
       <a href="#knowledge" data-view="knowledge"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5M8 13h8M8 17h6"/></svg>Knowledge</a>
       <a href="#numbers" data-view="numbers"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Phone numbers</a>
+      <a href="#evals" data-view="evals"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Evals</a>
       <a href="#routes" data-view="routes"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h5l6 10h5M4 17h5l1.5-2.5M15 7h5M17 4l3 3-3 3M17 14l3 3-3 3"/></svg>Model routes</a>
       <div class="group">Activity</div>
       <a href="#calls" data-view="calls"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Calls</a>
@@ -727,6 +733,7 @@ const PAGES = {
   numbers: ["Phone numbers", "Your phone numbers and who answers them"],
   routes: ["Model routes", "Models in order: the next one takes over when a model fails or is slow"],
   calls: ["Calls", "Every call with its transcript and response time"],
+  evals: ["Evals", "Chats you script for an assistant, with checks on what it answers"],
   escalations: ["Escalations", "Call an on-call list in order until someone presses the key that confirms"],
   campaigns: ["Campaigns", "Call a list of people with one assistant, a few at a time"],
   providers: ["Providers", "Speech, model and voice services this server can use"],
@@ -1531,6 +1538,65 @@ async function viewEscalations() {
       viewEscalations();
     } catch (err) { $("#escErr").textContent = err.message; }
   };
+}
+
+// ---- Evals (Vapi's chat.mockConversation): a scripted chat, and checks on what the assistant answers --------------
+const EVAL_EXAMPLE = JSON.stringify([
+  { role: "user", content: "Hi, I'd like a table for two tonight." },
+  { role: "assistant", judgePlan: { type: "regex", content: "(?i)what time|which time|when" } },
+  { role: "user", content: "At eight." },
+  { role: "assistant", judgePlan: { type: "ai", model: { provider: "groq", model: "openai/gpt-oss-20b", messages: [{ role: "system", content: "Answer pass if this reply confirms or offers a table at eight, else fail: {{messages[-1]}}" }] } } },
+], null, 2);
+const evalBadge = r => !r ? `<span class="muted">Not run</span>` : r.status !== "ended" ? `<span class="badge live">Running</span>` : r.results?.[0]?.status === "pass" ? `<span class="badge ok">Passed</span>` : `<span class="badge bad" title="${esc(r.endedReason || "")}">Failed</span>`;
+let evalShown = null;
+async function viewEvals() {
+  setPage("evals");
+  const [list, runs, assistants] = await Promise.all([api("/eval?limit=200"), api("/eval/run?limit=500"), api("/assistant")]);
+  const last = {};
+  for (const r of runs.results) if (r.evalId && (!last[r.evalId] || r.createdAt > last[r.evalId].createdAt)) last[r.evalId] = r;
+  const shown = evalShown && runs.results.find(r => r.id === evalShown);
+  const v = $("#view");
+  v.innerHTML = `<div class="toolbar"><label class="muted" for="evalTarget">Run against</label><select id="evalTarget">${assistants.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
+  ${shown ? evalResult(shown, list.results.find(e => e.id === shown.evalId)) : ""}
+  <section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Eval</th><th>Checks</th><th>Last run</th><th class="hide-sm">When</th><th></th></tr></thead><tbody>
+    ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">${ICON.trash || "Delete"}</button></td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="empty">No evals yet. An eval is a chat you write for the assistant, with checks on what it answers: exact words, a pattern, the tools it calls, or a model's judgment. Run it after each change to the prompt.</div>`}</section>
+  <section class="panel"><header><h2>New eval</h2></header><div class="body"><form id="evalForm">
+    <div class="field"><label for="evalName">Name</label><input id="evalName" name="name" maxlength="80" required placeholder="Books a table for two"></div>
+    <div class="field"><label for="evalMessages">Messages</label><p class="hint">Vapi's format: user, system and tool messages are said to the assistant; an assistant message with a <code>judgePlan</code> (exact, regex or ai) is where it answers and gets checked.</p><textarea id="evalMessages" name="messages" rows="14" spellcheck="false">${esc(EVAL_EXAMPLE)}</textarea></div>
+    <div class="error" id="evalErr" role="alert"></div>
+    <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.plus}Save eval</button></div>
+  </form></div></section>`;
+  $("#refresh").onclick = viewEvals;
+  v.querySelectorAll("[data-show]").forEach(b => b.onclick = () => { evalShown = b.dataset.show; viewEvals(); });
+  v.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!(await ask("Delete this eval?", "Its past runs stay.", "Delete"))) return;
+    await api("/eval/" + b.dataset.del, { method: "DELETE" });
+    viewEvals();
+  });
+  v.querySelectorAll("[data-run]").forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = "Running…";
+    try {
+      let run = await api("/eval/run", { method: "POST", body: JSON.stringify({ type: "eval", evalId: b.dataset.run, target: { type: "assistant", assistantId: $("#evalTarget").value } }) });
+      for (let i = 0; i < 240 && run.status !== "ended"; i++) { await new Promise(r => setTimeout(r, 500)); run = await api("/eval/run/" + run.id); }
+      evalShown = run.id;
+    } catch (err) { tell("Couldn't run it", err.message); }
+    if (location.hash === "#evals") viewEvals();
+  });
+  $("#evalForm").onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    let messages;
+    try { messages = JSON.parse(f.get("messages")); } catch { $("#evalErr").textContent = "The messages aren't JSON."; return; }
+    try {
+      await api("/eval", { method: "POST", body: JSON.stringify({ name: f.get("name"), type: "chat.mockConversation", messages }) });
+      viewEvals();
+    } catch (err) { $("#evalErr").textContent = err.message; }
+  };
+}
+function evalResult(run, ev) {
+  const messages = run.results?.[0]?.messages || [];
+  const row = m => `<div class="eval-msg ${m.judge ? "judged " + m.judge.status : ""}"><span class="muted">${esc(m.role === "assistant" ? "Assistant" : m.role === "user" ? "Caller" : m.role)}</span><div>${m.content ? esc(m.content) : ""}${(m.toolCalls || []).map(t => `<code>${esc(t.name)}(${esc(JSON.stringify(t.arguments || {}))})</code>`).join(" ")}${m.judge ? `<div class="${m.judge.status === "pass" ? "ok-text" : "bad-text"}">${m.judge.status === "pass" ? "Passed" : "Failed: " + esc(m.judge.failureReason || "")}</div>` : ""}</div></div>`;
+  return `<section class="panel" style="margin-bottom:18px"><header><h2>${esc(ev?.name || "Eval")} ${evalBadge(run)}</h2><span class="muted">${esc(when(run.createdAt))}${run.endedReason && run.endedReason !== "mockConversation.done" ? " · " + esc(run.endedReason) : ""}</span></header><div class="body">${messages.map(row).join("") || `<p class="muted">${run.status === "ended" ? "The run ended before the chat began." : "Still running."}</p>`}</div></section>`;
 }
 
 async function viewCampaigns() {
@@ -2488,7 +2554,7 @@ async function openCall(id) {
 $("#talkDialog").addEventListener("close", () => endTalk());
 
 // ---- Routing and shell ------------------------------------------------------------------
-const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, providers: viewProviders, settings: viewSettings };
+const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, evals: viewEvals, providers: viewProviders, settings: viewSettings };
 function go(name) { location.hash = name; }
 async function route() {
   if ($("#app").hidden) return;

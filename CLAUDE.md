@@ -43,6 +43,11 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   message). A test refuses a bare `httpx.AsyncClient(`.
 - `scripts/smoke_call.py`: a real call with real providers over a simulated Twilio line (Kokoro caller); 12 checks;
   `--voice provider:voiceId[:model]`, `--background office|URL`. Only loud frames count as the assistant speaking.
+- `openring/evals.py` + `/eval`, `/eval/run` (collections `evals`, `eval_runs`), Vapi's `chat.mockConversation`:
+  `check_eval` validates; `run` replays messages against the plan's model (`analysis.model_for`) with the assistant's
+  tools as OpenAI functions (never executed; `tool` messages answer them, unanswered calls get `NO_TOOL_RESULT`),
+  judges exact/regex/ai (`drafts.choose` for the judge model), honors `continuePlan`. Runs are tasks in
+  `api._eval_tasks`; a run plans with `check_keys=False` (chat only). Dashboard page `#evals`.
 - `openring/analysis.py`: Vapi's `analysisPlan` (summary, structuredData, successEvaluation) after the call, run by
   `bot.with_analysis` inside the shielded end-of-call `report()`: the plan's own model (`model_for`; a realtime model
   falls back to `drafts.choose`), parts in parallel with Vapi's `timeoutSeconds`, cost into

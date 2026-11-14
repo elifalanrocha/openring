@@ -26,6 +26,7 @@ from . import (
     auth,
     campaigns,
     drafts,
+    evals,
     genesys,
     keys,
     knowledge,
@@ -1589,6 +1590,104 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         stopped = store.claim("escalations", escalation_id, "in-progress",
                               {"status": "ended", "endedReason": "cancelled", "endedAt": now_iso()})
         return stopped or _get_or_404("escalations", escalation_id)
+
+    _eval_tasks: set[asyncio.Task] = set()  # runs under way, kept so they are not collected before they end
+
+    def _page(found: list[dict[str, Any]], limit: int) -> dict[str, Any]:
+        results = found[:max(limit, 0)]
+        return {"results": results, "metadata": {"itemsPerPage": len(results), "totalItems": len(found),
+                                                 "currentPage": 1}}
+
+    @app.post("/eval", status_code=201, dependencies=auth_deps)
+    def create_eval(body: dict[str, Any]) -> dict[str, Any]:
+        """A scripted chat and checks on the assistant's answers (Vapi's chat.mockConversation, evals.py)."""
+        try:
+            return store.create("evals", evals.check_eval(body))
+        except evals.EvalError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/eval", dependencies=auth_deps)
+    def list_evals(limit: int = 100) -> dict[str, Any]:
+        return _page(store.list("evals", limit=1000), limit)
+
+    @app.get("/eval/run", dependencies=auth_deps)
+    def list_eval_runs(limit: int = 100, evalId: str | None = None) -> dict[str, Any]:  # noqa: N803 (Vapi's name)
+        found = [r for r in store.list("eval_runs", limit=1000) if not evalId or r.get("evalId") == evalId]
+        return _page(found, limit)
+
+    @app.get("/eval/run/{run_id}", dependencies=auth_deps)
+    def get_eval_run(run_id: str) -> dict[str, Any]:
+        return _get_or_404("eval_runs", run_id)
+
+    @app.delete("/eval/run/{run_id}", dependencies=auth_deps)
+    def delete_eval_run(run_id: str) -> dict[str, Any]:
+        doc = _get_or_404("eval_runs", run_id)
+        store.delete("eval_runs", run_id)
+        return doc
+
+    @app.get("/eval/{eval_id}", dependencies=auth_deps)
+    def get_eval(eval_id: str) -> dict[str, Any]:
+        return _get_or_404("evals", eval_id)
+
+    @app.patch("/eval/{eval_id}", dependencies=auth_deps)
+    def update_eval(eval_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        current = _get_or_404("evals", eval_id)
+        try:
+            checked = evals.check_eval({**current, **body})
+        except evals.EvalError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return store.update("evals", eval_id, checked)
+
+    @app.delete("/eval/{eval_id}", dependencies=auth_deps)
+    def delete_eval(eval_id: str) -> dict[str, Any]:
+        doc = _get_or_404("evals", eval_id)
+        store.delete("evals", eval_id)
+        return doc
+
+    @app.post("/eval/run", status_code=201, dependencies=auth_deps)
+    async def run_eval(body: dict[str, Any]) -> dict[str, Any]:
+        """Run a saved eval (`evalId`) or one given here (`eval`) against an assistant or a squad's first member.
+        Answers at once with the queued run; `GET /eval/run/{id}` has it once `status` is "ended"."""
+        if body.get("evalId"):
+            eval_doc = _get_or_404("evals", str(body["evalId"]))
+        else:
+            try:
+                eval_doc = evals.check_eval(body.get("eval") or {})
+            except evals.EvalError as exc:
+                raise HTTPException(status_code=400, detail=f"eval: {exc}") from exc
+        target = body.get("target") or {}
+        if not isinstance(target, dict) or target.get("type") not in ("assistant", "squad"):
+            raise HTTPException(status_code=400, detail='target is {"type": "assistant", "assistantId"} or a squad')
+        if target["type"] == "assistant":
+            assistant = target.get("assistant") or _get_or_404("assistants", str(target.get("assistantId") or ""))
+        else:
+            squad = target.get("squad") or _get_or_404("squads", str(target.get("squadId") or ""))
+            try:
+                assistant = squads.cast(squad, store)[0]
+            except squads.SquadError as exc:
+                raise HTTPException(status_code=400, detail=f"target: {exc}") from exc
+        try:
+            plan = _plan(assistant, check_keys=False)  # a chat: no transcriber, no voice
+        except ProviderError as exc:
+            raise HTTPException(status_code=400, detail=f"target: {exc}") from exc
+        shown_target = {k: v for k, v in target.items() if k in ("type", "assistantId", "squadId")}
+        run = store.create("eval_runs", {"type": "eval", "status": "queued", "target": shown_target,
+                                         **({"evalId": eval_doc["id"]} if eval_doc.get("id") else {"eval": eval_doc})})
+
+        async def go() -> None:
+            store.update("eval_runs", run["id"], {"status": "running"})
+            try:
+                outcome = await evals.run(eval_doc, plan, store)
+            except Exception as exc:  # the run ends either way, saying why
+                logger.exception("eval run {} failed", run["id"])
+                outcome = {"status": "ended", "endedReason": "error", "endedMessage": exc.__class__.__name__,
+                           "results": []}
+            store.update("eval_runs", run["id"], {**outcome, "endedAt": now_iso()})
+
+        task = asyncio.create_task(go())
+        _eval_tasks.add(task)
+        task.add_done_callback(_eval_tasks.discard)
+        return run
 
     @app.post("/campaign", status_code=201, dependencies=auth_deps)
     async def create_campaign(body: dict[str, Any]) -> dict[str, Any]:

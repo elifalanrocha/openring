@@ -378,3 +378,12 @@ def test_the_analysis_box_keeps_the_plan_and_the_schema_turns_data_on_and_off():
                                                                                        "schema": {"type": "object"}}},
                    "dataOff": {"structuredDataPlan": {"enabled": False, "schema": {"type": "object"}}},
                    "off": None}
+
+
+def test_the_evals_page_example_is_an_eval_the_server_takes():
+    from openring import evals
+
+    example = re.search(r"^const EVAL_EXAMPLE = (JSON\.stringify\(\[.*?\], null, 2\));$", PAGE, re.M | re.S).group(1)
+    messages = json.loads(run_js(f"console.log(JSON.stringify({example}))"))
+    assert evals.check_eval({"name": "x", "messages": messages})["messages"] == messages
+    assert "evals: viewEvals" in PAGE and 'data-view="evals"' in PAGE

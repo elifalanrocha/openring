@@ -100,6 +100,26 @@ speed. The assistant editor has a slider.
 one, such as `eleven_flash_v2_5`), Kokoro, Cartesia, Rime, Neuphonic, Smallest and Inworld use it. Deepgram's voices
 carry their language in their name and OpenAI's read whatever they are given. The assistant editor has it under Voice.
 
+### Evals: check an assistant before callers do
+
+`POST /eval` and `POST /eval/run`, as on Vapi. An eval (`type: "chat.mockConversation"`) is a chat you write:
+`user`, `system` and `tool` messages are said to the assistant as written (a `tool` message answers its last tool
+call), and an `assistant` message with a `judgePlan` is where the assistant answers, with its own model, system prompt,
+greeting and tools, and gets checked: `exact` (the words, or the tool calls with their arguments), `regex` (a pattern;
+for tool calls, the name and each argument), or `ai` (a judge model, `{{messages}}` and `{{messages[-1]}}` filled in,
+that answers pass or fail). `continuePlan` stops at a failure (`exitOnFailureEnabled`) or puts `contentOverride` /
+`toolCallsOverride` in the history instead. Tools never run: the eval says what they return.
+
+```json
+{"type": "eval", "evalId": "<id>", "target": {"type": "assistant", "assistantId": "<id>"}}
+```
+
+The run is queued and goes on in the background; `GET /eval/run/{id}` has `results[0].status` (`pass` when every check
+passed) and each message's `judge` once `status` is `ended` (`endedReason`: `mockConversation.done`, or
+`assistant-error` when the model couldn't answer). A squad as target runs its first member. Lists (`GET /eval`,
+`GET /eval/run?evalId=`) come as `{results, metadata}`. The dashboard's **Evals** page writes, runs and shows them.
+Each answer and judgment spends the target's or the judge's model tokens.
+
 ### After the call: summary, data and success
 
 `analysisPlan`, as on Vapi. When the call ends, the assistant's own model reads the transcript and writes the call's

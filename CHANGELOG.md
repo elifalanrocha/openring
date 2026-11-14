@@ -63,6 +63,10 @@ All notable changes to OpenRing are listed here. The format follows
   4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is
   charged, and a deleted call is forgotten. Off by default, because a caller ID can be faked. A "Remember callers" box
   in the assistant editor; the call records which calls it was given in `rememberedCallIds`.
+- Evals, as on Vapi (`/eval`, `/eval/run`): a chat you script for an assistant, with checks on what it answers (exact
+  words, a pattern, the tool calls and their arguments, or a judge model's pass or fail) and Vapi's `continuePlan`.
+  Runs go on in the background against an assistant or a squad. The dashboard has an **Evals** page. Checked against
+  Groq: a booking assistant called its tool with the right arguments and a judge model passed its confirmation.
 - After the call, Vapi's `analysisPlan`: the assistant's own model writes a summary, pulls data out in the shape of a
   JSON schema and judges on a rubric whether the call succeeded; in the call, the end-of-call report and the call page,
   with its tokens and cost in `costBreakdown.analysisCostBreakdown`. Only for assistants that ask (it spends your

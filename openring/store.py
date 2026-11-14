@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 COLLECTIONS = ("assistants", "phone_numbers", "calls", "tools", "campaigns", "routes", "files", "knowledge_bases",
-               "squads", "credentials", "announcements", "escalations")
+               "squads", "credentials", "announcements", "escalations", "evals", "eval_runs")
 PROTECTED = {"id", "createdAt"}
 
 
