@@ -33,6 +33,15 @@ quiet after the assistant spoke,
  "messagePlan": {"idleMessages": ["Are you still there?"], "idleTimeoutSeconds": 8}}
 ```
 
+### Callers that are AI agents
+
+More and more callers are assistants calling for a person ("Hi, I'm an AI assistant calling on behalf of Maria"). OpenRing
+notices it from what they say, in English, Portuguese or Spanish, and marks the call (`callerIsAI`, and `callerIsAISaid`
+with the words that showed it; the dashboard writes "AI agent" before the caller). The model is then told to answer
+briefly and exactly, without small talk, never to share other customers' details and never to take payment details from
+it. OpenRing's own field, on by default: `"aiCallerPlan": {"enabled": false}` keeps the model's usual manner (the call is
+still marked). Beta: noticed by phrases, not yet tried with a real agent calling.
+
 ### Writing an assistant from a description
 
 OpenRing's own. `POST /assistant/draft` with `{"description": "..."}` asks a model you connected (the first of Groq, OpenAI,

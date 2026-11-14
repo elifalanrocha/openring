@@ -311,6 +311,8 @@ class StackPlan:
     keypad: bool = False
     keypad_timeout: float = 2.0
     keypad_delimiters: tuple[str, ...] = ("#",)
+    # OpenRing's own aiCallerPlan: told when the caller is an AI agent, the model answers briefly and exactly.
+    ai_caller_hint: bool = True
     # A model slower than this to start answering (ms) hands the turn to the next fallback model.
     max_latency_ms: int | None = None
     # The model route the models came from (`routes.expand`): {"id", "name", "cooldownMinutes"}.
@@ -405,6 +407,8 @@ def speaking_plans(assistant: dict[str, Any], warnings: list[str]) -> dict[str, 
                                          bool(start.get("customEndpointingRules")))) if value]
     if ignored:
         warnings.append(f"not used yet: {', '.join(ignored)}")
+    ai = part("aiCallerPlan")
+    out["ai_caller_hint"] = ai.get("enabled") is not False
     if keypad.get("enabled") is True:
         delimiters = keypad.get("delimiters", ["#"])
         if isinstance(delimiters, str):

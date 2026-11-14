@@ -619,7 +619,7 @@ let unsaved = false;
 window.addEventListener("beforeunload", e => { if (unsaved) e.preventDefault(); });
 const when = iso => { if (!iso) return ""; const d = new Date(iso), today = new Date().toDateString() === d.toDateString(); return today ? d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) : d.toLocaleString(LOCALE, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
 const initials = s => (s || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
-const caller = c => c.type === "webCall" ? "Browser test" : c.type === "outboundPhoneCall" ? `Call to ${c.customer?.name || c.customer?.number || "?"}` : c.customer?.number || "Unknown caller";
+const caller = c => (c.callerIsAI ? "AI agent · " : "") + (c.type === "webCall" ? "Browser test" : c.type === "outboundPhoneCall" ? `Call to ${c.customer?.name || c.customer?.number || "?"}` : c.customer?.number || "Unknown caller");
 // Who answered a call: a saved assistant, or a transient one that lives in the call record.
 const assistantOf = (c, assistants) => c.squadId || c.squad ? "Squad" : c.assistant?.name || assistants.find(a => a.id === c.assistantId)?.name || (c.assistant ? "Transient assistant" : "Deleted assistant");
 const TYPE = { webCall: "Browser", inboundPhoneCall: "Inbound", outboundPhoneCall: "Outbound" };

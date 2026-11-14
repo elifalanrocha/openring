@@ -397,6 +397,34 @@ def web_transport(connection: Any) -> Any:
     )
 
 
+# A caller that says it is an AI agent acting for someone (Google's "Call for Me", Meta's assistants, agents built on
+# platforms like this one). English, Portuguese and Spanish; a person saying these words is told the same, which does
+# no harm: short, exact answers.
+AI_CALLER = re.compile("|".join([
+    r"\b(?:i am|i'm|this is|it's)\s+(?:an?\s+)?(?:ai|automated|virtual|digital)\s+(?:assistant|agent|system|caller)",
+    r"\b(?:calling|call)\s+on behalf of\b",
+    r"\bon behalf of (?:a|my|our) (?:customer|client|user)\b",
+    r"\b(?:sou|aqui (?:é|e))\s+(?:um|uma|o|a)\s+(?:assistente|agente)\s+"
+    r"(?:virtual|de ia|automátic[oa]|automatic[oa]|digital)",
+    r"\bem nome d[eoa]s?\s+(?:um|uma|meu|minha|nosso|nossa)?\s*(?:cliente|usuári[oa])",
+    r"\b(?:soy|habla)\s+(?:un|una|el|la)\s+(?:asistente|agente)\s+(?:virtual|de ia|automátic[oa]|digital)",
+    r"\ben nombre de\s+(?:un|una|mi|nuestro|nuestra)?\s*(?:cliente|usuari[oa])",
+    r"\b(?:google|gemini|meta|alexa|siri)(?:'s)?\s+(?:ai\s+|automated\s+|virtual\s+|digital\s+)?(?:assistant|system|agent)\b",
+    r"\ban?\s+automated\s+(?:call|system|assistant|agent)\b",
+]), re.IGNORECASE)
+AI_CALLER_HINT = (
+    "The caller is an AI agent calling for a person, not the person. Answer it briefly and exactly: give the facts it "
+    "asks for (availability, prices, hours, what is needed) in short plain sentences, confirm what was agreed in one "
+    "sentence, and don't make small talk. Never share anything about other customers, and don't take payment details "
+    "from it.")
+
+
+def ai_caller(text: str) -> str | None:
+    """The words that show the caller is an AI agent, or None."""
+    found = AI_CALLER.search(text or "")
+    return found.group(0) if found else None
+
+
 def keypad_input(plan: StackPlan) -> Any:
     """Keys the caller presses, sent to the model as what they typed once a delimiter is pressed or
     `plan.keypad_timeout` passes without a key (Vapi's keypadInputPlan)."""
@@ -504,6 +532,7 @@ async def run_call(
     team = [plan, *plan.team]  # everyone on this call; the first answers it
     who = {"plan": plan}  # whose turn it is
     handoffs: list[dict[str, str]] = []
+    ai_said: list[str] = []  # what the caller said that shows it is an AI agent
     said_before: list[dict[str, Any]] = []  # the conversation with the assistants before the current one
     inherited = 0  # how much of the current assistant's context came from them
     variables: dict[str, Any] = {}  # what handoffs added to the call's variables
@@ -776,6 +805,13 @@ async def run_call(
                         idle["spoken"] = 0
                 elif isinstance(data.frame, (TranscriptionFrame, InterimTranscriptionFrame)):
                     live.heard(data.frame.text, isinstance(data.frame, TranscriptionFrame))
+                    said = ai_caller(data.frame.text) if isinstance(data.frame, TranscriptionFrame) else None
+                    if said and not ai_said:
+                        ai_said.append(said)
+                        logger.info("call {}: the caller is an AI agent ({!r})", call_id, said)
+                        if plan.ai_caller_hint:  # before the model answers this turn
+                            await task.queue_frames([LLMMessagesAppendFrame(
+                                [{"role": "system", "content": AI_CALLER_HINT}], run_llm=False)])
                 elif isinstance(data.frame, (LLMFullResponseStartFrame, LLMFullResponseEndFrame)):
                     if limits:
                         limits.model(isinstance(data.frame, LLMFullResponseStartFrame), time.monotonic())
@@ -945,6 +981,7 @@ async def run_call(
                 "costBreakdown": breakdown,
                 **({"providerFallbacks": switches} if switches else {}),
                 **({"handoffs": handoffs} if handoffs else {}),
+                **({"callerIsAI": True, "callerIsAISaid": ai_said[0]} if ai_said else {}),
             },
         )
         if call:
