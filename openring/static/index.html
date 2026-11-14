@@ -1913,7 +1913,7 @@ function transcriptRow(m) {
 
 let callTab = "transcript";
 async function viewCall(id) {
-  const [c, assistants] = await Promise.all([api("/call/" + id), api("/assistant")]);
+  const [c, assistants, hooks] = await Promise.all([api("/call/" + id), api("/assistant"), api("/call/" + id + "/webhooks").catch(() => [])]);
   if (location.hash !== "#calls/" + id) return;
   const name = assistantOf(c, assistants);
   setPage("calls", caller(c), `${name} · ${when(c.startedAt || c.createdAt)}`);
@@ -1927,6 +1927,7 @@ async function viewCall(id) {
     transcript: () => msgs.length ? `<div class="transcript">${msgs.map(transcriptRow).join("")}</div>` : `<p class="muted">${c.status === "ended" ? "No transcript for this call." : "The transcript appears when the call ends."}</p>`,
     latency: () => turns.length ? `<div class="legend" style="margin-bottom:14px">${PARTS.map(([, l, col]) => `<span style="--dot:${col}">${l}</span>`).join("")}</div><div class="turns">${turns.map((t, i) => `<div class="turn"><span class="muted">Turn ${i + 1}</span><div class="stack" style="width:${t.turnLatency / maxTurn * 100}%">${PARTS.map(([k, l, col]) => `<span style="width:${(t[k] || 0) / Math.max(1, PARTS.reduce((s, [p]) => s + (t[p] || 0), 0)) * 100}%;background:${col}" title="${l}: ${t[k] || 0} ms"></span>`).join("")}</div><b class="num">${ms(t.turnLatency)}</b></div>`).join("")}</div>` : `<p class="muted">No response times recorded for this call.</p>`,
     json: () => `<pre class="json">${esc(JSON.stringify(c, null, 2))}</pre>`,
+    webhooks: () => hooks.length ? `<div class="scroll"><table class="table"><thead><tr><th>Sent</th><th>Message</th><th>To</th><th>Answer</th><th class="num">Time</th></tr></thead><tbody>${hooks.map(h => `<tr><td>${esc(new Date(h.at).toLocaleTimeString(LOCALE))}</td><td><code>${esc(h.type)}</code></td><td class="cut">${esc(h.url)}</td><td>${h.status ? `<span class="badge${h.status < 300 ? " ok" : " bad"}">HTTP ${esc(h.status)}</span>` : `<span class="badge bad">${esc(h.error || "failed")}</span>`}</td><td class="num">${esc(h.ms)} ms</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">${c.assistant?.server?.url || assistants.find(a => a.id === c.assistantId)?.server?.url ? "No messages sent to your server for this call since OpenRing last started." : "This call's assistant has no server URL, so nothing was sent. Set one under Call report URL."}</p>`,
   };
   const cards = [
     card("Duration", "clock", dur(c.durationSeconds), ""),
@@ -1948,7 +1949,7 @@ async function viewCall(id) {
   ${(c.providerFallbacks || []).map(f => `<p class="muted fallback-note">${ICON.bolt}${esc(LAYER_NAMES[f.layer] || f.layer)} switched to <b>${esc(f.to)}</b> at ${esc(new Date(f.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}${f.reason && f.reason !== "failed" ? ` (${esc(f.reason)})` : ""}</p>`).join("")}
   ${(c.handoffs || []).map(h => `<p class="muted fallback-note">${ICON.bolt}<b>${esc(h.from)}</b> handed the call to <b>${esc(h.to)}</b> at ${esc(new Date(h.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}</p>`).join("")}
   ${c.artifact?.recordingUrl ? `<section class="panel call-recording"><div class="body"><span class="muted">${ICON.mic}Recording</span><button class="btn ghost small" id="recPlay">Load and play</button><span class="spacer"></span><button class="btn danger small" id="recDel">Delete recording</button></div></section>` : ""}
-  <div class="toolbar">${tabs([["transcript", "Transcript"], ["latency", "Response time"], ["json", "JSON"]], callTab)}</div>
+  <div class="toolbar">${tabs([["transcript", "Transcript"], ["latency", "Response time"], ["webhooks", "Webhooks", hooks.length], ["json", "JSON"]], callTab)}</div>
   <section class="panel"><div class="body">${panes[callTab]()}</div></section>`;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { callTab = b.dataset.tab; viewCall(id); });
   const copyTranscript = $("#copyTranscript", v);

@@ -232,6 +232,10 @@ with `server.headers` and `server.secret` (as `X-Vapi-Secret`):
 - `hang` when the caller has waited 5 seconds for an answer;
 - `end-of-call-report` with the transcript and per-turn latency.
 
+Every message sent shows on the call's page, under **Webhooks**: the type, the server (without its query string), its
+HTTP answer or why it failed, and how long it took (`GET /call/{id}/webhooks`, OpenRing's own). The log is kept in
+memory, the last 2000 messages since OpenRing started, and never holds the payload or headers.
+
 Pick which ones with `serverMessages`, as on Vapi. `transcript` is sent only when listed there: each thing the
 transcriber hears (`transcriptType` `partial`, then `final`) and each thing the assistant says, with `role` and
 `transcript`. List `transcript[transcriptType="final"]` instead to get the final ones alone, under that name. Messages

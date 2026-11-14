@@ -416,3 +416,37 @@ def test_a_call_tells_the_server_what_happens_as_it_happens(monkeypatch):
                            ("assistant", "final", ASSISTANT["firstMessage"])}
     assert all(m["call"]["id"] == params["callId"] for m in messages)
     assert not any(m["type"] in ("status-update", "end-of-call-report") for m in messages)  # not asked for
+
+
+def test_each_delivery_is_logged_for_its_call_without_query_string_or_payload(monkeypatch):
+    from test_api import make_client
+
+    server_messages.DELIVERIES.clear()
+
+    async def answers(server, payload, **_kw):
+        if payload["message"]["type"] == "end-of-call-report":
+            raise httpx.ConnectError("refused")
+        return httpx.Response(503 if payload["message"]["type"] == "hang" else 200)
+
+    monkeypatch.setattr(server_messages, "post", answers)
+    assistant = {"server": {"url": "https://hooks.example.com/vapi?token=s3cret"}}
+
+    async def scenario():
+        for kind in ("status-update", "hang", "end-of-call-report"):
+            await server_messages.send(assistant, kind, {"id": "c1"})
+        await server_messages.send(assistant, "status-update", {"id": "other"})
+
+    asyncio.run(scenario())
+    log = server_messages.deliveries("c1")
+    assert [(d["type"], d["status"], d["error"]) for d in log] == [
+        ("status-update", 200, None), ("hang", 503, None), ("end-of-call-report", None, "ConnectError")]
+    assert all("s3cret" not in json.dumps(d) and d["url"].startswith("https://hooks.example.com") for d in log)
+    assert all(isinstance(d["ms"], int) and d["at"].endswith("Z") for d in log)
+
+    client = make_client()
+    call = client.app.state.store.create("calls", {"status": "ended"})
+    server_messages.DELIVERIES.append({**log[0], "callId": call["id"]})
+    shown = client.get(f"/call/{call['id']}/webhooks", headers=AUTH).json()
+    assert [d["type"] for d in shown] == ["status-update"]
+    assert client.get(f"/call/{call['id']}/webhooks").status_code == 401
+    assert client.get("/call/nobody/webhooks", headers=AUTH).status_code == 404

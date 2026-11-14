@@ -37,6 +37,7 @@ from . import (
     providers,
     recordings,
     routes,
+    server_messages,
     sip,
     squads,
     starter,
@@ -1190,6 +1191,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.get("/call/{call_id}", dependencies=auth_deps)
     def get_call(call_id: str) -> dict[str, Any]:
         return _get_or_404("calls", call_id)
+
+    @app.get("/call/{call_id}/webhooks", dependencies=auth_deps)
+    def call_webhooks(call_id: str) -> list[dict[str, Any]]:
+        """OpenRing's own: the messages this call sent to your servers since OpenRing started, and how each went."""
+        _get_or_404("calls", call_id)
+        return server_messages.deliveries(call_id)
 
     @app.patch("/call/{call_id}", dependencies=auth_deps)
     def update_call(call_id: str, body: dict[str, Any]) -> dict[str, Any]:

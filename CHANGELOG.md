@@ -11,6 +11,8 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- A webhook log: each call's page lists the messages it sent to your server, with the answer and the time each took
+  (`GET /call/{id}/webhooks`).
 - Vapi's `startSpeakingPlan.waitSeconds`, `stopSpeakingPlan.voiceSeconds` and `numWords`, and `keypadInputPlan`: keys the
   caller presses reach the model as text. Settings with no equivalent yet are named in the call's warnings.
 - Write an assistant from a description: on a new assistant, a model you connected drafts its name, greeting and

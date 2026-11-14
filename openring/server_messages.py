@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections import deque
 from typing import Any
 
 import httpx
@@ -24,10 +25,24 @@ DEFAULT_MESSAGES = (
     "conversation-update", "end-of-call-report", "function-call", "hang", "speech-update", "status-update",
     "tool-calls", "transfer-destination-request", "user-interrupted",
 )
+# The last deliveries to your servers, for the dashboard's webhook log: kept in memory, never the payload or headers.
+DELIVERIES: deque[dict[str, Any]] = deque(maxlen=2000)
 ASSISTANT_REQUEST_TIMEOUT = 7.5  # seconds; Vapi's limit for answering assistant-request
 FINAL_TRANSCRIPTS = 'transcript[transcriptType="final"]'  # Vapi's name for finished sentences only
 HANG_SECONDS = 5.0  # a caller who has waited this long for an answer gets a `hang` message sent about it
 BACKLOG = 20  # a partial transcript is dropped when this many messages still wait for the server
+
+
+def delivered(kind: str, call: dict[str, Any] | None, url: str, started: float, status: int | None,
+              error: str | None = None) -> None:
+    """Note one delivery for the webhook log: what was sent, where (no query string), how it went, how long."""
+    DELIVERIES.append({"callId": (call or {}).get("id"), "type": kind, "url": netguard.safe_url_for_logs(url),
+                       "status": status, "error": error, "ms": round((time.monotonic() - started) * 1000),
+                       "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+
+
+def deliveries(call_id: str) -> list[dict[str, Any]]:
+    return [d for d in DELIVERIES if d["callId"] == call_id]
 
 
 def server_of(doc: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -79,11 +94,14 @@ async def send(assistant: dict[str, Any], kind: str, call: dict[str, Any] | None
     server = server_of(assistant)
     if server is None or not wants(assistant, kind):
         return
+    started = time.monotonic()
     try:
         r = await post(server, message(kind, call, **fields))
+        delivered(kind, call, server["url"], started, r.status_code)
         if r.status_code >= 400:
             logger.warning("{} to {} answered HTTP {}", kind, netguard.safe_url_for_logs(server["url"]), r.status_code)
     except httpx.HTTPError as exc:
+        delivered(kind, call, server["url"], started, None, _why(exc))
         logger.warning("{} to {} failed: {}", kind, netguard.safe_url_for_logs(server["url"]), _why(exc))
 
 
@@ -240,10 +258,13 @@ async def request_assistant(
     """
     payload = message("assistant-request", call, phoneNumber=phone_number, customer=call.get("customer"))
     where = netguard.safe_url_for_logs(server["url"])  # the detail is logged; the full URL may hold a secret
+    started = time.monotonic()
     try:
         r = await post(server, payload, timeout=ASSISTANT_REQUEST_TIMEOUT, client=client)
     except httpx.HTTPError as exc:
+        delivered("assistant-request", call, server["url"], started, None, _why(exc))
         raise AssistantRequestError("assistant-request-failed", f"{where}: {_why(exc)}") from exc
+    delivered("assistant-request", call, server["url"], started, r.status_code)
     if r.status_code >= 400:
         raise AssistantRequestError("assistant-request-failed", f"{where} answered HTTP {r.status_code}")
     try:
