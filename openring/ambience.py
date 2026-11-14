@@ -26,7 +26,7 @@ from . import netguard
 
 OFFICE = Path(__file__).parent / "sounds" / "office.ogg"
 MAX_BYTES = 10 * 1024 * 1024
-MAX_SECONDS = 300  # a longer file is cut there: five minutes loop well enough
+MAX_SECONDS = 120  # a longer file is cut there: two minutes loop well enough
 FETCH_SECONDS = 15
 LEAD_SECONDS = 0.2
 FADE_SECONDS = 1.0
@@ -72,12 +72,26 @@ async def fetch(url: str) -> bytes:
     return b"".join(chunks)
 
 
+def resample(samples: Any, rate: int, target: int) -> Any:
+    """`samples` (one channel, floats) at `target` Hz, in the frequency domain: numpy only (Pipecat 1.16 no longer
+    brings soxr), and right for a sound that loops, which it treats as periodic, so the loop point stays seamless."""
+    import numpy as np
+
+    if rate == target:
+        return samples
+    count = max(1, round(len(samples) * target / rate))
+    spectrum = np.fft.rfft(samples)
+    kept = np.zeros(count // 2 + 1, dtype=spectrum.dtype)
+    width = min(len(spectrum), len(kept))
+    kept[:width] = spectrum[:width]  # above the new Nyquist frequency goes: no aliasing
+    return np.fft.irfft(kept, count) * (count / len(samples))
+
+
 def decode(data: bytes, sample_rate: int, *, level: float | None = LEVEL_DBFS, seamless: bool = False) -> Any:
     """16-bit mono samples at `sample_rate`, at `level` dBFS RMS (None: as recorded), looping without a click (a
     `seamless` sound already does)."""
     import numpy as np
     import soundfile as sf
-    import soxr
 
     try:
         with sf.SoundFile(io.BytesIO(data)) as file:
@@ -88,8 +102,7 @@ def decode(data: bytes, sample_rate: int, *, level: float | None = LEVEL_DBFS, s
     sound = audio.mean(axis=1)
     if len(sound) < rate // 10:
         raise SoundError("is too short to loop")
-    if rate != sample_rate:
-        sound = soxr.resample(sound, rate, sample_rate)
+    sound = resample(sound, rate, sample_rate).astype(np.float32)
     if not seamless:
         fade = min(len(sound) // 4, sample_rate // 10)  # the end runs on into the start, over 0.1 s
         ramp = np.linspace(0, 1, fade, dtype=np.float32)
@@ -145,9 +158,10 @@ def mixer(source: str) -> Any:
         async def _load(self) -> None:
             try:
                 self.sound = await load(source, self._rate)
-            except SoundError as exc:
+            except Exception as exc:  # whatever it is, the call goes on without the sound
                 where = "office" if source == "office" else netguard.safe_url_for_logs(source)
-                logger.warning("background sound {} {}: the call goes on without it", where, exc)
+                why = exc if isinstance(exc, SoundError) else f"failed ({exc.__class__.__name__}: {exc})"
+                logger.warning("background sound {} {}: the call goes on without it", where, why)
 
         async def stop(self) -> None:
             if self._loading is not None and not self._loading.done():

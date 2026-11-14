@@ -4,6 +4,7 @@ import asyncio
 import base64
 import io
 import json
+import sys
 import time
 
 import httpx
@@ -55,6 +56,18 @@ def test_a_file_becomes_quiet_mono_audio_at_the_lines_rate_that_loops_without_a_
     jump = abs(int(sound[-1]) - int(sound[0]))
     steps = np.abs(np.diff(sound.astype(np.int32)))
     assert jump <= steps.max() * 1.5  # from the end back to the start is a step like any other
+
+
+def test_numpy_is_all_it_takes_to_change_rates(monkeypatch):
+    """Pipecat 1.16 no longer brings soxr; a 6 kHz tone must vanish at 8 kHz, not come back as 2 kHz."""
+    monkeypatch.setitem(sys.modules, "soxr", None)
+    t = np.arange(48000) / 48000
+    low = ambience.resample(np.sin(2 * np.pi * 440 * t) + np.sin(2 * np.pi * 6000 * t), 48000, 8000)
+    spectrum = np.abs(np.fft.rfft(low)) / len(low) * 2
+    frequencies = np.fft.rfftfreq(len(low), 1 / 8000)
+    assert len(low) == 8000 and abs(spectrum[frequencies == 440][0] - 1) < 0.01
+    assert spectrum[(frequencies > 1900) & (frequencies < 2100)].max() < 0.01
+    assert len(ambience.decode(wav(seconds=0.5, rate=44100, channels=1), 8000)) > 0
 
 
 def test_a_long_file_is_cut_and_a_bad_one_refused(monkeypatch):
@@ -136,9 +149,10 @@ def test_the_mixer_keeps_real_time_so_queueing_transports_never_fill_up(monkeypa
     assert len(out) == 50 and took >= 1.0 - ambience.LEAD_SECONDS - 0.1  # not faster than it plays
 
 
-def test_a_sound_that_cant_be_had_leaves_the_call_as_it_was(monkeypatch):
+@pytest.mark.parametrize("failure", [ambience.SoundError("answered HTTP 404"), ModuleNotFoundError("soundfile")])
+def test_a_sound_that_cant_be_had_leaves_the_call_as_it_was(monkeypatch, failure):
     async def load(source, rate):
-        raise ambience.SoundError("answered HTTP 404")
+        raise failure
 
     monkeypatch.setattr(ambience, "load", load)
     monkeypatch.setattr(ambience, "LEAD_SECONDS", 60)

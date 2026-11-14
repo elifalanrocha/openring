@@ -201,7 +201,8 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   publishing (OIDC), no stored tokens; npm's first version is published by hand (npm needs the package to
   exist before trusting a workflow).
 - Built on Pipecat 1.15 (services use `Settings(...)` objects; VAD via
-  `LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer())`).
+  `LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer())`). CI and new installs resolve Pipecat 1.16, which no
+  longer brings soxr: resample with `ambience.resample` (numpy). The local `.venv` may still be on 1.15.
 
 ## Commands
 

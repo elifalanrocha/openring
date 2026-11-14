@@ -74,11 +74,10 @@ def room(x: np.ndarray, rng: np.random.Generator, seconds: float = 0.6, wet: flo
 
 
 def chatter(rng: np.random.Generator, length: int) -> np.ndarray:
-    import soxr
     from kokoro_onnx import Kokoro
 
     sys.path.insert(0, str(ROOT))
-    from openring import providers
+    from openring import ambience, providers
 
     model, voices = (str(providers.KOKORO_DIR / name) for name in providers.KOKORO_FILES)
     kokoro = Kokoro(model, voices)
@@ -89,7 +88,7 @@ def chatter(rng: np.random.Generator, length: int) -> np.ndarray:
         while at < length:
             line = lines[rng.integers(len(lines))]
             samples, rate = kokoro.create(line, voice=voice, speed=float(rng.uniform(0.92, 1.08)), lang=lang)
-            said = soxr.resample(samples, rate, RATE)
+            said = ambience.resample(samples, rate, RATE)
             end = min(length, at + len(said))
             track[at:end] += said[:end - at] * db(rng.uniform(-4, 0))
             at = end + int(rng.uniform(0.3, 1.8) * RATE)  # a pause, someone answering elsewhere

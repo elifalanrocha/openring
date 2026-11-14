@@ -123,15 +123,14 @@ def audioop_module():
 def voice(text: str) -> bytes:
     """`text` read by Kokoro, as a phone line carries it: 8 kHz mu-law."""
     import numpy as np
-    import soxr
     from kokoro_onnx import Kokoro
 
-    from openring import providers
+    from openring import ambience, providers
 
     audioop = audioop_module()
     model, voices = (str(providers.KOKORO_DIR / name) for name in providers.KOKORO_FILES)
     samples, rate = Kokoro(model, voices).create(text, voice="am_adam", speed=1.0, lang="en-us")
-    pcm = (np.clip(soxr.resample(samples, rate, 8000), -1, 1) * 32767).astype("<i2").tobytes()
+    pcm = (np.clip(ambience.resample(samples, rate, 8000), -1, 1) * 32767).astype("<i2").tobytes()
     return audioop.lin2ulaw(pcm, 2)
 
 
