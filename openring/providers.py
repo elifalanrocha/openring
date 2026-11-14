@@ -114,6 +114,38 @@ def kokoro_ready() -> bool:
     return all((KOKORO_DIR / name).exists() for name in KOKORO_FILES)
 
 
+class _SharedSessions:
+    """Stands in for onnxruntime inside a Pipecat module: one InferenceSession per model file, shared by every call.
+
+    Pipecat builds a voice activity detector and a turn detector for each call, and each loads its ONNX model again:
+    about 160 ms of CPU apiece on the event loop (every other call stalls meanwhile) and some 30 MB more per call.
+    Both keep their state outside the session, and an InferenceSession serves runs from several threads at once.
+    """
+
+    def __init__(self, ort: Any):
+        self._ort, self._sessions, self._lock = ort, {}, threading.Lock()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._ort, name)
+
+    def InferenceSession(self, path: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: N802 (onnxruntime's name)
+        with self._lock:
+            if str(path) not in self._sessions:
+                self._sessions[str(path)] = self._ort.InferenceSession(path, *args, **kwargs)
+            return self._sessions[str(path)]
+
+
+def share_call_models() -> None:
+    """Make Pipecat's voice activity and turn detectors share their ONNX sessions across calls (idempotent)."""
+    import pipecat.audio.turn.smart_turn.local_smart_turn_v3 as turn
+    import pipecat.audio.vad.silero as silero
+
+    if not isinstance(getattr(silero, "onnxruntime", None), _SharedSessions):
+        silero.onnxruntime = _SharedSessions(silero.onnxruntime)
+    if not isinstance(turn.ort, _SharedSessions):
+        turn.ort = _SharedSessions(turn.ort)
+
+
 def warm_up() -> None:
     """Get the call machinery ready in the background, so the first call starts as fast as the rest."""
 
@@ -122,6 +154,12 @@ def warm_up() -> None:
         import pipecat.services.deepgram.stt  # noqa: F401
         import pipecat.services.openai.llm  # noqa: F401
         import pipecat.transports.smallwebrtc.transport  # noqa: F401
+        from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+        from pipecat.audio.vad.silero import SileroVADAnalyzer
+
+        share_call_models()
+        SileroVADAnalyzer()  # loads the shared sessions here, not on the first call's event loop
+        LocalSmartTurnAnalyzerV3()
 
     threading.Thread(target=load_modules, name="warm-up", daemon=True).start()
     if kokoro_installed():

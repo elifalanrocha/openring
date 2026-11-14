@@ -40,6 +40,24 @@ Dockerfile). Then in the service:
 2. Settings, Networking: **Generate Domain** (this sets `PUBLIC_URL` automatically after the next deploy).
 3. Settings, Volumes: add a volume mounted at `/data`.
 
+## How many calls at once
+
+One OpenRing process does its share of a call (the phone line's audio, the voice activity and turn detectors, the
+pipeline) on one CPU core. On a 2018 laptop (Intel i5-8265U, Windows, Python 3.12), with providers that answer at once
+so only OpenRing's own work counts, measured on November 14, 2026 with `scripts/load_test.py`:
+
+| Calls at once | CPU (cores) | Memory | Server answers in (p95) |
+|---|---|---|---|
+| 1 | 0.3 | 342 MB | 31 ms |
+| 10 | 0.8 | 351 MB | 47 ms |
+| 20 | 1.3 | 368 MB | 176 ms |
+| 40 | 1.2 | 400 MB | 500 ms: calls fall behind and end |
+
+So plan for about 20 calls at once per OpenRing process on a machine like that, more on a faster core. Real providers
+add network waits, not CPU here, but a voice or transcriber running on the same machine (Kokoro, Whisper) adds a lot:
+count it apart. Run `python scripts/load_test.py` on your own server before you rely on a number; it needs no keys and
+calls nobody.
+
 ## Status
 
 The image builds and answers `/health` in CI on every push. The Render and Railway files follow those platforms'

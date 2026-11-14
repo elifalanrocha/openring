@@ -11,6 +11,10 @@ All notable changes to OpenRing are listed here. The format follows
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- Calls share the voice activity and turn detectors' models instead of loading them again each: a new call no longer
+  stalls the others for about 300 ms, and 20 calls at once take 368 MB instead of 956 MB.
+- `scripts/load_test.py` measures how many calls at once a computer takes (about 20 per process on a 2018 laptop; the
+  numbers are in `docs/deploy.md`).
 - `openring mcp`: an MCP server, so an AI agent can place a call through OpenRing and read the transcript.
 - Callers that are AI agents ("I'm an AI assistant calling on behalf of…", in English, Portuguese and Spanish) are
   noticed, the call is marked `callerIsAI`, and the model is told to answer briefly and exactly (`aiCallerPlan`).

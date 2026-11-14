@@ -346,3 +346,18 @@ def test_the_speed_reaches_the_voice_service(monkeypatch):
            "voice": {"provider": "openai", "voiceId": "alloy", "speed": 1.25}}
     service = _build_tts(resolve_plan(doc, check_keys=False))
     assert service._settings.speed == 1.25
+
+
+def test_calls_share_the_voice_and_turn_detectors_models():
+    """Each call builds its own detectors; their ONNX sessions are loaded once, not once per call."""
+    from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+    from pipecat.audio.vad.silero import SileroVADAnalyzer
+
+    from openring.providers import share_call_models
+
+    share_call_models()
+    share_call_models()  # twice is harmless
+    first, second = SileroVADAnalyzer(), SileroVADAnalyzer()
+    assert first._model is not second._model  # each call keeps its own detector state
+    assert first._model.session is second._model.session
+    assert LocalSmartTurnAnalyzerV3()._session is LocalSmartTurnAnalyzerV3()._session

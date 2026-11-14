@@ -481,6 +481,10 @@ async def run_call(
     """Run a call until it ends. `transfer(number)` moves a phone call to another line (transferCall tool)."""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
     from pipecat.audio.vad.vad_analyzer import VADParams
+
+    from .providers import share_call_models
+
+    share_call_models()
     from pipecat.frames.frames import (
         BotStartedSpeakingFrame,
         BotStoppedSpeakingFrame,
