@@ -114,6 +114,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        await netguard.warm_up()  # built here, in a thread, so no live call's request stalls the event loop for it
         routes.load_speed(store)  # how fast each model answered on earlier calls, for "fastest" routes
         await _starter()
         dialer.resume()
@@ -521,7 +522,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         """The models pulled into the local Ollama, or `running: false` when it isn't up."""
         base = (providers.LLM_PROVIDERS["ollama"][0] or "").rstrip("/").removesuffix("/v1")
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with netguard.http_client(timeout=timeout) as client:
                 res = await client.get(base + "/api/tags")
                 res.raise_for_status()
                 found = res.json().get("models") or []

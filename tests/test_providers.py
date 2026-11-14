@@ -75,6 +75,7 @@ TTS_CLASSES = {
 def test_every_transcriber_builds_its_service(keys, name):
     stt, _, _ = build_services(resolve_plan(assistant(transcriber={"provider": name, "language": "pt-BR"})))
     assert type(stt).__name__ == STT_CLASSES[name]
+    assert "keep_words" in stt.push_frame.__qualname__  # no interruption drops what the caller said (turns.py)
 
 
 @pytest.mark.parametrize("name", sorted(TTS_CLASSES))

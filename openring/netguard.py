@@ -12,10 +12,38 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import socket
+import ssl
+import threading
 from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+
+_TLS: ssl.SSLContext | None = None
+_TLS_LOCK = threading.Lock()
+
+
+def tls() -> ssl.SSLContext:
+    """The TLS context of every request OpenRing makes. Building one reads the whole CA bundle: about 0.2 s on a
+    laptop, during which the event loop, and every live call on it, stands still (a real call lost words to it: each
+    server message built a new client). So it is built once, at startup (`warm_up`), and shared."""
+    global _TLS
+    if _TLS is None:
+        with _TLS_LOCK:
+            if _TLS is None:
+                _TLS = httpx.create_ssl_context()
+    return _TLS
+
+
+async def warm_up() -> None:
+    """Build the TLS context away from the event loop, before the first call needs it."""
+    await asyncio.to_thread(tls)
+
+
+def http_client(**options: Any) -> httpx.AsyncClient:
+    """An httpx client for OpenRing's own requests (a provider's API), sharing the TLS context."""
+    options.setdefault("verify", tls())
+    return httpx.AsyncClient(**options)
 
 BLOCKED = [ipaddress.ip_network(n) for n in (
     "169.254.0.0/16",      # link-local IPv4: AWS, GCP, Azure, DigitalOcean, Oracle metadata (169.254.169.254)
@@ -79,7 +107,7 @@ class GuardedTransport(httpx.AsyncBaseTransport):
     """An httpx transport that checks every request's host first, redirects included."""
 
     def __init__(self, inner: httpx.AsyncBaseTransport | None = None):
-        self._inner = inner or httpx.AsyncHTTPTransport()
+        self._inner = inner or httpx.AsyncHTTPTransport(verify=tls())
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         try:
@@ -94,6 +122,7 @@ class GuardedTransport(httpx.AsyncBaseTransport):
 
 def client(**options: Any) -> httpx.AsyncClient:
     """An httpx client for URLs that come from outside: it never calls a blocked address."""
+    options.setdefault("verify", tls())  # used by the proxies an environment sets, if any
     return httpx.AsyncClient(transport=GuardedTransport(), **options)
 
 

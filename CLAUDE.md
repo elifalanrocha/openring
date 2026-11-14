@@ -32,6 +32,15 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   records usage in Vapi's `costBreakdown` fields (`llmPromptTokens`, `llmCompletionTokens`, `ttsCharacters`,
   plus `transcriberAudioSeconds`) and `performanceMetrics.firstWordLatency`, sends Vapi-style
   `end-of-call-report` to `server.url`. Services are built in a worker thread.
+- `openring/turns.py`: when the caller's turn ends. `FreshTranscriptStopStrategy` (over Pipecat's smart-turn strategy)
+  ends a turn only with the transcript of the caller's latest speech; a transcript finished within `LATE_SECONDS` of new
+  speech counts with the words before; speech that brings no words ends the turn with the earlier ones after
+  `GRACE_SECONDS`. `keep_words` (on every transcriber, from `providers._labeled`) makes transcripts uninterruptible:
+  Pipecat empties a processor's queue on interruption, and a turn start dropped a final queued behind its interim.
+- HTTP: every client comes from `netguard.client()` (URLs from outside) or `netguard.http_client()` (provider APIs),
+  sharing `netguard.tls()`: building a TLS context stalls the event loop ~0.2 s (it froze live calls once per server
+  message). A test refuses a bare `httpx.AsyncClient(`.
+- `scripts/smoke_call.py`: a real call with real providers over a simulated Twilio line (Kokoro caller); 11 checks.
 - `openring/providers.py` maps the Vapi assistant JSON to a stack using Vapi's provider names (`ALIASES`
   for other spellings). LLM: OpenAI-compatible APIs (`LLM_PROVIDERS`: openai, anthropic, google, groq,
   openrouter, deepseek, xai, cerebras, together-ai, deepinfra, perplexity-ai, mistral, fireworks, ollama,

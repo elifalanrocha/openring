@@ -22,7 +22,7 @@ from typing import Any, TextIO
 
 import httpx
 
-from . import __version__
+from . import __version__, netguard
 
 PROTOCOL = "2025-06-18"
 TOOLS: list[dict[str, Any]] = [
@@ -49,7 +49,7 @@ TOOLS: list[dict[str, Any]] = [
 
 class Api:
     def __init__(self, url: str, key: str, client: httpx.Client | None = None):
-        self.client = client or httpx.Client(base_url=url.rstrip("/"), timeout=30,
+        self.client = client or httpx.Client(base_url=url.rstrip("/"), timeout=30, verify=netguard.tls(),
                                              headers={"Authorization": f"Bearer {key}"})
 
     def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:

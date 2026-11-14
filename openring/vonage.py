@@ -19,6 +19,8 @@ from typing import Any
 
 import httpx
 
+from . import netguard
+
 API = "https://api.nexmo.com/v1/calls"
 # 16-bit linear PCM at 16 kHz, in packets of 20 ms: what Pipecat's serializer sends and reads.
 AUDIO = "audio/l16;rate=16000"
@@ -129,7 +131,7 @@ def _error(response: httpx.Response) -> VonageError:
 async def create_call(application_id: str, private_key: str, *, to: str, from_: str, ws_url: str,
                       event_url: str) -> str:
     """Start an outgoing call, which connects to `ws_url` once answered. Returns the call's uuid."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(API, headers={"Authorization": f"Bearer {make_jwt(application_id, private_key)}"}, json={
             "to": [{"type": "phone", "number": digits(to)}], "from": {"type": "phone", "number": digits(from_)},
             "ncco": connect_ncco(ws_url), "event_url": [event_url], "event_method": "POST"})
@@ -139,7 +141,7 @@ async def create_call(application_id: str, private_key: str, *, to: str, from_: 
 
 
 async def _modify(application_id: str, private_key: str, call_uuid: str, body: dict[str, Any]) -> None:
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.put(f"{API}/{call_uuid}",
                              headers={"Authorization": f"Bearer {make_jwt(application_id, private_key)}"}, json=body)
     if r.status_code >= 400:

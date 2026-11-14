@@ -224,7 +224,7 @@ def test_twilio_is_asked_to_detect_machines_only_when_given_the_parameters(monke
         return httpx.Response(201, json={"sid": "CA1"})
 
     real = httpx.AsyncClient
-    monkeypatch.setattr(twilio.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handle), **kw))
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handle), **kw))
     base = {"to": "+15550000001", "from_": "+15550000002", "url": "https://x.test/v", "status_callback": "https://x.test/s"}
     asyncio.run(twilio.create_call("AC1", "tok", **base))
     detection = twilio.machine_detection({"voicemailDetection": {"beepMaxAwaitSeconds": 25}})

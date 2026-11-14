@@ -92,3 +92,23 @@ def test_call_limits_end_a_long_call_and_a_silent_caller():
     assert limits.due(570) == "silence-timed-out"
     assert limits.due(600) == "exceeded-max-duration"  # the length is a ceiling, whoever is talking
     assert CallLimits(max_duration=0, silence_timeout=0, now=0).due(10**6) is None  # 0 turns a limit off
+
+
+def test_a_turn_with_only_its_whole_time_counts_only_in_that_average():
+    """Pipecat can't always split a turn into stages; the turn's own time still counts, the stages' averages don't
+    drop toward zero."""
+    full = turn_latency(_breakdown(1.0, llm_inference=0.4))
+    metrics = performance_metrics([full, {"turnLatency": 3000}])
+    assert metrics["turnLatencyAverage"] == 2000
+    assert metrics["modelLatencyAverage"] == full["modelLatency"]
+    assert performance_metrics([{"turnLatency": 800}]) == {"turnLatencies": [{"turnLatency": 800}],
+                                                           "turnLatencyAverage": 800}
+
+
+def test_a_voice_with_no_audio_says_the_likely_cause():
+    from openring.bot import short_error
+
+    error = "3 consecutive TTS contexts completed with no audio (tts_service.py:2313)"
+    assert "premade voice" in short_error(error, "elevenlabs")
+    assert short_error(error, "cartesia") == "3 consecutive TTS contexts completed with no audio"
+    assert short_error("invalid api key", "elevenlabs") == "invalid api key"

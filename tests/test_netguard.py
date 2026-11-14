@@ -1,7 +1,10 @@
 """User-supplied URLs never reach cloud metadata or link-local addresses (SSRF), and stay out of logs."""
 
 import asyncio
+import pathlib
+import re
 import socket
+import ssl
 
 import httpx
 import pytest
@@ -144,3 +147,31 @@ def test_logs_get_the_scheme_and_host_only():
         "https://hooks.zapier.com/…"
     assert safe_url_for_logs("http://localhost:8080") == "http://localhost:8080"
     assert safe_url_for_logs("not a url") == "(invalid URL)"
+
+
+def test_every_request_shares_one_tls_context(monkeypatch):
+    """Building a TLS context reads the whole CA bundle: about 0.2 s of stalled event loop on a laptop. A real call
+    lost the caller's words to those stalls when each server message built its own client."""
+    netguard.tls()
+    built = []
+    real = ssl.SSLContext.load_verify_locations
+    monkeypatch.setattr(ssl.SSLContext, "load_verify_locations",
+                        lambda self, *a, **k: built.append(1) or real(self, *a, **k))
+
+    async def scenario():
+        for make in (netguard.client, netguard.http_client):
+            async with make(timeout=5):
+                pass
+
+    asyncio.run(scenario())
+    assert built == [] and netguard.tls() is netguard.tls()
+
+
+def test_no_module_builds_a_client_with_its_own_tls_context():
+    """`httpx.AsyncClient(...)` alone builds a TLS context on the event loop: OpenRing's clients come from netguard."""
+    found = []
+    for path in pathlib.Path(netguard.__file__).parent.glob("*.py"):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.search(r"httpx\.(Async)?Client\(", line) and "verify=" not in line and path.name != "netguard.py":
+                found.append(f"{path.name}:{number}")
+    assert found == []

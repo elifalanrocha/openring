@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 from xml.sax.saxutils import escape, quoteattr
 
-import httpx
+from . import netguard
 
 # What Twilio's answering machine detection says (`AnsweredBy`) when no person picked up.
 MACHINE = ("machine_start", "machine_end_beep", "machine_end_silence", "machine_end_other", "fax")
@@ -38,7 +38,7 @@ async def create_call(
     machine_detection: dict[str, str] | None = None,
 ) -> str:
     """Start an outbound call. Twilio fetches `url` for instructions once it is answered. Returns the CallSid."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(
             f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Calls.json",
             auth=(account_sid, auth_token),
@@ -53,7 +53,7 @@ async def create_call(
 
 async def redirect_call(account_sid: str, auth_token: str, call_sid: str, twiml: str) -> None:
     """Give a live call new instructions; its media stream ends and Twilio follows `twiml`."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(
             f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Calls/{call_sid}.json",
             auth=(account_sid, auth_token),

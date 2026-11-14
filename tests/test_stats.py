@@ -60,3 +60,11 @@ def test_summarize_usage_first_word_and_transfers():
     assert s["latencyP95Ms"] == 1900  # 20 turns from 1000 to 1950 ms: the 19th
     empty = summarize([], days=7, now=NOW)
     assert empty["usage"]["tokensPerCall"] is None and empty["latencyP95Ms"] is None
+
+
+def test_stage_averages_leave_out_turns_without_stages():
+    from openring import stats
+
+    turns = [{"turnLatency": 1000, "modelLatency": 400}, {"turnLatency": 2000}]
+    assert stats._part_average(turns, "modelLatency") == 400
+    assert stats._part_average([{"turnLatency": 900}], "modelLatency") is None

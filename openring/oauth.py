@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 
+from . import netguard
 from .store import Store
 
 
@@ -195,7 +196,7 @@ class OAuthManager:
         if client_secret:
             data["client_secret"] = client_secret
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with netguard.http_client(timeout=30.0) as client:
             try:
                 response = await client.post(token_url, data=data, headers=headers)
             except httpx.TimeoutException as exc:
@@ -248,7 +249,7 @@ class OAuthManager:
         if client_secret:
             data["client_secret"] = client_secret
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with netguard.http_client(timeout=30.0) as client:
             try:
                 response = await client.post(token_url, data=data, headers=headers)
             except httpx.TimeoutException as exc:

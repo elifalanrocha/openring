@@ -53,6 +53,12 @@ def _usage(window: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _part_average(turns: list[dict[str, Any]], part: str) -> int | None:
+    """The average of one stage over the turns that measured it (a turn can have only its whole time)."""
+    measured = [t[part] for t in turns if isinstance(t.get(part), (int, float))]
+    return round(sum(measured) / len(measured)) if measured else None
+
+
 def _cost(window: list[dict[str, Any]]) -> dict[str, Any]:
     """What the providers charged, at list prices, over the calls priced so far (calls record it since 0.1.3)."""
     priced = [c for c in window if isinstance(c.get("cost"), (int, float))]
@@ -131,8 +137,7 @@ def summarize(calls: list[dict[str, Any]], days: int | None = None, now: datetim
         "usage": _usage(window),
         "cost": _cost(window),
         "latencyAverageMs": round(sum(t["turnLatency"] for t in turns) / len(turns)) if turns else None,
-        "latencyParts": {p: round(sum(t.get(p, 0) for t in turns) / len(turns)) if turns else None
-                         for p in LATENCY_PARTS},
+        "latencyParts": {p: _part_average(turns, p) for p in LATENCY_PARTS},
         "platformFeeSaved": round(minutes * PLATFORM_FEE_PER_MINUTE, 2),
         "byType": dict(Counter(str(c.get("type") or "unknown") for c in window)),
         "endedReasons": dict(Counter(str(c.get("endedReason")) for c in ended).most_common(8)),
@@ -166,7 +171,7 @@ def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
     minutes = sum(float(c["durationSeconds"]) for c in done) / 60
     turns = [t for c in done for t in ((c.get("artifact") or {}).get("performanceMetrics") or {}).get("turns") or []
              if isinstance(t, dict)]
-    latency = {p: round(sum(t.get(p, 0) for t in turns) / len(turns)) if turns else None for p in LATENCY_PARTS}
+    latency = {p: _part_average(turns, p) for p in LATENCY_PARTS}
     latency["turnLatency"] = round(sum(t.get("turnLatency", 0) for t in turns) / len(turns)) if turns else None
     if done and minutes > 0:
         cost = {k: round(sum(float(c["costBreakdown"].get(k) or 0) for c in done) / minutes, 5)

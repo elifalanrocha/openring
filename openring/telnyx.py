@@ -68,9 +68,9 @@ def _error(r) -> TelnyxError:
 async def create_call(api_key: str, application_id: str, *, to: str, from_: str, url: str, status_callback: str) -> str:
     """Start an outgoing call through a TeXML application. Telnyx fetches `url` (by POST, signed like an incoming
     call's webhook) for instructions once it is answered. Returns Telnyx's id for the call, when it says one."""
-    import httpx
+    from . import netguard
 
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(f"https://api.telnyx.com/v2/texml/calls/{application_id}",
                               headers={"Authorization": f"Bearer {api_key}"},
                               data={"To": to, "From": from_, "Url": url, "UrlMethod": "POST",
@@ -93,11 +93,11 @@ def dial_texml(number: str) -> str:
 async def update_call(api_key: str, account_id: str, call_sid: str, texml: str) -> None:
     """Give a live call new instructions: the TeXML replaces what it was following (its media stream ends).
     `account_id` is the Telnyx account's id, the `AccountSid` Telnyx sends with each webhook."""
-    import httpx
+    from . import netguard
 
     if not (_ID.fullmatch(account_id) and _ID.fullmatch(call_sid)):
         raise TelnyxError("this call's Telnyx ids look wrong, so it was not transferred")
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(f"https://api.telnyx.com/v2/texml/Accounts/{account_id}/Calls/{call_sid}",
                               headers={"Authorization": f"Bearer {api_key}"}, data={"Texml": texml})
     if r.status_code >= 400:

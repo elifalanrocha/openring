@@ -63,6 +63,25 @@ All notable changes to OpenRing are listed here. The format follows
   4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is
   charged, and a deleted call is forgotten. Off by default, because a caller ID can be faked. A "Remember callers" box
   in the assistant editor; the call records which calls it was given in `rememberedCallIds`.
+- `scripts/smoke_call.py`: a real call on your own computer, with your provider keys (Deepgram, Groq and Kokoro by
+  default, another voice with `--voice`), over a simulated phone line and a synthesized caller. It checks eleven things,
+  from the caller's words reaching the model to the end-of-call report, costs a few cents and calls nobody.
+
+### Fixed
+
+- Callers lost words: a sentence said after a short pause could be left out of the model's answer, or vanish, seen on
+  real calls (Deepgram, Groq, ElevenLabs and Kokoro, with `scripts/smoke_call.py`). Three causes:
+  - every message to the assistant's server built a new HTTPS client, which reads the whole CA bundle: each one froze
+    every live call for about 0.2 s. One TLS context, built at startup, now serves all of OpenRing's requests (server
+    messages, tools, provider APIs). Turns end sooner too: 0.21 s from silence to end of turn, down from about 0.55 s;
+  - the turn ended with the earlier sentence's transcript when its last words came just after the next sentence began:
+    a transcript the transcriber finishes within 0.3 s of the caller speaking again now counts with what came before;
+  - a turn that starts interrupts, and Pipecat dropped a transcript still waiting in its queue: transcripts are now
+    never dropped by an interruption.
+- A turn after the caller interrupted the assistant had no latency recorded (Pipecat 1.15 times it from the connection);
+  each turn's time now comes from its own measure, and latency averages count only the turns where a stage was measured.
+- When an ElevenLabs voice gives no audio, the call's `endedReason` says the most common cause: a free account can't use
+  library voices through the API.
 
 ## [0.1.7] - 2026-11-11
 

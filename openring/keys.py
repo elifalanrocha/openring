@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 
+from . import netguard
 from .providers import LLM_PROVIDERS, LOCAL_LLMS, PROVIDER_NAMES, STT_PROVIDERS, TTS_PROVIDERS
 
 # Where people get a key for each provider (as the dashboard lists them).
@@ -193,7 +194,7 @@ async def check(provider: str, values: dict[str, str], client: httpx.AsyncClient
     url, options = _check_request(provider, values)
     try:
         if client is None:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as own:
+            async with netguard.http_client(timeout=TIMEOUT) as own:
                 res = await own.get(url, **options)
         else:
             res = await client.get(url, **options)
@@ -295,7 +296,7 @@ async def balance(
         return None
     try:
         if client is None:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as own:
+            async with netguard.http_client(timeout=TIMEOUT) as own:
                 return await _read_balance(provider, values, own)
         return await _read_balance(provider, values, client)
     except (httpx.HTTPError, ValueError, KeyError, TypeError):  # unreachable, or an answer we can't read
@@ -307,7 +308,7 @@ async def exchange_openrouter_code(code: str, verifier: str, client: httpx.Async
     body = {"code": code, "code_verifier": verifier, "code_challenge_method": "S256"}
     try:
         if client is None:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as own:
+            async with netguard.http_client(timeout=TIMEOUT) as own:
                 res = await own.post(OPENROUTER_EXCHANGE_URL, json=body)
         else:
             res = await client.post(OPENROUTER_EXCHANGE_URL, json=body)

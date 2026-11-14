@@ -59,9 +59,10 @@ def performance_metrics(turns: list[dict[str, int]], first_word_ms: int | None =
     metrics: dict[str, Any] = {"turnLatencies": turns}
     if first_word_ms is not None:
         metrics["firstWordLatency"] = first_word_ms
-    if turns:
-        for name in LATENCY_FIELDS:
-            metrics[name + "Average"] = round(sum(t[name] for t in turns) / len(turns))
+    for name in LATENCY_FIELDS:  # a turn whose stages weren't measured counts only in the whole turn's average
+        measured = [t[name] for t in turns if name in t]
+        if measured:
+            metrics[name + "Average"] = round(sum(measured) / len(measured))
     return metrics
 
 
@@ -206,9 +207,17 @@ def what_failed(processor: Any) -> str:
     return f"the {labeled[0].openring_price[0]} ({', '.join(s.openring_label for s in labeled)})"
 
 
-def short_error(error: Any) -> str:
+# What a voice that gives no audio most often means, by provider, when the provider doesn't say.
+NO_AUDIO_HINTS = {
+    "elevenlabs": "a free ElevenLabs account can't use library voices through the API: pick a premade voice or upgrade",
+}
+
+
+def short_error(error: Any, provider: str | None = None) -> str:
     """A provider's error without the source location Pipecat adds to it ('... (client.py:474): ...')."""
-    return re.sub(r" \([^()]*\.py:\d+\)", "", str(error))[:200]
+    text = re.sub(r" \([^()]*\.py:\d+\)", "", str(error))[:200]
+    hint = NO_AUDIO_HINTS.get(provider or "") if "with no audio" in text else None
+    return f"{text} (maybe {hint})" if hint else text
 
 
 def transcript_messages(messages: list[Any]) -> list[dict[str, Any]]:
@@ -743,13 +752,18 @@ async def run_call(
         context = LLMContext(messages=list(plan.messages), **({"tools": tools} if tools else {}))
         vad = {k: v for k, v in (("start_secs", plan.vad_start_secs), ("stop_secs", plan.vad_stop_secs))
                if v is not None}
-        turn_options: dict[str, Any] = {}
+        from pipecat.turns.user_turn_strategies import UserTurnStrategies
+
+        from .turns import stop_strategies
+
+        start = None
         if plan.interrupt_words:  # the caller needs that many words to interrupt the assistant
             from pipecat.turns.user_start.min_words_user_turn_start_strategy import MinWordsUserTurnStartStrategy
-            from pipecat.turns.user_turn_strategies import UserTurnStrategies
 
-            turn_options["user_turn_strategies"] = UserTurnStrategies(
-                start=[MinWordsUserTurnStartStrategy(min_words=plan.interrupt_words)])
+            start = [MinWordsUserTurnStartStrategy(min_words=plan.interrupt_words)]
+        # The turn ends with the transcript of the caller's last words in hand (turns.py).
+        turn_options: dict[str, Any] = {"user_turn_strategies": UserTurnStrategies(start=start,
+                                                                                   stop=stop_strategies())}
         # A speech-to-speech model detects turns itself; a local detector too would announce each turn twice.
         detector = None if plan.realtime else SileroVADAnalyzer(params=VADParams(**vad)) if vad else SileroVADAnalyzer()
         aggregators = LLMContextAggregatorPair(
@@ -815,9 +829,10 @@ async def run_call(
                     if said and not ai_said:
                         ai_said.append(said)
                         logger.info("call {}: the caller is an AI agent ({!r})", call_id, said)
-                        if plan.ai_caller_hint:  # before the model answers this turn
-                            await task.queue_frames([LLMMessagesAppendFrame(
-                                [{"role": "system", "content": AI_CALLER_HINT}], run_llm=False)])
+                        if plan.ai_caller_hint:
+                            # Straight into the context, for the model's next answer. A frame queued now would reach
+                            # the user aggregator mid-turn and drop the rest of what the caller is saying.
+                            context.add_message({"role": "system", "content": AI_CALLER_HINT})
                 elif isinstance(data.frame, (LLMFullResponseStartFrame, LLMFullResponseEndFrame)):
                     if limits:
                         limits.model(isinstance(data.frame, LLMFullResponseStartFrame), time.monotonic())
@@ -839,11 +854,19 @@ async def run_call(
                         if isinstance(item, TTFATMetricsData) and model:
                             routes.record_speed(*model, item.ttfat * 1000)
 
+        # A turn's time, from the caller falling silent to the assistant's first sound, comes from
+        # on_latency_measured. Pipecat 1.15 can label the breakdown that follows as timed from the connection when a
+        # transcript reopens the turn after the silence (its interruption clears the turn's start, not the silence),
+        # so a breakdown only adds the stages, and only when it is timed from the caller's silence.
+        @latency.event_handler("on_latency_measured")
+        async def _on_turn(_observer, seconds):
+            turns.append({"turnLatency": round(seconds * 1000)})
+            logger.info("call {} turn latency {} ms", call_id, turns[-1]["turnLatency"])
+
         @latency.event_handler("on_latency_breakdown")
         async def _on_latency(_observer, breakdown):
-            if breakdown.measured_from == MeasuredFrom.USER_SILENCE:  # the greeting is not a turn
-                turns.append(turn_latency(breakdown))
-                logger.info("call {} turn latency {} ms", call_id, turns[-1]["turnLatency"])
+            if breakdown.measured_from == MeasuredFrom.USER_SILENCE and turns and set(turns[-1]) == {"turnLatency"}:
+                turns[-1] = {**turn_latency(breakdown), "turnLatency": turns[-1]["turnLatency"]}
 
         rates = {"audio_in_sample_rate": sample_rate, "audio_out_sample_rate": sample_rate} if sample_rate else {}
         task = PipelineTask(
@@ -862,7 +885,10 @@ async def run_call(
             nonlocal ended_reason
             failed = getattr(frame, "processor", None)
             if failed is not None and not failed.is_usable and not ended_reason.startswith("pipeline-error"):
-                ended_reason = f"pipeline-error: {what_failed(failed)} stopped working: {short_error(frame.error)}"
+                price = getattr(failed, "openring_price", None) or ()
+                provider = price[1] if len(price) > 1 and price[0] == "voice" else None
+                ended_reason = (f"pipeline-error: {what_failed(failed)} stopped working: "
+                                f"{short_error(frame.error, provider)}")
                 logger.warning("call {} ends: {}", call_id, ended_reason)
 
         @task.event_handler("on_idle_timeout")

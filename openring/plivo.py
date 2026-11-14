@@ -14,6 +14,8 @@ from xml.sax.saxutils import escape
 
 import httpx
 
+from . import netguard
+
 API = "https://api.plivo.com/v1/Account"
 # G.711 mu-law at 8 kHz: what the phone network carries, and what Pipecat's serializer sends and reads.
 CONTENT_TYPE = "audio/x-mulaw;rate=8000"
@@ -94,7 +96,7 @@ def _error(response: httpx.Response) -> PlivoError:
 async def create_call(auth_id: str, auth_token: str, *, to: str, from_: str, answer_url: str, hangup_url: str) -> str:
     """Start an outgoing call. Plivo fetches `answer_url` for instructions once it is answered, and posts to
     `hangup_url` when it ends. Returns the request's id."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(f"{API}/{auth_id}/Call/", auth=(auth_id, auth_token), json={
             "from": from_, "to": to, "answer_url": answer_url, "answer_method": "POST",
             "hangup_url": hangup_url, "hangup_method": "POST"})
@@ -105,7 +107,7 @@ async def create_call(auth_id: str, auth_token: str, *, to: str, from_: str, ans
 
 async def transfer_call(auth_id: str, auth_token: str, call_uuid: str, answer_url: str) -> None:
     """Give a live call new instructions: its stream ends and Plivo follows the XML at `answer_url`."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with netguard.http_client(timeout=15) as client:
         r = await client.post(f"{API}/{auth_id}/Call/{call_uuid}/", auth=(auth_id, auth_token), json={
             "legs": "aleg", "aleg_url": answer_url, "aleg_method": "POST"})
     if r.status_code >= 400:

@@ -962,6 +962,9 @@ def _labeled(service: Any, layer: str, plan: StackPlan) -> Any:
         service.openring_model = (plan.llm_provider, plan.llm_model)
     elif layer == "transcriber":
         service.openring_member = plan.stt_ident
+        from .turns import keep_words
+
+        keep_words(service)  # no interruption drops what the caller said (turns.py)
     else:
         service.openring_member = plan.tts_ident
     return service

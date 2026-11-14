@@ -18,9 +18,13 @@ cd openring
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev,kokoro,whisper]"
-pytest                             # about 20 s; includes a simulated Twilio call and a local WebRTC call
+pytest                             # a few minutes; includes a simulated Twilio call and a local WebRTC call
 python -m openring                 # dashboard at http://localhost:8000
 ```
+
+A change to how calls run (turn-taking, the pipeline, a provider) also gets a real call:
+`python scripts/smoke_call.py` places one through your own keys (Deepgram and Groq; `--voice provider:voiceId` for a
+voice other than Kokoro), over a simulated phone line. It calls nobody and costs a few cents.
 
 The first start downloads the free Kokoro voice (about 120 MB). Provider keys go in `~/.openring/.env`
 or are added from the dashboard's Providers page; see [.env.example](.env.example).

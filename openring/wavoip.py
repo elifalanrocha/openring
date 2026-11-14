@@ -29,6 +29,8 @@ from urllib.parse import quote, urlsplit
 import httpx
 from loguru import logger
 
+from . import netguard
+
 DEVICES_URL = "https://devices.wavoip.com"
 SAMPLE_RATE = 16000
 FRAME_BYTES = 640  # 20 ms of 16-bit audio at 16 kHz
@@ -579,7 +581,7 @@ class Hub:
     async def wake(self, token: str) -> None:
         """A device left alone goes to sleep; asking about it wakes it up."""
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with netguard.http_client(timeout=10) as client:
                 await client.get(f"{self.url}/{quote(token, safe='')}/whatsapp/all_info")
         except httpx.HTTPError:
             pass
