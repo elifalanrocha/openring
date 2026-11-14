@@ -41,6 +41,21 @@ system prompt, and returns them in the assistant's shape. Nothing is saved. In t
 **Describe it** box that fills the form. The model is told never to invent prices, hours or policies the description
 doesn't give.
 
+### When the assistant talks, and keys the caller presses
+
+Vapi's fields, beta, checked on simulated calls only:
+
+- `startSpeakingPlan.waitSeconds` (0 to 5): the silence after the caller stops before the assistant answers. It sets the
+  voice activity detector's stop time, an approximation of Vapi's setting.
+- `stopSpeakingPlan.voiceSeconds` (0 to 0.5): how long the caller must speak to count as speaking (0.2 by default on both).
+- `stopSpeakingPlan.numWords` (0 to 10): words the caller must say to interrupt the assistant; 0 lets any speech do it.
+- `keypadInputPlan`: with `{"enabled": true}`, keys the caller presses go to the model as what they typed, after a
+  delimiter (`delimiters`, `#` by default) or `timeoutSeconds` (2) without a key.
+
+Not used yet, and named in the call's warnings when set: `backoffSeconds`, `transcriptionEndpointingPlan`,
+`smartEndpointingPlan` (the turn detector OpenRing always runs is Pipecat's smart turn model) and
+`customEndpointingRules`.
+
 ### How fast the voice speaks
 
 `voice.speed`, as on Vapi: 1 is normal, 1.2 a little faster. ElevenLabs takes 0.7 to 1.2, Deepgram 0.7 to 1.5, Kokoro

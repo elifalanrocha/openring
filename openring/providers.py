@@ -303,6 +303,14 @@ class StackPlan:
     warnings: list[str] = field(default_factory=list)
     # How fast the voice speaks (Vapi's `voice.speed`, 1 is normal), kept within what its provider takes.
     tts_speed: float | None = None
+    # Vapi's startSpeakingPlan / stopSpeakingPlan as Pipecat takes them (None: Pipecat's defaults).
+    vad_start_secs: float | None = None  # stopSpeakingPlan.voiceSeconds: speech it takes to count as speech
+    vad_stop_secs: float | None = None  # startSpeakingPlan.waitSeconds: silence before the assistant answers
+    interrupt_words: int = 0  # stopSpeakingPlan.numWords: words it takes to interrupt the assistant
+    # Vapi's keypadInputPlan: keys pressed go to the model as text, after `keypad_timeout` or a delimiter.
+    keypad: bool = False
+    keypad_timeout: float = 2.0
+    keypad_delimiters: tuple[str, ...] = ("#",)
     # A model slower than this to start answering (ms) hands the turn to the next fallback model.
     max_latency_ms: int | None = None
     # The model route the models came from (`routes.expand`): {"id", "name", "cooldownMinutes"}.
@@ -363,6 +371,50 @@ MULTILINGUAL_VOICES = {"elevenlabs", "openai"}
 # Vapi's ranges for the call limits: (field, lowest, highest).
 LIMITS = (("maxDurationSeconds", 10, 43_200), ("silenceTimeoutSeconds", 5, 3_600))
 IDLE_LIMITS = (("idleTimeoutSeconds", 5, 60), ("idleMessageMaxSpokenCount", 1, 10))
+
+
+def speaking_plans(assistant: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
+    """Vapi's startSpeakingPlan, stopSpeakingPlan and keypadInputPlan as StackPlan fields. Values out of Vapi's ranges
+    are refused; what Pipecat can't do is named in `warnings`, never silently dropped."""
+    def part(name: str) -> dict[str, Any]:
+        found = assistant.get(name) or {}
+        if not isinstance(found, dict):
+            raise ProviderError(f"{name} must be an object")
+        return found
+
+    def number(where: dict[str, Any], name: str, low: float, high: float) -> float | None:
+        value = where.get(name)
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+            raise ProviderError(f"{name} goes from {low} to {high}")
+        return float(value)
+
+    start, stop, keypad = part("startSpeakingPlan"), part("stopSpeakingPlan"), part("keypadInputPlan")
+    out: dict[str, Any] = {"vad_stop_secs": number(start, "waitSeconds", 0, 5),
+                           "vad_start_secs": number(stop, "voiceSeconds", 0, 0.5)}
+    words = number(stop, "numWords", 0, 10)
+    out["interrupt_words"] = int(words or 0)
+    backoff = number(stop, "backoffSeconds", 0, 10)
+    ignored = [name for name, value in (("stopSpeakingPlan.backoffSeconds", backoff not in (None, 1)),
+                                        ("startSpeakingPlan.transcriptionEndpointingPlan",
+                                         start.get("transcriptionEndpointingPlan") is not None),
+                                        ("startSpeakingPlan.smartEndpointingPlan",
+                                         start.get("smartEndpointingPlan") is not None),
+                                        ("startSpeakingPlan.customEndpointingRules",
+                                         bool(start.get("customEndpointingRules")))) if value]
+    if ignored:
+        warnings.append(f"not used yet: {', '.join(ignored)}")
+    if keypad.get("enabled") is True:
+        delimiters = keypad.get("delimiters", ["#"])
+        if isinstance(delimiters, str):
+            delimiters = [delimiters]
+        if not isinstance(delimiters, list) or not all(d in ("#", "*", "") for d in delimiters):
+            raise ProviderError('keypadInputPlan.delimiters is a list of "#", "*" or ""')
+        timeout = number(keypad, "timeoutSeconds", 0, 10)
+        out.update(keypad=True, keypad_timeout=2.0 if timeout is None else timeout,
+                   keypad_delimiters=tuple(d for d in delimiters if d))
+    return out
 
 
 def call_limits(assistant: dict[str, Any]) -> dict[str, Any]:
@@ -580,6 +632,7 @@ def resolve_plan(assistant: dict[str, Any], *, check_keys: bool = True, with_fal
         stt_words=words,
         warnings=word_warnings,
         **call_limits(assistant),
+        **speaking_plans(assistant, word_warnings),
     )
     plan.tts_speed = voice_speed(plan.tts_provider, voice.get("speed"), plan.warnings)
     if multilingual and plan.tts_provider not in MULTILINGUAL_VOICES:

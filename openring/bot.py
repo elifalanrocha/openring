@@ -397,6 +397,50 @@ def web_transport(connection: Any) -> Any:
     )
 
 
+def keypad_input(plan: StackPlan) -> Any:
+    """Keys the caller presses, sent to the model as what they typed once a delimiter is pressed or
+    `plan.keypad_timeout` passes without a key (Vapi's keypadInputPlan)."""
+    from pipecat.frames.frames import InputDTMFFrame, LLMMessagesAppendFrame
+    from pipecat.processors.frame_processor import FrameProcessor
+
+    class Keypad(FrameProcessor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.keys: list[str] = []
+            self._timer: asyncio.Task | None = None
+
+        async def process_frame(self, frame: Any, direction: Any) -> None:
+            await super().process_frame(frame, direction)
+            await self.push_frame(frame, direction)
+            if not isinstance(frame, InputDTMFFrame):
+                return
+            key = str(getattr(frame.button, "value", frame.button))
+            if self._timer is not None:
+                await self.cancel_task(self._timer)
+                self._timer = None
+            if key in plan.keypad_delimiters:
+                await self._send()
+                return
+            self.keys.append(key)
+            if plan.keypad_timeout > 0:
+                self._timer = self.create_task(self._after_pause())
+            elif not plan.keypad_delimiters:
+                await self._send()
+
+        async def _after_pause(self) -> None:
+            await asyncio.sleep(plan.keypad_timeout)
+            self._timer = None
+            await self._send()
+
+        async def _send(self) -> None:
+            if not self.keys:
+                return
+            typed, self.keys = "".join(self.keys), []
+            await self.push_frame(LLMMessagesAppendFrame([{"role": "user", "content": typed}], run_llm=True))
+
+    return Keypad()
+
+
 async def run_call(
     transport: Any,
     *,
@@ -408,6 +452,7 @@ async def run_call(
 ) -> None:
     """Run a call until it ends. `transfer(number)` moves a phone call to another line (transferCall tool)."""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
+    from pipecat.audio.vad.vad_analyzer import VADParams
     from pipecat.frames.frames import (
         BotStartedSpeakingFrame,
         BotStoppedSpeakingFrame,
@@ -663,9 +708,18 @@ async def run_call(
             schemas.append(schema)
         tools = schemas[0]
         context = LLMContext(messages=list(plan.messages), **({"tools": tools} if tools else {}))
+        vad = {k: v for k, v in (("start_secs", plan.vad_start_secs), ("stop_secs", plan.vad_stop_secs))
+               if v is not None}
+        turn_options: dict[str, Any] = {}
+        if plan.interrupt_words:  # the caller needs that many words to interrupt the assistant
+            from pipecat.turns.user_start.min_words_user_turn_start_strategy import MinWordsUserTurnStartStrategy
+            from pipecat.turns.user_turn_strategies import UserTurnStrategies
+
+            turn_options["user_turn_strategies"] = UserTurnStrategies(
+                start=[MinWordsUserTurnStartStrategy(min_words=plan.interrupt_words)])
         aggregators = LLMContextAggregatorPair(
             context, user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(),
+                vad_analyzer=SileroVADAnalyzer(params=VADParams(**vad)) if vad else SileroVADAnalyzer(), **turn_options,
                 # Pipecat times the caller's silence after the assistant speaks (not during a tool call).
                 user_idle_timeout=plan.idle_timeout_seconds if plan.idle_messages else 0,
             )
@@ -687,6 +741,7 @@ async def run_call(
             [
                 transport.input(),
                 stt,
+                *([keypad_input(plan)] if plan.keypad else []),
                 aggregators.user(),
                 llm,
                 *([watch] if watch is not None else []),
