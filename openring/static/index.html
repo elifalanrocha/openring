@@ -6,61 +6,60 @@
 <meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f6f4f1" media="(prefers-color-scheme: light)">
 <title>OpenRing</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 48 48%27%3E%3Crect width=%2748%27 height=%2748%27 rx=%2711%27 fill=%27%23e8590c%27/%3E%3Cpath d=%27M17 20v8M24 13v22M31 20v8%27 stroke=%27white%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 256 256%22%3E%3Crect width=%22256%22 height=%22256%22 rx=%2240%22 fill=%22%230A0A0A%22/%3E%3Cg transform=%22translate%28128 128%29 scale%28.86%29 translate%28-128 -128%29%22%3E%3Cpath fill=%22%23FAFAFA%22 fill-rule=%22evenodd%22 d=%22M120 22A100 100 0 0 0 120 222Z M120 82A40 40 0 0 0 120 162Z%22/%3E%3Cpath fill=%22%23E8590C%22 fill-rule=%22evenodd%22 d=%22M136 34A100 100 0 0 1 136 234Z M136 94A40 40 0 0 1 136 174Z%22/%3E%3C/g%3E%3C/svg%3E">
 <script>
   // Apply the saved theme before the page paints, so it never flashes the other one.
   try { const t = localStorage.getItem("openring-theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
 </script>
 <style>
+@font-face { font-family: "Archivo"; src: url("/fonts/archivo.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; }
 :root {
-  /* Brand: ring orange marks the logo; ember (darker, readable with white text) is the UI accent. */
+  /* Real Valor family: black, white and greys; OpenRing's orange is its one signal (logo, action, selection). */
   --mark: #e8590c;
-  --bg: #f7f5f2; --panel: #ffffff; --panel-2: #faf8f5; --line: #e7e2da; --ink: #1c1917; --muted: #6b625a;
-  --rail: #ffffff; --rail-ink: #44403c; --rail-active: #fdf0e3;
-  --accent: #c2410c; --accent-ink: #ffffff; --accent-soft: #fdf0e3;
-  /* Signal teal is the second brand color: a live line and the voice. Orange is for action and selection. */
-  --signal: #0f766e; --signal-soft: #e0f2ef; --field-line: #8c857e;
+  --bg: #fafafa; --panel: #ffffff; --panel-2: #f4f4f4; --line: #e5e5e5; --ink: #0a0a0a; --muted: #5c5c5c;
+  --rail: #ffffff; --rail-ink: #3d3d3d; --rail-active: #f4f4f4;
+  --accent: #c2410c; --accent-ink: #ffffff; --accent-soft: #fdf0e8;
+  /* A live line: the same orange, so color means one thing. */
+  --signal: #c2410c; --signal-soft: #fdf0e8; --field-line: #8a8a8a;
   /* Chart series never equal a status color (ok, warn, bad) and stay apart under color blindness. */
-  --c1: var(--signal); --c2: #3730a3; --c3: #64748b; --c4: #c026d3; --c5: #0369a1; --c6: #78350f;
+  --c1: #0f766e; --c2: #3730a3; --c3: #64748b; --c4: #c026d3; --c5: #0369a1; --c6: #78350f;
   --ok: #166534; --ok-soft: #e3f4ea; --warn: #92400e; --warn-soft: #fbf0dc; --bad: #b42318; --bad-soft: #fde8e6;
-  --shadow: 0 1px 2px rgba(20,26,34,.05);
-  --radius: 12px; --radius-sm: 8px;
+  --shadow: none;
+  --radius: 6px; --radius-sm: 4px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f0d0b; --panel: #171412; --panel-2: #1e1a17; --line: #2e2823; --ink: #f5f1ec; --muted: #a39a91;
-    --rail: #121010; --rail-ink: #c4bbb2; --rail-active: #2a1d14;
-    --accent: #fb923c; --accent-ink: #1c1917; --accent-soft: rgba(251,146,60,.13);
-    --signal: #2dd4bf; --signal-soft: rgba(45,212,191,.13); --field-line: #7a6f66;
-    --c1: var(--signal); --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
+    --bg: #0a0a0a; --panel: #121212; --panel-2: #1c1c1c; --line: #262626; --ink: #fafafa; --muted: #a6a6a6;
+    --rail: #0a0a0a; --rail-ink: #c8c8c8; --rail-active: #1c1c1c;
+    --accent: #f2762e; --accent-ink: #0a0a0a; --accent-soft: rgba(242,118,46,.14);
+    --signal: #f2762e; --signal-soft: rgba(242,118,46,.14); --field-line: #5c5c5c;
+    --c1: #2dd4bf; --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
     --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
     --shadow: none;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0f0d0b; --panel: #171412; --panel-2: #1e1a17; --line: #2e2823; --ink: #f5f1ec; --muted: #a39a91;
-  --rail: #121010; --rail-ink: #c4bbb2; --rail-active: #2a1d14;
-  --accent: #fb923c; --accent-ink: #1c1917; --accent-soft: rgba(251,146,60,.13);
-  --signal: #2dd4bf; --signal-soft: rgba(45,212,191,.13); --field-line: #7a6f66;
-  --c1: var(--signal); --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
+  --bg: #0a0a0a; --panel: #121212; --panel-2: #1c1c1c; --line: #262626; --ink: #fafafa; --muted: #a6a6a6;
+  --rail: #0a0a0a; --rail-ink: #c8c8c8; --rail-active: #1c1c1c;
+  --accent: #f2762e; --accent-ink: #0a0a0a; --accent-soft: rgba(242,118,46,.14);
+  --signal: #f2762e; --signal-soft: rgba(242,118,46,.14); --field-line: #5c5c5c;
+  --c1: #2dd4bf; --c2: #6366f1; --c3: #cbd5e1; --c4: #e879f9; --c5: #38bdf8; --c6: #a3a3a3;
   --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
   --shadow: none;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.5 "IBM Plex Sans", system-ui, sans-serif; }
-h1, h2, h3 { font-family: "IBM Plex Sans", system-ui, sans-serif; margin: 0; letter-spacing: -0.01em; font-weight: 600; text-wrap: balance; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.5 Archivo, "Segoe UI", system-ui, sans-serif; }
+h1, h2, h3 { font-family: Archivo, "Segoe UI", system-ui, sans-serif; margin: 0; letter-spacing: -0.02em; font-weight: 700; text-wrap: balance; }
 a, button, input, select, textarea, label, summary { touch-action: manipulation; }
 .skip { position: absolute; left: 12px; top: -48px; z-index: 50; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
 .skip:focus { top: 12px; }
 dialog.ask p { margin: 8px 0 0; color: var(--muted); }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
-code { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; font-size: .92em; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+code { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: .92em; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1px 5px; overflow-wrap: anywhere; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 input, textarea { caret-color: var(--accent); }
@@ -90,8 +89,8 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
   .app.folded .rail .group { font-size: 0; padding: 0; height: 1px; margin: 8px 10px; background: var(--line); }
   .app.folded .rail .foot .btn { font-size: 0; gap: 0; padding: 8px 0; width: 100%; justify-content: center; }
 }
-.brand .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--mark); color: #ffffff; display: grid; place-items: center; }
-.brand strong { display: block; font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 18px; line-height: 1.1; }
+.brand .logo { width: 32px; height: 32px; color: var(--ink); display: grid; place-items: center; }
+.brand strong { display: block; font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 18px; line-height: 1.1; }
 .brand small { color: var(--muted); font-size: 12px; }
 .rail nav { display: flex; flex-direction: column; gap: 2px; }
 .rail .group { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 14px 10px 6px; }
@@ -102,7 +101,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .rail .foot { margin-top: auto; display: flex; gap: 8px; }
 .rail .foot button { flex: 1; }
 
-.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 16px 32px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 16px 32px; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
 .top .title { flex: 1; min-width: 0; }
 .top h1 { font-size: 21px; }
 .top p { margin: 0; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -131,13 +130,13 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .toolbar .spacer { flex: 1; }
 .muted { color: var(--muted); }
 .error { color: var(--bad); min-height: 1.2em; margin-top: 10px; }
-.hours-warning { background: var(--warn-soft); color: var(--ink); border-radius: 8px; padding: 9px 12px; font-size: 13px; margin: 4px 0 12px; }
+.hours-warning { background: var(--warn-soft); color: var(--ink); border-radius: var(--radius); padding: 9px 12px; font-size: 13px; margin: 4px 0 12px; }
 .empty { padding: 44px 24px; text-align: center; color: var(--muted); }
 .empty .btn { margin-top: 14px; }
 
 /* Tabs: a segmented strip, like a period picker */
-.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); flex-wrap: wrap; }
-.tabs button { border: 0; background: transparent; padding: 6px 13px; border-radius: 7px; color: var(--muted); cursor: pointer; font-weight: 600; font-size: 13px; }
+.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { border: 0; background: transparent; padding: 6px 13px; border-radius: var(--radius); color: var(--muted); cursor: pointer; font-weight: 600; font-size: 13px; }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
 .tabs .count { font-weight: 500; margin-left: 4px; }
@@ -159,7 +158,7 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .card .label svg.i { width: 16px; height: 16px; }
 /* Traffic light on a metric: a word and a color, so it never relies on color alone */
 .card .label .light { margin-left: auto; font-size: 11.5px; padding: 1px 8px; }
-.card .value { font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card .value { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .card .value small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 3px; }
 .card .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 .value.warn { color: var(--warn); } .value.bad { color: var(--bad); } .value.brand { color: var(--accent); }
@@ -183,7 +182,7 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .profile .body { display: grid; gap: 18px; }
 .profile .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 28px; }
 .profile .total small { display: block; color: var(--muted); font-size: 12.5px; }
-.profile .total strong { font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.profile .total strong { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .profile .total strong span { color: var(--muted); font-size: 13px; font-weight: 400; }
 .profile .total strong.pending { display: block; color: var(--muted); font-size: 15px; font-weight: 500; padding-top: 8px; }
 .profile .total .stack { margin: 8px 0 0; height: 8px; }
@@ -195,7 +194,7 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; background: var(--dot); }
 
 /* Where a turn's time goes: one stacked bar */
-.stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line); margin: 6px 0 16px; }
+.stack { display: flex; height: 14px; border-radius: var(--radius); overflow: hidden; background: var(--line); margin: 6px 0 16px; }
 .stack span { display: block; height: 100%; }
 .parts { display: grid; gap: 10px; }
 .parts .row2 { display: flex; justify-content: space-between; gap: 12px; }
@@ -214,7 +213,7 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .scroll { overflow-x: auto; }
 .minirow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .minirow:last-child { border-bottom: 0; }
-a.rowlink { color: inherit; text-decoration: none; border-radius: 6px; }
+a.rowlink { color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
 a.rowlink:hover { background: var(--panel-2); }
 .minirow .meter { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; max-width: 140px; }
 .minirow .meter span { display: block; height: 100%; background: var(--accent); }
@@ -250,7 +249,7 @@ a.rowlink:hover { background: var(--panel-2); }
 .tile.link { cursor: pointer; }
 .tile.link:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .tile .head { display: flex; align-items: center; gap: 12px; }
-.tile .head .avatar { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-family: "IBM Plex Sans", system-ui, sans-serif; flex: none; }
+.tile .head .avatar { width: 38px; height: 38px; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-family: Archivo, "Segoe UI", system-ui, sans-serif; flex: none; }
 .tile .head .avatar.icon-avatar { background: #fff; padding: 6px; }
 .tile .head .avatar.icon-avatar img { width: 20px; height: 20px; object-fit: contain; }
 .tile .head .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -295,7 +294,7 @@ dialog .muted a { color: var(--accent); }
 .input, .field input, .field textarea, .field select { width: 100%; padding: 9px 11px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel-2); }
 .field textarea { min-height: 130px; resize: vertical; }
 input[type="file"] { padding: 6px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel-2); font: inherit; width: min(420px, 100%); box-sizing: border-box; }
-input[type="file"]::file-selector-button { margin-right: 12px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
+input[type="file"]::file-selector-button { margin-right: 12px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font-weight: 500; cursor: pointer; }
 input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .row-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; align-items: center; }
 .row-actions .spacer { flex: 1; }
@@ -349,12 +348,12 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .stage label { display: block; font-size: 12px; color: var(--muted); margin-top: 7px; }
 .stage .stage-hint { margin: 8px 0 0; font-size: 12px; color: var(--warn); }
 .stage .stage-hint.plain { color: var(--muted); }
-.stage input, .stage select { width: 100%; padding: 6px 8px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--panel); }
+.stage input, .stage select { width: 100%; padding: 6px 8px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
 .cable { align-self: center; height: 2px; background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) 0 0 / 10px 2px repeat-x; }
 
 /* Transcript */
 .transcript { display: flex; flex-direction: column; gap: 8px; }
-.bubble { max-width: min(72%, 640px); padding: 9px 13px; border-radius: 14px; overflow-wrap: anywhere; }
+.bubble { max-width: min(72%, 640px); padding: 9px 13px; border-radius: var(--radius); overflow-wrap: anywhere; }
 .bubble.assistant { background: var(--accent-soft); align-self: flex-start; border-bottom-left-radius: 4px; }
 .bubble.user { background: var(--panel-2); border: 1px solid var(--line); align-self: flex-end; border-bottom-right-radius: 4px; }
 /* A tool the assistant used, between the lines of the conversation */
@@ -426,7 +425,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
   <a class="skip" href="#view" onclick="event.preventDefault(); view.focus()">Skip to content</a>
   <aside class="rail" id="rail">
     <div class="brand">
-      <span class="logo"><svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><circle cx="24" cy="24" r="14"/><path d="M18.5 21v6M24 16.5v15M29.5 21v6"/></svg></span>
+      <span class="logo"><svg class="mark" viewBox="20 20 216 216" width="32" height="32" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M124 24A100 100 0 0 0 124 224Z M124 76A48 48 0 0 0 124 172Z"/><path fill="var(--mark)" fill-rule="evenodd" d="M132 32A100 100 0 0 1 132 232Z M132 84A48 48 0 0 1 132 180Z"/></svg></span>
       <div><strong>OpenRing</strong><small id="version"></small></div>
       <button class="iconbtn fold" id="fold" aria-label="Show icons only" aria-expanded="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
     </div>
@@ -652,7 +651,7 @@ function copyButtons(root) {
 }
 
 // ---- Sign in ----------------------------------------------------------------------------
-const BRAND = `<div class="brand"><span class="logo"><svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><circle cx="24" cy="24" r="14"/><path d="M18.5 21v6M24 16.5v15M29.5 21v6"/></svg></span><div><strong>OpenRing</strong></div></div>`;
+const BRAND = `<div class="brand"><span class="logo"><svg class="mark" viewBox="20 20 216 216" width="32" height="32" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M124 24A100 100 0 0 0 124 224Z M124 76A48 48 0 0 0 124 172Z"/><path fill="var(--mark)" fill-rule="evenodd" d="M132 32A100 100 0 0 1 132 232Z M132 84A48 48 0 0 1 132 180Z"/></svg></span><div><strong>OpenRing</strong></div></div>`;
 
 async function showGate() {
   const state = await api("/auth/state").catch(() => ({ passwordSet: true }));

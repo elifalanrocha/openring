@@ -305,6 +305,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         # Revalidate every time, so an upgraded OpenRing never shows yesterday's dashboard.
         return FileResponse(Path(__file__).parent / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/fonts/archivo.woff2", include_in_schema=False)
+    def dashboard_font() -> FileResponse:
+        """The dashboard's typeface (Archivo, SIL OFL 1.1), served from here so the page calls no font service."""
+        return FileResponse(Path(__file__).parent / "static" / "fonts" / "archivo.woff2", media_type="font/woff2",
+                            headers={"Cache-Control": "public, max-age=604800"})
+
     @app.get("/icons/{name}.svg", include_in_schema=False)
     @app.get("/icons/{name}.ico", include_in_schema=False)
     @app.get("/icons/{name}.png", include_in_schema=False)

@@ -44,8 +44,9 @@ component, install `openring` without the `kokoro` extra and use a cloud voice s
 
 ## Fonts
 
-The dashboard loads [IBM Plex Sans and IBM Plex Mono](https://github.com/IBM/plex) (SIL Open Font
-License 1.1) from Google Fonts; the font files are not part of OpenRing.
+The dashboard uses [Archivo](https://github.com/Omnibus-Type/Archivo) (copyright The Archivo Project Authors, SIL
+Open Font License 1.1), shipped in `openring/static/fonts/` with its license (`archivo-OFL.txt`) and served by
+OpenRing itself, so the page calls no font service. The logo's name is Archivo converted to outlines.
 
 ## Python libraries
 

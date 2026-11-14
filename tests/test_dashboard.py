@@ -286,3 +286,18 @@ def test_keyboards_can_skip_the_menu_and_labels_point_at_their_controls():
     assert 'class="skip" href="#view"' in PAGE and '<main id="view" aria-live="polite" tabindex="-1">' in PAGE
     assert "function linkLabels(" in PAGE and "label.htmlFor = control.id" in PAGE
     assert 'window.addEventListener("beforeunload"' in PAGE  # an editor with changes asks before leaving
+
+
+def test_the_dashboard_calls_no_font_service_and_serves_its_own_typeface():
+    from fastapi.testclient import TestClient
+
+    from openring.api import create_app
+    from openring.config import Settings
+    from openring.store import Store
+
+    assert "googleapis" not in PAGE and "gstatic" not in PAGE
+    assert 'url("/fonts/archivo.woff2")' in PAGE
+    client = TestClient(create_app(Settings(api_key="k", public_url="", db_path=":memory:"), Store(":memory:")))
+    font = client.get("/fonts/archivo.woff2")
+    assert font.status_code == 200 and font.headers["content-type"] == "font/woff2" and font.content[:4] == b"wOF2"
+    assert (Path(__file__).resolve().parents[1] / "openring" / "static" / "fonts" / "archivo-OFL.txt").is_file()

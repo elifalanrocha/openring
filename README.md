@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/elifalanrocha/openring/main/docs/assets/logo.svg" width="88" height="88" alt="OpenRing logo">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/elifalanrocha/openring/main/docs/assets/brand/symbol-color-dark.svg">
+  <img src="https://raw.githubusercontent.com/elifalanrocha/openring/main/docs/assets/brand/symbol-color.svg" width="88" height="88" alt="OpenRing logo">
+</picture>
 
 # OpenRing
 
@@ -276,6 +279,6 @@ vulnerability? Please report it privately: see [SECURITY.md](SECURITY.md).
 
 ## 📄 License
 
-MIT. Not affiliated with Vapi, Retell, Dograh or Twilio. OpenRing builds on
+MIT. Made by [Real Valor](https://realvalorai.com.br). Not affiliated with Vapi, Retell, Dograh or Twilio. OpenRing builds on
 [Pipecat](https://github.com/pipecat-ai/pipecat) and other open-source projects, credited in
 [THIRD_PARTY.md](THIRD_PARTY.md).

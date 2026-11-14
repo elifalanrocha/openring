@@ -8,6 +8,10 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
+  (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
+  dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.
+- The dashboard serves its own typeface (Archivo, SIL OFL), so it no longer calls Google Fonts.
 - Vapi's live server messages, in Vapi's shape: `speech-update` (who started or stopped speaking, with the `turn`),
   `user-interrupted` (the caller talked over the assistant) and `hang` (the caller has waited 5 seconds for an answer),
   sent by default as on Vapi; and `transcript`, partial and final, for an assistant that lists it in `serverMessages`
