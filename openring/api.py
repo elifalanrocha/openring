@@ -37,6 +37,7 @@ from . import (
     routes,
     sip,
     squads,
+    starter,
     stats,
     telnyx,
     twilio,
@@ -111,6 +112,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         routes.load_speed(store)  # how fast each model answered on earlier calls, for "fastest" routes
+        await _starter()
         dialer.resume()
         for assistant in store.list("assistants", limit=10_000):  # their local models load in the background
             providers.prepare_local(assistant)
@@ -486,12 +488,24 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(status_code=400, detail=f"{keys.NAMES[provider]} is not connected")
         return {"balance": await keys.balance(provider, values)}
 
+    async def _starter() -> None:
+        """A new server gets an assistant to talk to, from what this computer has (see starter.py)."""
+        if store.get_setting(starter.MADE) or store.list("assistants", limit=1):
+            return
+        from . import whisper
+
+        local = (await ollama_models(timeout=1))["models"]
+        made = starter.make(store, local, whisper.installed(), providers.kokoro_installed())
+        if made:
+            providers.prepare_local(made)
+            logger.info("made a first assistant to talk to: {}", made["name"])
+
     @app.get("/providers/ollama/models", include_in_schema=False, dependencies=[Depends(require_session)])
-    async def ollama_models() -> dict[str, Any]:
+    async def ollama_models(timeout: float = 2) -> dict[str, Any]:
         """The models pulled into the local Ollama, or `running: false` when it isn't up."""
         base = (providers.LLM_PROVIDERS["ollama"][0] or "").rstrip("/").removesuffix("/v1")
         try:
-            async with httpx.AsyncClient(timeout=2) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 res = await client.get(base + "/api/tags")
                 res.raise_for_status()
                 found = res.json().get("models") or []

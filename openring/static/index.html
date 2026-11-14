@@ -664,8 +664,8 @@ async function viewHome() {
   const ready = id => info.providers.find(p => p.id === id)?.ready;
   const hasModel = info.providers.some(p => p.kind === "model" && p.id !== "omniroute" && p.ready);
   const steps = [
-    [ready("deepgram") && hasModel, "Add your provider keys", "Deepgram for speech plus one model provider. The Kokoro voice is free.", `<a class="btn ghost small" href="#providers">See providers</a>`],
-    [assistants.length > 0, "Create an assistant", "Give it a greeting, instructions, a model and a voice.", `<a class="btn ghost small" href="#assistants/new">New assistant</a>`],
+    [hasModel && (ready("deepgram") || ready("whisper")), "Connect a model", "Listening and speaking already run free on this computer. The model needs Ollama, a sign-in with OpenRouter or a free Groq key.", `<a class="btn ghost small" href="#providers">See providers</a>`],
+    [assistants.length > 0, "Have an assistant", "A first one is made for you; give it your own greeting and instructions.", `<a class="btn ghost small" href="#assistants/new">New assistant</a>`],
     [s.byType.webCall > 0 || recent.some(c => c.type === "webCall"), "Talk to it here", "Test it with your microphone, no phone number needed.", assistants[0] ? `<button class="btn ghost small" id="firstTest">Test ${esc(assistants[0].name || "it")}</button>` : ""],
     [numbers.length > 0, "Connect a phone number", "Point a Twilio number at this server.", `<a class="btn ghost small" href="#numbers">Add a number</a>`],
   ];
