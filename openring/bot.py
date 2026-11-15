@@ -1041,28 +1041,46 @@ async def run_call(
 
 
 async def with_analysis(plan: StackPlan, call: dict[str, Any], store: Store) -> dict[str, Any]:
-    """The ended call with what its analysisPlan found (analysis.py) and what that cost; the call as it was when there
-    is nothing to add or the analysis fails."""
+    """The ended call with what its analysisPlan and structured outputs found (analysis.py) and what that cost; the
+    call as it was when there is nothing to add or it all fails."""
     try:
-        found = await analysis.analyze(plan, call)
+        outputs = analysis.outputs_for(plan.assistant, store)
+        found, extracted = await asyncio.gather(analysis.analyze(plan, call), analysis.extract(outputs, plan, call))
     except Exception as exc:  # the report goes out whatever happens here
         logger.warning("call {}: analysis failed: {!r}", call.get("id"), exc)
         return call
-    if not found:
+    if not found and not extracted:
         return call
+    return store.update("calls", call["id"], analysis_changes(call, found, extracted)) or call
+
+
+def analysis_changes(call: dict[str, Any], found: dict[str, Any] | None,
+                     extracted: dict[str, Any] | None) -> dict[str, Any]:
+    """The call fields that what the analysis found, and its cost, change."""
     breakdown = dict(call.get("costBreakdown") or {})
-    costs = found["costs"]
-    spent = round(sum(v for k, v in costs.items() if not k.endswith("Tokens")), 6)
-    breakdown["analysisCostBreakdown"] = costs
-    if found["priced"]:
-        breakdown["analysis"] = spent
-        breakdown["total"] = round((breakdown.get("total") or 0) + spent, 6)
-    elif costs:
-        breakdown["unpriced"] = [*breakdown.get("unpriced", []), f"analysis ({found['model']})"]
-    changes = {"analysis": found["analysis"], "costBreakdown": breakdown}
-    if "total" in breakdown:
-        changes["cost"] = breakdown["total"]
-    return store.update("calls", call["id"], changes) or {**call, **changes}
+    costs = {**dict(breakdown.get("analysisCostBreakdown") or {}), **((found or {}).get("costs") or {}),
+             **((extracted or {}).get("costs") or {})}
+    changes: dict[str, Any] = {}
+    if found:
+        changes["analysis"] = found["analysis"]
+    if extracted:
+        artifact = dict(call.get("artifact") or {})
+        artifact["structuredOutputs"] = {**(artifact.get("structuredOutputs") or {}), **extracted["structuredOutputs"]}
+        changes["artifact"] = artifact
+    for part in (found, extracted):
+        if part and part["costs"] and not part["priced"]:
+            breakdown["unpriced"] = [*breakdown.get("unpriced", []), f"analysis ({part['model']})"]
+    if costs:
+        breakdown["analysisCostBreakdown"] = costs
+        spent = round(sum(v for k, v in costs.items() if not k.endswith("Tokens")), 6)
+        added = round(spent - (call.get("costBreakdown") or {}).get("analysis", 0), 6)
+        if spent:
+            breakdown["analysis"] = spent
+            breakdown["total"] = round((breakdown.get("total") or 0) + added, 6)
+        changes["costBreakdown"] = breakdown
+        if "total" in breakdown:
+            changes["cost"] = breakdown["total"]
+    return changes
 
 
 # End-of-call reports still on their way, kept so they are not collected before they finish.

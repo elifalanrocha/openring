@@ -120,6 +120,21 @@ passed) and each message's `judge` once `status` is `ended` (`endedReason`: `moc
 `GET /eval/run?evalId=`) come as `{results, metadata}`. The dashboard's **Evals** page writes, runs and shows them.
 Each answer and judgment spends the target's or the judge's model tokens.
 
+### Structured outputs
+
+`/structured-output`, as on Vapi: a reusable piece of data to pull out of calls, with a `name`, a JSON `schema` (an
+object, or a single string, number or yes/no) and an optional `description`. `type: "ai"` (the default) asks a model:
+the output's `model` (`{provider, model}`) or the assistant's own; `type: "regex"` finds `regex` in the transcript (the
+first group or the whole match, or whether it matched for a boolean schema), with no model. An assistant runs the
+outputs in its `artifactPlan.structuredOutputIds` and those that list it in their `assistantIds`; when the call ends,
+each result is in `artifact.structuredOutputs[<id>]` as `{name, result}` (null when the call doesn't say), in the call
+and the end-of-call report, with its tokens in `costBreakdown.analysisCostBreakdown`.
+
+`POST /structured-output/run` runs one (`structuredOutputId`, or `structuredOutput` given inline) on ended calls:
+`{"callIds": ["<id>"], "previewEnabled": true}` answers with the result and changes nothing; without the preview, up
+to 100 calls get it in their artifact, in the background. The dashboard's **Outputs** page makes them, and the
+assistant editor links them. The import copies them from the source account and points the assistants at the copies.
+
 ### After the call: summary, data and success
 
 `analysisPlan`, as on Vapi. When the call ends, the assistant's own model reads the transcript and writes the call's

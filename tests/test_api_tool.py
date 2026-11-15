@@ -134,7 +134,7 @@ def test_an_import_reports_a_url_it_cannot_read_instead_of_failing():
     source = {"tool": [{"id": "t1", **BOOK, "url": "https://[bad/"}],
               "assistant": [{"id": "a1", **ASSISTANT, "model": {**ASSISTANT["model"],
                                                                 "tools": [{**BOOK, "url": "https://[bad/"}]}}],
-              "phone-number": [], "squad": []}
+              "phone-number": [], "squad": [], "structured-output": []}
     transport = httpx.MockTransport(lambda r: httpx.Response(200, json=source[r.url.path.strip("/")]))
 
     async def go():

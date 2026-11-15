@@ -63,6 +63,10 @@ All notable changes to OpenRing are listed here. The format follows
   4000). It reads the transcripts already on your server: nothing else is stored, no model is asked and nothing is
   charged, and a deleted call is forgotten. Off by default, because a caller ID can be faked. A "Remember callers" box
   in the assistant editor; the call records which calls it was given in `rememberedCallIds`.
+- Structured outputs, as on Vapi (`/structured-output`, `/structured-output/run`): reusable data pulled out of every
+  call of the assistants that link them (`artifactPlan.structuredOutputIds`, or the output's `assistantIds`), by a
+  model or a pattern, into `artifact.structuredOutputs`; run on past calls, with a preview. An **Outputs** page and
+  boxes in the assistant editor; the import brings them over from Vapi. Checked on a real call with Groq.
 - Evals, as on Vapi (`/eval`, `/eval/run`): a chat you script for an assistant, with checks on what it answers (exact
   words, a pattern, the tool calls and their arguments, or a judge model's pass or fail) and Vapi's `continuePlan`.
   Runs go on in the background against an assistant or a squad. The dashboard has an **Evals** page. Checked against

@@ -179,3 +179,89 @@ def test_the_report_carries_the_analysis_and_the_call_its_cost(monkeypatch, quie
     spent = call["costBreakdown"]["analysis"]  # 2M prompt tokens of Groq's gpt-oss-20b at its list price
     assert spent > 0 and call["costBreakdown"]["analysisCostBreakdown"]["summaryPromptTokens"] == 2_000_000
     assert call["cost"] == call["costBreakdown"]["total"]
+
+
+# ---- Structured outputs (/structured-output) ------------------------------------------------------------------------
+
+def test_a_structured_output_vapi_refuses_is_refused():
+    for bad, why in (({"schema": SCHEMA}, "name"), ({"name": "x"}, "schema"), ({"name": "x", "schema": SCHEMA,
+                     "type": "llm"}, "type"), ({"name": "x", "schema": SCHEMA, "type": "regex"}, "regex"),
+                     ({"name": "x", "schema": SCHEMA, "type": "regex", "regex": "("}, "pattern"),
+                     ({"name": "x", "schema": SCHEMA, "model": "gpt"}, "model")):
+        with pytest.raises(analysis.AnalysisError, match=why):
+            analysis.check_output(bad)
+
+
+def test_outputs_come_from_the_assistants_list_and_from_those_that_name_it():
+    from openring.store import Store
+
+    store = Store(":memory:")
+    a = store.create("assistants", {"name": "a"})
+    listed = store.create("structured_outputs", {"name": "listed", "schema": SCHEMA})
+    naming = store.create("structured_outputs", {"name": "naming", "schema": SCHEMA, "assistantIds": [a["id"]]})
+    store.create("structured_outputs", {"name": "other", "schema": SCHEMA, "assistantIds": ["someone-else"]})
+    found = analysis.outputs_for({**a, "artifactPlan": {"structuredOutputIds": [listed["id"], "gone"]}}, store)
+    assert sorted(o["name"] for o in found) == ["listed", "naming"] and naming["id"] in {o["id"] for o in found}
+
+
+def test_each_output_is_pulled_out_by_the_model_or_a_pattern(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    sent = model_server(monkeypatch, lambda system: '{"result": 2}' if "partySize" in system else '{"result": null}')
+    outputs = [{"id": "o1", "name": "party", "schema": {"type": "integer", "description": "partySize"}},
+               {"id": "o2", "name": "name", "type": "regex", "regex": r"name (\w+)", "schema": {"type": "string"}},
+               {"id": "o3", "name": "said eight", "type": "regex", "regex": "eight", "schema": {"type": "boolean"}},
+               {"id": "o4", "name": "allergy", "schema": {"type": "string"}}]
+    found = asyncio.run(analysis.extract(outputs, plan_with({}), CALL))
+    results = {i: o["result"] for i, o in found["structuredOutputs"].items()}
+    assert results == {"o1": 2, "o2": "Maria", "o3": True, "o4": None}
+    assert found["structuredOutputs"]["o1"]["name"] == "party"
+    assert len(sent) == 2  # patterns need no model
+    assert found["costs"]["structuredOutputsPromptTokens"] == 2000
+
+
+def output_app(monkeypatch):
+    from openring.api import create_app
+    from openring.config import Settings
+    from openring.store import Store
+
+    store = Store(":memory:")
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    app = create_app(Settings(api_key="test-key", public_url="", db_path=":memory:"), store)
+    return store, app
+
+
+def test_outputs_are_saved_linked_and_run_on_past_calls(monkeypatch):
+    model_server(monkeypatch, lambda system: '{"result": 2}')
+    store, app = output_app(monkeypatch)
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+            model = {**ASSISTANT["model"], "model": "openai/gpt-oss-20b"}
+            out = (await http.post("/structured-output", headers=AUTH, json={
+                "name": "partySize", "schema": {"type": "integer"}})).json()
+            bad = await http.post("/assistant", headers=AUTH, json={**ASSISTANT, "artifactPlan": {
+                "structuredOutputIds": ["nope"]}})
+            a = (await http.post("/assistant", headers=AUTH, json={**ASSISTANT, "model": model, "artifactPlan": {
+                "structuredOutputIds": [out["id"]]}})).json()
+            call = store.create("calls", {**CALL, "status": "ended", "assistantId": a["id"],
+                                          "artifact": {"messages": CALL["messages"]}})
+            preview = (await http.post("/structured-output/run", headers=AUTH, json={
+                "structuredOutputId": out["id"], "callIds": [call["id"]], "previewEnabled": True})).json()
+            untouched = store.get("calls", call["id"])
+            ran = await http.post("/structured-output/run", headers=AUTH, json={
+                "structuredOutputId": out["id"], "callIds": [call["id"]]})
+            for _ in range(50):
+                if (store.get("calls", call["id"])["artifact"]).get("structuredOutputs"):
+                    break
+                await asyncio.sleep(0.05)
+            listed = (await http.get("/structured-output", headers=AUTH)).json()
+            return bad, preview, untouched, ran, store.get("calls", call["id"]), listed, out
+
+    bad, preview, untouched, ran, call, listed, out = asyncio.run(scenario())
+    assert bad.status_code == 400 and "not found" in bad.text
+    assert preview["structuredOutputs"] == {out["id"]: {"name": "partySize", "result": 2}}
+    assert "structuredOutputs" not in untouched["artifact"]  # a preview changes nothing
+    assert ran.status_code == 200 and call["artifact"]["structuredOutputs"][out["id"]]["result"] == 2
+    assert call["artifact"]["messages"] == CALL["messages"]  # the rest of the artifact stays
+    assert call["costBreakdown"]["analysisCostBreakdown"]["structuredOutputsPromptTokens"] == 1000
+    assert listed["results"][0]["name"] == "partySize"

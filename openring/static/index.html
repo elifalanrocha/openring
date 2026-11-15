@@ -384,6 +384,8 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .eval-msg code { margin-right: 6px; }
 .eval-msg .ok-text { color: var(--ok); margin-top: 4px; }
 .eval-msg .bad-text { color: var(--bad); margin-top: 4px; }
+fieldset.outputs { border: 0; padding: 0; margin: 0 0 12px; }
+fieldset.outputs legend { padding: 0; margin-bottom: 6px; color: var(--muted); }
 .analysis { display: grid; grid-template-columns: max-content 1fr; gap: 10px 18px; margin: 0; }
 .analysis dt { color: var(--muted); }
 .analysis dd { margin: 0; }
@@ -472,6 +474,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
       <a href="#knowledge" data-view="knowledge"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5M8 13h8M8 17h6"/></svg>Knowledge</a>
       <a href="#numbers" data-view="numbers"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Phone numbers</a>
       <a href="#evals" data-view="evals"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Evals</a>
+      <a href="#outputs" data-view="outputs"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v4H4zM4 11h10v4H4zM4 17h7v3H4zM17 13l3 3-3 3"/></svg>Outputs</a>
       <a href="#routes" data-view="routes"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h5l6 10h5M4 17h5l1.5-2.5M15 7h5M17 4l3 3-3 3M17 14l3 3-3 3"/></svg>Model routes</a>
       <div class="group">Activity</div>
       <a href="#calls" data-view="calls"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Calls</a>
@@ -733,6 +736,7 @@ const PAGES = {
   numbers: ["Phone numbers", "Your phone numbers and who answers them"],
   routes: ["Model routes", "Models in order: the next one takes over when a model fails or is slow"],
   calls: ["Calls", "Every call with its transcript and response time"],
+  outputs: ["Structured outputs", "Data a model pulls out of every call: names, dates, yes or no"],
   evals: ["Evals", "Chats you script for an assistant, with checks on what it answers"],
   escalations: ["Escalations", "Call an on-call list in order until someone presses the key that confirms"],
   campaigns: ["Campaigns", "Call a list of people with one assistant, a few at a time"],
@@ -1061,7 +1065,7 @@ function profileStrip(p) {
 }
 
 async function viewAssistant(id, known) {
-  const [a, allRoutes, files, profile, everyone, recordings] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => []), api("/announcement").catch(() => [])]);
+  const [a, allRoutes, files, profile, everyone, recordings, outputs] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => []), api("/announcement").catch(() => []), api("/structured-output?limit=200").then(r => r.results).catch(() => [])]);
   const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
@@ -1142,6 +1146,7 @@ async function viewAssistant(id, known) {
     <label class="consent"><input type="checkbox" name="recOn" ${a.artifactPlan?.recordingEnabled === true ? "checked" : ""}><span>Record calls, on this server. About 2 MB per minute on the phone. Many places require telling people they are being recorded, so say it in the greeting.</span></label>
     <label class="consent"><input type="checkbox" name="memOn" ${a.callerMemory === true || a.callerMemory?.enabled === true ? "checked" : ""}><span>Remember callers. On a phone call, the assistant is given what was said on that number's last 3 calls with it, from the transcripts on this server. A caller ID can be faked, so leave it off where a past call holds something private.</span></label>
     <label class="consent"><input type="checkbox" name="anOn" ${a.analysisPlan ? "checked" : ""}><span>Analyze calls when they end. The assistant's model writes a summary and judges whether the call did its job; both go in the call and the end-of-call report. It spends that model's tokens.</span></label>
+    ${outputs.length ? `<fieldset class="outputs"><legend>Structured outputs to pull out of each call (<a href="#outputs">manage</a>)</legend>${outputs.map(o => `<label class="consent"><input type="checkbox" name="outIds" value="${esc(o.id)}" ${(a.artifactPlan?.structuredOutputIds || []).includes(o.id) ? "checked" : ""}><span>${esc(o.name)}${o.description ? ` <span class="muted">${esc(o.description)}</span>` : ""}</span></label>`).join("")}</fieldset>` : ""}
     <div id="anMore"><label for="anSchema">Data to pull out of each call (a JSON Schema, optional)</label><textarea id="anSchema" name="anSchema" rows="4" spellcheck="false" placeholder='{"type": "object", "properties": {"name": {"type": "string"}, "partySize": {"type": "integer"}}}'>${esc(a.analysisPlan?.structuredDataPlan?.enabled && a.analysisPlan.structuredDataPlan.schema ? JSON.stringify(a.analysisPlan.structuredDataPlan.schema, null, 2) : "")}</textarea></div>
     <div class="field"><label for="annId">Play a recording instead of talking</label><p class="hint">For notices and on-call alerts: the call plays this file and hangs up, with no transcriber, model or voice, so it costs only the line. Use it in a campaign for a whole list, or in an escalation. Twilio numbers only, for now.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="annId" name="annId" style="flex:1;min-width:200px">${option("", "No: the assistant talks", a.announcement?.audioId || "")}${recordings.map(r => option(r.id, r.name + (r.durationSeconds ? ` · ${r.durationSeconds} s` : ""), a.announcement?.audioId || "")).join("")}</select><label class="btn ghost small" style="cursor:pointer">Upload WAV or MP3<input type="file" id="annFile" accept=".wav,.mp3,audio/wav,audio/mpeg" hidden></label></div>
@@ -1244,7 +1249,7 @@ async function viewAssistant(id, known) {
         // Vapi's backgroundSound: "office", a URL, or "off" once there was one (never set stays unset).
         backgroundSound: f.get("bg") === "office" ? "office" : f.get("bg") === "url" && f.get("bgUrl") ? f.get("bgUrl").trim() : a.backgroundSound && a.backgroundSound !== "off" ? "off" : a.backgroundSound,
         server: f.get("hook") ? { ...(a.server || {}), url: f.get("hook") } : undefined,
-        artifactPlan: f.get("recOn") ? { ...(a.artifactPlan || {}), recordingEnabled: true } : a.artifactPlan?.recordingEnabled ? { ...a.artifactPlan, recordingEnabled: false } : a.artifactPlan,
+        artifactPlan: withOutputs(f.get("recOn") ? { ...(a.artifactPlan || {}), recordingEnabled: true } : a.artifactPlan?.recordingEnabled ? { ...a.artifactPlan, recordingEnabled: false } : a.artifactPlan, outputs.length ? f.getAll("outIds") : null),
         callerMemory: f.get("memOn") ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: true } : a.callerMemory ? { ...(typeof a.callerMemory === "object" && a.callerMemory || {}), enabled: false } : undefined,
         voicemailDetection: f.get("vmOn") ? (voicemailOn && typeof a.voicemailDetection === "object" && a.voicemailDetection) || { provider: "twilio" } : voicemailOn || a.voicemailDetection ? "off" : undefined,
         voicemailMessage: f.get("vmMsg") || (a.voicemailMessage ? "" : undefined),
@@ -1599,6 +1604,39 @@ function evalResult(run, ev) {
   return `<section class="panel" style="margin-bottom:18px"><header><h2>${esc(ev?.name || "Eval")} ${evalBadge(run)}</h2><span class="muted">${esc(when(run.createdAt))}${run.endedReason && run.endedReason !== "mockConversation.done" ? " · " + esc(run.endedReason) : ""}</span></header><div class="body">${messages.map(row).join("") || `<p class="muted">${run.status === "ended" ? "The run ended before the chat began." : "Still running."}</p>`}</div></section>`;
 }
 
+// ---- Structured outputs (Vapi's /structured-output): data a model pulls out of every call of the assistants that link it
+const OUTPUT_EXAMPLE = JSON.stringify({ type: "object", properties: { name: { type: "string" }, partySize: { type: "integer" }, time: { type: "string", description: "HH:MM" } } }, null, 2);
+async function viewOutputs() {
+  setPage("outputs");
+  const [list, assistants] = await Promise.all([api("/structured-output?limit=200"), api("/assistant")]);
+  const users = o => assistants.filter(a => (a.artifactPlan?.structuredOutputIds || []).includes(o.id) || (o.assistantIds || []).includes(a.id)).map(a => a.name || "Untitled");
+  const v = $("#view");
+  v.innerHTML = `<section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Output</th><th class="hide-sm">Kind</th><th>Used by</th><th></th></tr></thead><tbody>
+    ${list.results.map(o => `<tr><td><b>${esc(o.name)}</b>${o.description ? `<div class="muted">${esc(o.description)}</div>` : ""}</td><td class="hide-sm">${o.type === "regex" ? "Pattern" : "Model"}</td><td>${esc(users(o).join(", ") || "—")}</td><td class="num"><button class="btn ghost small" data-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button></td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="empty">No structured outputs yet. Each one is a piece of data a model pulls out of every call, in the shape of a JSON Schema: a name, a yes or no, a date. Link it in an assistant's editor; the result lands in the call and the end-of-call report.</div>`}</section>
+  <section class="panel"><header><h2>New structured output</h2></header><div class="body"><form id="outForm">
+    <div class="field"><label for="outName">Name</label><input id="outName" name="name" maxlength="40" required placeholder="booking"></div>
+    <div class="field"><label for="outDesc">What to look for (optional)</label><input id="outDesc" name="description" maxlength="500" placeholder="The table the caller booked, if any"></div>
+    <div class="field"><label for="outSchema">JSON Schema</label><textarea id="outSchema" name="schema" rows="9" spellcheck="false">${esc(OUTPUT_EXAMPLE)}</textarea></div>
+    <div class="error" id="outErr" role="alert"></div>
+    <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.plus}Save output</button></div>
+  </form></div></section>`;
+  v.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!(await ask("Delete this output?", "Calls already analyzed keep their result.", "Delete"))) return;
+    await api("/structured-output/" + b.dataset.del, { method: "DELETE" });
+    viewOutputs();
+  });
+  $("#outForm").onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    let schema;
+    try { schema = JSON.parse(f.get("schema")); } catch { $("#outErr").textContent = "The schema isn't JSON."; return; }
+    try {
+      await api("/structured-output", { method: "POST", body: JSON.stringify({ name: f.get("name"), description: f.get("description") || undefined, type: "ai", schema }) });
+      viewOutputs();
+    } catch (err) { $("#outErr").textContent = err.message; }
+  };
+}
+
 async function viewCampaigns() {
   setPage("campaigns");
   const [list, assistants, nums] = await Promise.all([api("/campaign?limit=200"), api("/assistant"), api("/phone-number")]);
@@ -1786,6 +1824,12 @@ function newCampaign(assistants, nums) {
 
 // The model part of an assistant: a route (its first model saved too, so the JSON stays valid Vapi), or one model.
 // The transcriber's or the voice's own fields: a route's first member (so the JSON stays valid, as for the model) or the form's.
+// artifactPlan.structuredOutputIds from the boxes (`picked`, null when no output exists to pick), keeping the rest.
+function withOutputs(plan, picked) {
+  if (picked === null) return plan;
+  if (!picked.length && !plan?.structuredOutputIds) return plan;
+  return { ...(plan || {}), structuredOutputIds: picked };
+}
 // Vapi's analysisPlan from the editor: on keeps what was saved (prompts, rubric), the schema turns data on or off.
 function analysisSaved(on, schema, saved) {
   if (!on) return saved ? null : undefined;
@@ -2036,13 +2080,14 @@ async function viewCall(id) {
     .map(m => `${m.role === "user" ? "Caller" : "Assistant"}: ${m.message || ""}`)
     .join("\n");
   const maxTurn = Math.max(1, ...turns.map(t => t.turnLatency)), toolCalls = msgs.reduce((n, m) => n + (m.role === "tool_calls" ? m.toolCalls?.length || 1 : 0), 0);
-  if (callTab === "analysis" && !c.analysis) callTab = "transcript";
+  const outputs = Object.values(c.artifact?.structuredOutputs || {}), analyzed = c.analysis || outputs.length;
+  if (callTab === "analysis" && !analyzed) callTab = "transcript";
   const panes = {
     transcript: () => msgs.length ? `<div class="transcript">${msgs.map(transcriptRow).join("")}</div>` : `<p class="muted">${c.status === "ended" ? "No transcript for this call." : "The transcript appears when the call ends."}</p>`,
     latency: () => turns.length ? `<div class="legend" style="margin-bottom:14px">${PARTS.map(([, l, col]) => `<span style="--dot:${col}">${l}</span>`).join("")}</div><div class="turns">${turns.map((t, i) => `<div class="turn"><span class="muted">Turn ${i + 1}</span><div class="stack" style="width:${t.turnLatency / maxTurn * 100}%">${PARTS.map(([k, l, col]) => `<span style="width:${(t[k] || 0) / Math.max(1, PARTS.reduce((s, [p]) => s + (t[p] || 0), 0)) * 100}%;background:${col}" title="${l}: ${t[k] || 0} ms"></span>`).join("")}</div><b class="num">${ms(t.turnLatency)}</b></div>`).join("")}</div>` : `<p class="muted">No response times recorded for this call.</p>`,
     json: () => `<pre class="json">${esc(JSON.stringify(c, null, 2))}</pre>`,
     // Vapi's analysisPlan: what the assistant's model made of the call, after it ended.
-    analysis: () => `<dl class="analysis">${c.analysis.summary ? `<dt>Summary</dt><dd>${esc(c.analysis.summary)}</dd>` : ""}${c.analysis.successEvaluation != null ? `<dt>Success</dt><dd>${esc(c.analysis.successEvaluation)}</dd>` : ""}${c.analysis.structuredData ? `<dt>Data</dt><dd><pre class="json">${esc(JSON.stringify(c.analysis.structuredData, null, 2))}</pre></dd>` : ""}</dl>${Object.keys(c.analysis).length ? "" : `<p class="muted">The model gave no analysis for this call.</p>`}`,
+    analysis: () => { const a = c.analysis || {}, value = v => v == null ? `<span class="muted">Not in the call</span>` : typeof v === "object" ? `<pre class="json">${esc(JSON.stringify(v, null, 2))}</pre>` : esc(String(v)); return `<dl class="analysis">${a.summary ? `<dt>Summary</dt><dd>${esc(a.summary)}</dd>` : ""}${a.successEvaluation != null ? `<dt>Success</dt><dd>${esc(a.successEvaluation)}</dd>` : ""}${a.structuredData ? `<dt>Data</dt><dd>${value(a.structuredData)}</dd>` : ""}${outputs.map(o => `<dt>${esc(o.name)}</dt><dd>${value(o.result)}</dd>`).join("")}</dl>${Object.keys(a).length || outputs.length ? "" : `<p class="muted">The model gave no analysis for this call.</p>`}`; },
     webhooks: () => hooks.length ? `<div class="scroll"><table class="table"><thead><tr><th>Sent</th><th>Message</th><th>To</th><th>Answer</th><th class="num">Time</th></tr></thead><tbody>${hooks.map(h => `<tr><td>${esc(new Date(h.at).toLocaleTimeString(LOCALE))}</td><td><code>${esc(h.type)}</code></td><td class="cut">${esc(h.url)}</td><td>${h.status ? `<span class="badge${h.status < 300 ? " ok" : " bad"}">HTTP ${esc(h.status)}</span>` : `<span class="badge bad">${esc(h.error || "failed")}</span>`}</td><td class="num">${esc(h.ms)} ms</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">${c.assistant?.server?.url || assistants.find(a => a.id === c.assistantId)?.server?.url ? "No messages sent to your server for this call since OpenRing last started." : "This call's assistant has no server URL, so nothing was sent. Set one under Call report URL."}</p>`,
   };
   const cards = [
@@ -2065,7 +2110,7 @@ async function viewCall(id) {
   ${(c.providerFallbacks || []).map(f => `<p class="muted fallback-note">${ICON.bolt}${esc(LAYER_NAMES[f.layer] || f.layer)} switched to <b>${esc(f.to)}</b> at ${esc(new Date(f.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}${f.reason && f.reason !== "failed" ? ` (${esc(f.reason)})` : ""}</p>`).join("")}
   ${(c.handoffs || []).map(h => `<p class="muted fallback-note">${ICON.bolt}<b>${esc(h.from)}</b> handed the call to <b>${esc(h.to)}</b> at ${esc(new Date(h.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}</p>`).join("")}
   ${c.artifact?.recordingUrl ? `<section class="panel call-recording"><div class="body"><span class="muted">${ICON.mic}Recording</span><button class="btn ghost small" id="recPlay">Load and play</button><span class="spacer"></span><button class="btn danger small" id="recDel">Delete recording</button></div></section>` : ""}
-  <div class="toolbar">${tabs([["transcript", "Transcript"], ...(c.analysis ? [["analysis", "Analysis"]] : []), ["latency", "Response time"], ["webhooks", "Webhooks", hooks.length], ["json", "JSON"]], callTab)}</div>
+  <div class="toolbar">${tabs([["transcript", "Transcript"], ...(analyzed ? [["analysis", "Analysis"]] : []), ["latency", "Response time"], ["webhooks", "Webhooks", hooks.length], ["json", "JSON"]], callTab)}</div>
   <section class="panel"><div class="body">${panes[callTab]()}</div></section>`;
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { callTab = b.dataset.tab; viewCall(id); });
   const copyTranscript = $("#copyTranscript", v);
@@ -2554,7 +2599,7 @@ async function openCall(id) {
 $("#talkDialog").addEventListener("close", () => endTalk());
 
 // ---- Routing and shell ------------------------------------------------------------------
-const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, evals: viewEvals, providers: viewProviders, settings: viewSettings };
+const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, evals: viewEvals, outputs: viewOutputs, providers: viewProviders, settings: viewSettings };
 function go(name) { location.hash = name; }
 async function route() {
   if ($("#app").hidden) return;

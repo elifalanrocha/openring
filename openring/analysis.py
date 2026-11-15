@@ -228,3 +228,120 @@ async def analyze(plan: Any, call: dict[str, Any]) -> dict[str, Any] | None:
             if rates is not None:
                 costs[name] = round((usage["prompt"] * rates[0] + usage["completion"] * rates[1]) / 1e6, 6)
     return {"analysis": analysis, "costs": costs, "priced": rates is not None, "model": f"{provider} {model}"}
+
+
+# ---- Structured outputs, Vapi's newer way (`/structured-output`): one schema per output, reusable across assistants --
+
+OUTPUT_TYPES = ("ai", "regex")
+MAX_OUTPUTS = 20  # per call
+EXTRACT = [
+    {"role": "system", "content": "You extract information from phone calls. Read the call below and answer with one "
+                                  'JSON object, {"result": ...}, where result follows this JSON Schema:\n\n{{schema}}'
+                                  "\n\n{{description}}\nWhen the call doesn't say, result is null. Answer only with "
+                                  "the JSON object."},
+    {"role": "user", "content": "Transcript:\n\n{{transcript}}\n\nWhy the call ended: {{endedReason}}"},
+]
+
+
+def check_output(body: dict[str, Any]) -> dict[str, Any]:
+    """A structured output's own fields, checked. Raises AnalysisError."""
+    name = body.get("name")
+    if not isinstance(name, str) or not name.strip() or len(name) > 40:
+        raise AnalysisError("name is required, up to 40 characters")
+    if not isinstance(body.get("schema"), dict):
+        raise AnalysisError("schema is a JSON Schema object")
+    kind = body.get("type", "ai")
+    if kind not in OUTPUT_TYPES:
+        raise AnalysisError("type is ai or regex")
+    if kind == "regex":
+        try:
+            re.compile(str(body.get("regex") or ""))
+        except re.error as exc:
+            raise AnalysisError(f"regex is not a pattern ({exc})") from exc
+        if not body.get("regex"):
+            raise AnalysisError("a regex output needs regex")
+    model = body.get("model")
+    if model is not None and (not isinstance(model, dict) or not model.get("provider")):
+        raise AnalysisError("model is {provider, model}")
+    ids = body.get("assistantIds")
+    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) for i in ids)):
+        raise AnalysisError("assistantIds is a list of assistant ids")
+    description = body.get("description")
+    if description is not None and not isinstance(description, str):
+        raise AnalysisError("description is text")
+    kept = ("name", "schema", "type", "description", "model", "assistantIds", "workflowIds", "regex", "conditions",
+            "compliancePlan")
+    return {k: body[k] for k in kept if k in body} | {"name": name.strip(), "type": kind}
+
+
+def outputs_for(assistant: dict[str, Any], store: Any) -> list[dict[str, Any]]:
+    """The structured outputs a call with `assistant` runs: its `artifactPlan.structuredOutputIds`, and the outputs
+    that name it in their `assistantIds`."""
+    ids = list((assistant.get("artifactPlan") or {}).get("structuredOutputIds") or [])
+    found = {o["id"]: o for o in (store.get("structured_outputs", i) for i in ids if isinstance(i, str)) if o}
+    if assistant.get("id"):
+        for output in store.list("structured_outputs", limit=1000):
+            if assistant["id"] in (output.get("assistantIds") or []):
+                found.setdefault(output["id"], output)
+    return list(found.values())[:MAX_OUTPUTS]
+
+
+def _by_regex(output: dict[str, Any], transcript: str) -> Any:
+    match = re.search(output["regex"], transcript)
+    if (output.get("schema") or {}).get("type") == "boolean":
+        return bool(match)
+    if not match:
+        return None
+    return match.group(1) if match.groups() else match.group(0)
+
+
+async def extract(outputs: list[dict[str, Any]], plan: Any, call: dict[str, Any]) -> dict[str, Any] | None:
+    """{"structuredOutputs": {id: {name, result}}, "costs", "priced", "model"}; None when there are no outputs."""
+    if not outputs:
+        return None
+    from . import drafts, prices
+    from .providers import _llm_headers
+
+    messages = [m for m in call.get("messages") or [] if m.get("role") in ("user", "assistant", "bot")]
+    transcript = transcript_text(messages)
+    values = {"transcript": transcript, "endedReason": str(call.get("endedReason") or ""),
+              "systemPrompt": system_prompt(plan.assistant)}
+    usage_total = {"prompt": 0, "completion": 0}
+    cost, priced, used = 0.0, True, set()
+
+    async def one(output: dict[str, Any]) -> tuple[str, Any]:
+        nonlocal cost, priced
+        if output.get("type") == "regex":
+            return output["id"], _by_regex(output, transcript)
+        try:
+            if output.get("model"):
+                provider, model, base, key = drafts.choose(output["model"])
+                headers = {**({"Authorization": f"Bearer {key}"} if key else {}), **(_llm_headers(provider) or {})}
+            else:
+                provider, model, base, headers = model_for(plan)
+            asked = fill(EXTRACT, {**values, "schema": json.dumps(output["schema"], ensure_ascii=False),
+                                   "description": output.get("description") or ""})
+            text, usage = await asyncio.wait_for(complete(base, model, headers, asked, 30), 30)
+        except (Exception, asyncio.TimeoutError) as exc:
+            logger.warning("call {}: structured output {} not extracted: {}", call.get("id"), output.get("name"),
+                           exc.__class__.__name__)
+            return output["id"], None
+        used.add(f"{provider} {model}")
+        usage_total["prompt"] += usage["prompt"]
+        usage_total["completion"] += usage["completion"]
+        rates = prices.llm(provider, model)
+        if rates is None:
+            priced = False
+        else:
+            cost += (usage["prompt"] * rates[0] + usage["completion"] * rates[1]) / 1e6
+        found = json_object(text)
+        return output["id"], (found or {}).get("result")
+
+    names = {o["id"]: o["name"] for o in outputs}
+    results = await asyncio.gather(*(one(o) for o in outputs))
+    costs = {"structuredOutputsPromptTokens": usage_total["prompt"],
+             "structuredOutputsCompletionTokens": usage_total["completion"]}
+    if usage_total["prompt"] and priced:
+        costs["structuredOutputs"] = round(cost, 6)
+    return {"structuredOutputs": {i: {"name": names[i], "result": r} for i, r in results},
+            "costs": costs if usage_total["prompt"] else {}, "priced": priced, "model": ", ".join(sorted(used))}

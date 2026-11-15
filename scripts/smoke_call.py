@@ -13,7 +13,8 @@ voice (Kokoro, or --voice), the pipeline and the messages to the assistant's ser
 - the assistant's server gets speech-update, transcript and end-of-call-report, and the call's webhook log lists them;
 - a second call from the same number is given the first one (memory per caller);
 - the latency of each turn and the cost are recorded;
-- the end-of-call report carries the model's analysis (analysisPlan: summary, data, success).
+- the end-of-call report carries the model's analysis (analysisPlan: summary, data, success) and a structured
+  output.
 
 It needs DEEPGRAM_API_KEY and GROQ_API_KEY, costs a few cents of Deepgram credit and calls nobody.
 """
@@ -232,6 +233,8 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict, background: st
         results.append((bool(ok), what))
         print(("PASS  " if ok else "FAIL  ") + what, flush=True)
 
+    time_output = await asyncio.to_thread(request, port, "/structured-output", {
+        "name": "time", "schema": {"type": "string", "description": "The time the table is for, as HH:MM"}})
     assistant = await asyncio.to_thread(request, port, "/assistant", {
         "name": "Smoke test", "firstMessage": "Good evening, Luna restaurant.",
         "transcriber": {"provider": "deepgram", "model": "nova-3", "language": "en"},
@@ -240,6 +243,7 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict, background: st
         "voice": voice_of_assistant,
         "server": {"url": hook_url}, "callerMemory": {"enabled": True},
         "keypadInputPlan": {"enabled": True, "timeoutSeconds": 2, "delimiters": ["#"]},
+        "artifactPlan": {"structuredOutputIds": [time_output["id"]]},
         "analysisPlan": {"structuredDataPlan": {"enabled": True, "schema": {"type": "object", "properties": {
             "onBehalfOf": {"type": "string"}, "partySize": {"type": "integer"}}}}},
         "serverMessages": ["status-update", "speech-update", "transcript", "end-of-call-report"],
@@ -289,6 +293,10 @@ async def run(port: int, hook_url: str, voice_of_assistant: dict, background: st
     check(bool(found.get("summary")) and data.get("partySize") == 2 and "maria" in str(data.get("onBehalfOf")).lower()
           and found.get("successEvaluation") in ("true", "false"),
           f"the model analyzed the call: {json.dumps(found, ensure_ascii=False)[:300]}")
+    outputs = ((reports[0].get("artifact") or {}).get("structuredOutputs") or {}) if reports else {}
+    time_said = (outputs.get(time_output["id"]) or {}).get("result")
+    check(isinstance(time_said, str) and ("20" in time_said or "8" in time_said),
+          f"the structured output pulled out the time: {time_said!r}")
     log = await asyncio.to_thread(request, port, f"/call/{first_id}/webhooks")
     check(log and all(d.get("status") == 200 for d in log), f"webhook log: {len(log)} deliveries, all HTTP 200")
 

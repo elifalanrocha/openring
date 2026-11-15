@@ -155,3 +155,21 @@ def test_an_imported_assistant_that_records_says_so():
     recording = {**ASSISTANT, "artifactPlan": {"recordingEnabled": True}}
     report = run(store, {"tool": [], "assistant": [recording], "phone-number": []})
     assert any("records its calls" in p for p in report["assistants"][0]["problems"])
+
+
+def test_structured_outputs_come_along_and_the_assistants_point_at_the_copies():
+    output = {"id": "so-1", "orgId": "org", "name": "booking", "type": "ai", "createdAt": "2026-10-01T00:00:00Z",
+              "schema": {"type": "object"}, "assistantIds": ["a-1"]}
+    linked = {**ASSISTANT, "artifactPlan": {"structuredOutputIds": ["so-1", "so-gone"]}}
+    store = Store(":memory:")
+    report = run(store, {**DATA, "assistant": [linked], "structured-output": {"results": [output], "metadata": {}}})
+    copy = store.get("structured_outputs", report["structuredOutputs"][0]["id"])
+    assistant = store.get("assistants", report["assistants"][0]["id"])
+    assert copy["name"] == "booking" and "orgId" not in copy
+    assert assistant["artifactPlan"]["structuredOutputIds"] == [copy["id"]]
+    assert copy["assistantIds"] == [assistant["id"]]
+
+
+def test_a_source_without_structured_outputs_still_imports():
+    report = run(Store(":memory:"), DATA)  # the stub answers [] for structured-output
+    assert report["structuredOutputs"] == [] and report["assistants"]

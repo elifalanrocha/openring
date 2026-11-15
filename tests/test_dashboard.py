@@ -387,3 +387,26 @@ def test_the_evals_page_example_is_an_eval_the_server_takes():
     messages = json.loads(run_js(f"console.log(JSON.stringify({example}))"))
     assert evals.check_eval({"name": "x", "messages": messages})["messages"] == messages
     assert "evals: viewEvals" in PAGE and 'data-view="evals"' in PAGE
+
+
+def test_the_editor_links_structured_outputs_and_keeps_the_rest_of_the_artifact_plan():
+    fn = re.search(r"^function withOutputs\(.*?^}$", PAGE, re.M | re.S).group(0)
+    got = run_js(fn + """
+    console.log(JSON.stringify({
+      noneToPick: withOutputs({ recordingEnabled: true }, null),
+      picked: withOutputs({ recordingEnabled: true }, ["o1"]),
+      unpicked: withOutputs({ structuredOutputIds: ["o1"] }, []),
+      neverLinked: withOutputs(undefined, []) ?? "unset",
+    }));""")
+    assert got == {"noneToPick": {"recordingEnabled": True},
+                   "picked": {"recordingEnabled": True, "structuredOutputIds": ["o1"]},
+                   "unpicked": {"structuredOutputIds": []}, "neverLinked": "unset"}
+
+
+def test_the_outputs_page_example_is_a_schema_the_server_takes():
+    from openring import analysis
+
+    example = re.search(r"^const OUTPUT_EXAMPLE = (JSON\.stringify\(.*?\));$", PAGE, re.M).group(1)
+    schema = json.loads(run_js(f"console.log(JSON.stringify({example}))"))
+    assert analysis.check_output({"name": "booking", "schema": schema})["schema"] == schema
+    assert "outputs: viewOutputs" in PAGE

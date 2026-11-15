@@ -42,6 +42,12 @@ async def _list_all(client: httpx.AsyncClient, base_url: str, path: str) -> list
         if r.status_code >= 400:
             raise SourceError(f"{base_url}/{path} answered HTTP {r.status_code}")
         page = r.json()
+        if isinstance(page, dict) and isinstance(page.get("results"), list):  # Vapi's newer lists: {results, metadata}
+            items.extend(d for d in page["results"] if isinstance(d, dict))
+            if len(page["results"]) < PAGE or params.get("page", 1) >= 50:
+                return items
+            params = {"limit": PAGE, "page": params.get("page", 1) + 1}
+            continue
         if not isinstance(page, list):
             raise SourceError(f"{base_url}/{path} did not return a list; is this a Vapi-compatible API?")
         items.extend(d for d in page if isinstance(d, dict))
@@ -111,11 +117,21 @@ async def import_account(
             squads = await _list_all(client, base_url, "squad")
         except SourceError:  # not every Vapi-compatible API has squads
             squads = []
+        try:
+            outputs = await _list_all(client, base_url, "structured-output")
+        except SourceError:  # nor structured outputs
+            outputs = []
     finally:
         if owned:
             await client.aclose()
 
-    report: dict[str, Any] = {"tools": [], "assistants": [], "squads": [], "phoneNumbers": []}
+    report: dict[str, Any] = {"tools": [], "assistants": [], "squads": [], "phoneNumbers": [], "structuredOutputs": []}
+    output_ids: dict[str, str] = {}
+    for output in outputs:
+        doc, created = _upsert(store, "structured_outputs", {**_clean(output, base_url), "assistantIds": []})
+        output_ids[str(output.get("id"))] = doc["id"]
+        report["structuredOutputs"].append({"id": doc["id"], "name": doc.get("name") or "Untitled",
+                                            "created": created, "problems": []})
     tool_ids: dict[str, str] = {}
     for tool in tools:
         doc, created = _upsert(store, "tools", _clean(tool, base_url))
@@ -140,6 +156,11 @@ async def import_account(
         if model.get("toolIds"):
             model["toolIds"] = [tool_ids[str(t)] for t in model["toolIds"] if str(t) in tool_ids]
             clean["model"] = model
+        plan = dict(clean.get("artifactPlan") or {})
+        if plan.get("structuredOutputIds"):  # Vapi's ids, pointed at the copies
+            plan["structuredOutputIds"] = [output_ids[str(o)] for o in plan["structuredOutputIds"]
+                                           if str(o) in output_ids]
+            clean["artifactPlan"] = plan
         doc, created = _upsert(store, "assistants", clean)
         assistant_ids[str(assistant.get("id"))] = doc["id"]
         report["assistants"].append({"id": doc["id"], "name": doc.get("name") or "Untitled", "created": created,
@@ -150,6 +171,10 @@ async def import_account(
         for doc in store.list(collection, limit=100_000):
             if doc.get("importedFrom") and (mapped := _mapped(doc, assistant_ids)) != doc:
                 store.update(collection, doc["id"], mapped)
+    for output in outputs:  # the assistants an output names, now that they have copies
+        linked = [assistant_ids[str(a)] for a in output.get("assistantIds") or [] if str(a) in assistant_ids]
+        if linked:
+            store.update("structured_outputs", output_ids[str(output.get("id"))], {"assistantIds": linked})
     squad_ids: dict[str, str] = {}
     for squad in squads:
         clean = _mapped(_clean(squad, base_url), assistant_ids)

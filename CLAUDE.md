@@ -43,6 +43,10 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   message). A test refuses a bare `httpx.AsyncClient(`.
 - `scripts/smoke_call.py`: a real call with real providers over a simulated Twilio line (Kokoro caller); 12 checks;
   `--voice provider:voiceId[:model]`, `--background office|URL`. Only loud frames count as the assistant speaking.
+- Structured outputs (`analysis.check_output`, `outputs_for`, `extract`; `/structured-output`, `/structured-output/run`,
+  collection `structured_outputs`): run with the analysis in `bot.with_analysis` into `artifact.structuredOutputs[id]`
+  (`bot.analysis_changes` merges results and costs, also for re-runs). `ai` uses the output's `model` or the plan's;
+  `regex` needs no model. The importer copies them (`{results}` pages too) and remaps `structuredOutputIds`/`assistantIds`.
 - `openring/evals.py` + `/eval`, `/eval/run` (collections `evals`, `eval_runs`), Vapi's `chat.mockConversation`:
   `check_eval` validates; `run` replays messages against the plan's model (`analysis.model_for`) with the assistant's
   tools as OpenAI functions (never executed; `tool` messages answer them, unanswered calls get `NO_TOOL_RESULT`),

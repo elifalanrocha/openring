@@ -22,6 +22,7 @@ from loguru import logger
 
 from . import (
     __version__,
+    analysis,
     announcements,
     auth,
     campaigns,
@@ -293,6 +294,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 wanted = destination.get("assistantId")
                 if wanted and not destination.get("assistant") and store.get("assistants", str(wanted)) is None:
                     raise HTTPException(status_code=400, detail=f"handoff destination: assistant {wanted} not found")
+        outputs = (doc.get("artifactPlan") or {}).get("structuredOutputIds")
+        if outputs is not None and not isinstance(outputs, list):
+            raise HTTPException(status_code=400, detail="artifactPlan.structuredOutputIds is a list of ids")
+        for output_id in outputs or []:
+            if store.get("structured_outputs", str(output_id)) is None:
+                raise HTTPException(status_code=400, detail=f"artifactPlan.structuredOutputIds: structured output "
+                                                            f"{output_id} not found")
         base_id = (doc.get("model") or {}).get("knowledgeBaseId")
         if base_id and store.get("knowledge_bases", str(base_id)) is None:
             raise HTTPException(status_code=400, detail=f"model.knowledgeBaseId: knowledge base {base_id} not found")
@@ -1597,6 +1605,82 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         results = found[:max(limit, 0)]
         return {"results": results, "metadata": {"itemsPerPage": len(results), "totalItems": len(found),
                                                  "currentPage": 1}}
+
+    def _output_doc(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            doc = analysis.check_output(body)
+        except analysis.AnalysisError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        for assistant_id in doc.get("assistantIds") or []:
+            _get_or_404("assistants", assistant_id)
+        return doc
+
+    @app.post("/structured-output", status_code=201, dependencies=auth_deps)
+    def create_structured_output(body: dict[str, Any]) -> dict[str, Any]:
+        """Data a model pulls out of every call of the assistants that link it (Vapi's structured outputs)."""
+        return store.create("structured_outputs", _output_doc(body))
+
+    @app.get("/structured-output", dependencies=auth_deps)
+    def list_structured_outputs(limit: int = 100) -> dict[str, Any]:
+        return _page(store.list("structured_outputs", limit=1000), limit)
+
+    @app.post("/structured-output/run", dependencies=auth_deps)
+    async def run_structured_output(body: dict[str, Any]) -> dict[str, Any]:
+        """Run an output (`structuredOutputId`, or `structuredOutput` given here) on ended calls. With
+        `previewEnabled`, on one call, the result comes back and the call is left as it was; otherwise up to 100
+        calls get it in their `artifact.structuredOutputs`, in the background."""
+        if body.get("structuredOutputId"):
+            output = _get_or_404("structured_outputs", str(body["structuredOutputId"]))
+        else:
+            output = {**_output_doc(body.get("structuredOutput") or {}), "id": "transient"}
+        call_ids = body.get("callIds")
+        preview = body.get("previewEnabled") is True
+        if not isinstance(call_ids, list) or not call_ids or len(call_ids) > (1 if preview else 100):
+            raise HTTPException(status_code=400, detail="callIds: one call to preview, up to 100 to update")
+        calls = [_get_or_404("calls", str(i)) for i in call_ids]
+        if any(c.get("status") != "ended" for c in calls):
+            raise HTTPException(status_code=400, detail="callIds: only ended calls have a transcript to read")
+
+        def plan_of(call: dict[str, Any]) -> providers.StackPlan:
+            target = _call_target(call)
+            if target is None:
+                raise HTTPException(status_code=400, detail=f"call {call['id']}: its assistant is gone")
+            return _call_plan(target, check_keys=False)
+
+        plans = [plan_of(c) for c in calls]
+        if preview:
+            found = await analysis.extract([output], plans[0], calls[0])
+            return {"previewEnabled": True, "callId": calls[0]["id"], "structuredOutputs": found["structuredOutputs"]}
+
+        async def update_all() -> None:
+            from .bot import analysis_changes
+
+            for call, plan in zip(calls, plans):
+                try:
+                    found = await analysis.extract([output], plan, call)
+                    store.update("calls", call["id"], analysis_changes(store.get("calls", call["id"]), None, found))
+                except Exception:  # one call failing leaves the others
+                    logger.exception("structured output on call {} failed", call["id"])
+
+        task = asyncio.create_task(update_all())
+        _eval_tasks.add(task)
+        task.add_done_callback(_eval_tasks.discard)
+        return {"message": f"running on {len(calls)} call(s); each gets artifact.structuredOutputs when done"}
+
+    @app.get("/structured-output/{output_id}", dependencies=auth_deps)
+    def get_structured_output(output_id: str) -> dict[str, Any]:
+        return _get_or_404("structured_outputs", output_id)
+
+    @app.patch("/structured-output/{output_id}", dependencies=auth_deps)
+    def update_structured_output(output_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        current = _get_or_404("structured_outputs", output_id)
+        return store.update("structured_outputs", output_id, _output_doc({**current, **body}))
+
+    @app.delete("/structured-output/{output_id}", dependencies=auth_deps)
+    def delete_structured_output(output_id: str) -> dict[str, Any]:
+        doc = _get_or_404("structured_outputs", output_id)
+        store.delete("structured_outputs", output_id)
+        return doc
 
     @app.post("/eval", status_code=201, dependencies=auth_deps)
     def create_eval(body: dict[str, Any]) -> dict[str, Any]:
