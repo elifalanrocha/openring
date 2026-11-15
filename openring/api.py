@@ -349,6 +349,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             "together-ai": "together",
             "rime-ai": "rime",
             "smallest-ai": "smallest",
+            "resemble-ai": "resemble",
+            "async-ai": "asyncai",
         }
         candidates = [name, aliases.get(name, "")]
         for base in candidates:

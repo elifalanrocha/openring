@@ -8,6 +8,12 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- More providers, each with its logo. Models: SambaNova, Nebius, Novita AI, Qwen (Alibaba Cloud), Inception (Mercury),
+  Moonshot (Kimi), NVIDIA NIM and Hugging Face (`sambanova`, `nebius`, `novita`, `qwen`, `inception`, `moonshot`,
+  `nvidia`, `huggingface`). Transcribers: OpenAI, Groq (Whisper) and Gradium. Voices: MiniMax (with its group ID),
+  Resemble AI, Gradium, Async and Speechify. None needs a new dependency. Built and checked in tests only, not yet on
+  a real call.
+- The assistant editor no longer shows the "Caller" box before the transcriber.
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.

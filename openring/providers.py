@@ -40,6 +40,14 @@ LLM_PROVIDERS: dict[str, tuple[str | None, str | None]] = {
     "perplexity-ai": ("https://api.perplexity.ai", "PERPLEXITY_API_KEY"),
     "mistral": ("https://api.mistral.ai/v1", "MISTRAL_API_KEY"),
     "fireworks": ("https://api.fireworks.ai/inference/v1", "FIREWORKS_API_KEY"),
+    "sambanova": ("https://api.sambanova.ai/v1", "SAMBANOVA_API_KEY"),
+    "nebius": ("https://api.tokenfactory.nebius.com/v1/", "NEBIUS_API_KEY"),
+    "novita": ("https://api.novita.ai/openai", "NOVITA_API_KEY"),
+    "qwen": ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY"),  # Alibaba Cloud
+    "inception": ("https://api.inceptionlabs.ai/v1", "INCEPTION_API_KEY"),  # Mercury
+    "moonshot": ("https://api.moonshot.ai/v1", "MOONSHOT_API_KEY"),  # Kimi
+    "nvidia": ("https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY"),  # NIM
+    "huggingface": ("https://router.huggingface.co/v1", "HF_TOKEN"),  # Inference Providers
     # Local servers that need no key.
     "ollama": (os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"), None),
     # OmniRoute: free local gateway to 150+ free model providers.
@@ -58,6 +66,9 @@ STT_PROVIDERS = {
     "soniox": "SONIOX_API_KEY",
     "cartesia": "CARTESIA_API_KEY",
     "11labs": "ELEVENLABS_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "groq": "GROQ_API_KEY",  # Whisper on Groq
+    "gradium": "GRADIUM_API_KEY",
 }
 TTS_PROVIDERS = {
     "11labs": "ELEVENLABS_API_KEY",
@@ -70,11 +81,17 @@ TTS_PROVIDERS = {
     "neuphonic": "NEUPHONIC_API_KEY",
     "smallest-ai": "SMALLEST_API_KEY",
     "inworld": "INWORLD_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "resemble-ai": "RESEMBLE_API_KEY",
+    "gradium": "GRADIUM_API_KEY",
+    "async-ai": "ASYNCAI_API_KEY",
+    "speechify": "SPEECHIFY_API_KEY",
 }
 # Other spellings of the same provider.
 ALIASES = {"deep-seek": "deepseek", "elevenlabs": "11labs", "gemini": "google", "assemblyai": "assembly-ai",
            "rime": "rime-ai", "smallest": "smallest-ai", "together": "together-ai", "perplexity": "perplexity-ai",
-           "faster-whisper": "whisper"}
+           "faster-whisper": "whisper", "resembleai": "resemble-ai", "resemble": "resemble-ai", "asyncai": "async-ai",
+           "hugging-face": "huggingface", "hf": "huggingface", "kimi": "moonshot", "dashscope": "qwen"}
 PROVIDER_NAMES = {
     "openai": "OpenAI", "anthropic": "Anthropic", "google": "Google Gemini", "groq": "Groq", "openrouter": "OpenRouter",
     "deepseek": "DeepSeek", "xai": "xAI Grok", "cerebras": "Cerebras", "together-ai": "Together AI",
@@ -82,7 +99,10 @@ PROVIDER_NAMES = {
     "ollama": "Ollama", "omniroute": "OmniRoute", "deepgram": "Deepgram", "assembly-ai": "AssemblyAI",
     "gladia": "Gladia", "soniox": "Soniox", "cartesia": "Cartesia", "11labs": "ElevenLabs", "kokoro": "Kokoro",
     "rime-ai": "Rime", "neuphonic": "Neuphonic", "smallest-ai": "Smallest AI", "inworld": "Inworld",
-    "whisper": "Whisper",
+    "whisper": "Whisper", "sambanova": "SambaNova", "nebius": "Nebius", "novita": "Novita AI", "qwen": "Qwen",
+    "inception": "Inception", "moonshot": "Moonshot Kimi", "nvidia": "NVIDIA NIM", "huggingface": "Hugging Face",
+    "gradium": "Gradium", "minimax": "MiniMax", "resemble-ai": "Resemble AI", "async-ai": "Async",
+    "speechify": "Speechify",
 }
 
 
@@ -752,7 +772,10 @@ STT_SERVICES = {
     "soniox": ("pipecat.services.soniox.stt", "SonioxSTTService"),
     "cartesia": ("pipecat.services.cartesia.stt", "CartesiaSTTService"),
     "11labs": ("pipecat.services.elevenlabs.stt", "ElevenLabsRealtimeSTTService"),
+    "openai": ("pipecat.services.openai.stt", "OpenAISTTService"),
+    "gradium": ("pipecat.services.gradium.stt", "GradiumSTTService"),
 }
+GROQ_STT_MODEL = "whisper-large-v3-turbo"
 # Text-to-speech services by provider: (module, class, whether it takes the call's language).
 TTS_SERVICES = {
     "cartesia": ("pipecat.services.cartesia.tts", "CartesiaTTSService", True),
@@ -762,7 +785,16 @@ TTS_SERVICES = {
     "neuphonic": ("pipecat.services.neuphonic.tts", "NeuphonicTTSService", True),
     "smallest-ai": ("pipecat.services.smallest.tts", "SmallestTTSService", True),
     "inworld": ("pipecat.services.inworld.tts", "InworldTTSService", True),
+    "resemble-ai": ("pipecat.services.resembleai.tts", "ResembleAITTSService", True),
+    "gradium": ("pipecat.services.gradium.tts", "GradiumTTSService", True),
+    "async-ai": ("pipecat.services.asyncai.tts", "AsyncAITTSService", True),
+    "minimax": ("pipecat.services.minimax.tts", "MiniMaxHttpTTSService", True),
+    "speechify": ("pipecat.services.speechify.tts", "SpeechifyHttpTTSService", True),
 }
+# Services that speak HTTP through an aiohttp session they are handed: they get one of their own, per call.
+OWN_SESSION = {"minimax", "speechify"}
+# What else a voice needs besides its key: {argument: environment variable}.
+TTS_EXTRA = {"minimax": {"group_id": "MINIMAX_GROUP_ID"}}
 DEFAULT_VOICES = {"openai": "alloy", "deepgram": "aura-2-thalia-en"}
 
 
@@ -787,6 +819,14 @@ def _build_stt(plan: StackPlan):
             api_key=os.environ.get("DEEPGRAM_API_KEY", ""),
             settings=DeepgramSTTService.Settings(model=plan.stt_model or "nova-3", language=lang, **plan.stt_words),
         )
+    if plan.stt_provider == "groq":  # Groq's Whisper speaks OpenAI's transcription API
+        from pipecat.services.openai.stt import OpenAISTTService
+
+        groq: dict[str, Any] = {"model": plan.stt_model or GROQ_STT_MODEL}
+        if lang and lang != "multi":
+            groq["language"] = lang
+        return OpenAISTTService(api_key=os.environ.get("GROQ_API_KEY", ""), base_url=LLM_PROVIDERS["groq"][0],
+                                settings=OpenAISTTService.Settings(**groq))
     service = _service_class(*STT_SERVICES[plan.stt_provider], plan.stt_provider)
     settings: dict[str, Any] = dict(plan.stt_words)
     if plan.stt_model:
@@ -872,8 +912,47 @@ def _build_tts(plan: StackPlan):
     lang = _language(plan.tts_language)
     if takes_language and lang and lang != "multi":
         settings["language"] = lang
-    return service(api_key=os.environ.get(TTS_PROVIDERS[plan.tts_provider] or "", ""),
+    if plan.tts_provider in OWN_SESSION:
+        service = _with_own_session(service)
+    extra = {arg: os.environ.get(env, "") for arg, env in TTS_EXTRA.get(plan.tts_provider, {}).items()}
+    return service(api_key=os.environ.get(TTS_PROVIDERS[plan.tts_provider] or "", ""), **extra,
                    settings=service.Settings(**settings))
+
+
+_SESSION_CLASSES: dict[type, type] = {}
+
+
+def _with_own_session(service: type) -> type:
+    """`service`, opening its aiohttp session when the call starts and closing it when the call ends (Pipecat's
+    MiniMax and Speechify voices expect one handed to them, and a call's services are built in another thread)."""
+    if service in _SESSION_CLASSES:
+        return _SESSION_CLASSES[service]
+
+    class OwnSession(service):  # type: ignore[misc, valid-type]
+        def __init__(self, **kwargs: Any):
+            super().__init__(aiohttp_session=None, **kwargs)
+
+        async def start(self, frame: Any) -> None:
+            import aiohttp
+
+            self._session = aiohttp.ClientSession()
+            await super().start(frame)
+
+        async def _close_session(self) -> None:
+            if self._session is not None and not self._session.closed:
+                await self._session.close()
+
+        async def stop(self, frame: Any) -> None:
+            await super().stop(frame)
+            await self._close_session()
+
+        async def cancel(self, frame: Any) -> None:
+            await super().cancel(frame)
+            await self._close_session()
+
+    OwnSession.__name__ = service.__name__
+    _SESSION_CLASSES[service] = OwnSession
+    return OwnSession
 
 
 def _llm_headers(provider: str) -> dict[str, str] | None:

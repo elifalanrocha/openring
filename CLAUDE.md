@@ -64,11 +64,14 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   netguard, `MAX_BYTES`, loudness brought to `LEVEL_DBFS`; a sound that fails leaves the call without it.
 - `openring/providers.py` maps the Vapi assistant JSON to a stack using Vapi's provider names (`ALIASES`
   for other spellings). LLM: OpenAI-compatible APIs (`LLM_PROVIDERS`: openai, anthropic, google, groq,
-  openrouter, deepseek, xai, cerebras, together-ai, deepinfra, perplexity-ai, mistral, fireworks, ollama,
-  omniroute) + `custom-llm` with `model.url`; `supports_developer_role` only for openai (a provider's 400 ends the call),
+  openrouter, deepseek, xai, cerebras, together-ai, deepinfra, perplexity-ai, mistral, fireworks, sambanova, nebius,
+  novita, qwen, inception, moonshot, nvidia, huggingface, ollama, omniroute) + `custom-llm` with `model.url`; `supports_developer_role` only for openai (a provider's 400 ends the call),
   and Pipecat's own services for mistral, deepseek, perplexity-ai. STT (`STT_SERVICES`): deepgram, assembly-ai, gladia, soniox,
-  cartesia, 11labs, and whisper (local, `openring/whisper.py`). TTS (`TTS_SERVICES`): 11labs, kokoro (free, local, default), cartesia, deepgram (Vapi
-  short voice names -> `aura-2-<name>-en`), openai, rime-ai, neuphonic, smallest-ai, inworld. Defaults
+  cartesia, 11labs, openai, groq (Whisper through `OpenAISTTService`'s base_url), gradium, and whisper (local,
+  `openring/whisper.py`). TTS (`TTS_SERVICES`): 11labs, kokoro (free, local, default), cartesia, deepgram (Vapi
+  short voice names -> `aura-2-<name>-en`), openai, rime-ai, neuphonic, smallest-ai, inworld, resemble-ai, gradium,
+  async-ai, minimax (`MINIMAX_GROUP_ID`) and speechify (these two get their own aiohttp session per call,
+  `_with_own_session`). Logos in `static/icons/` (`api.provider_icon` aliases); a test refuses a provider without one. Defaults
   (nova-3, af_heart) apply only to their own provider. Kokoro uses the
   int8 model (~120 MB with voices) in `~/.cache/pipecat/kokoro-onnx`: `warm_up()` at startup
   downloads it if missing (atomic `.part` rename) and loads it once; Pipecat's per-service model

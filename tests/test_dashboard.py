@@ -410,3 +410,17 @@ def test_the_outputs_page_example_is_a_schema_the_server_takes():
     schema = json.loads(run_js(f"console.log(JSON.stringify({example}))"))
     assert analysis.check_output({"name": "booking", "schema": schema})["schema"] == schema
     assert "outputs: viewOutputs" in PAGE
+
+
+def test_every_provider_has_a_logo_the_server_serves():
+    from openring.providers import ALIASES, LLM_PROVIDERS, STT_PROVIDERS, TTS_PROVIDERS
+
+    from test_api import make_client
+
+    listed = set(json.loads("[" + re.search(r"const PROVIDER_ICONS = new Set\(\[(.*?)\]\);", PAGE, re.S).group(1)
+                            .rstrip().rstrip(",") + "]"))
+    providers = {p for p in [*STT_PROVIDERS, *TTS_PROVIDERS, *LLM_PROVIDERS] if p not in ALIASES}
+    assert providers - listed == set()
+    client = make_client()
+    missing = [p for p in sorted(listed) if client.get(f"/icons/{p}.svg").status_code != 200]
+    assert missing == []

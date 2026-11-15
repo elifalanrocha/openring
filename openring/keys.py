@@ -45,6 +45,19 @@ KEY_PAGES = {
     "neuphonic": "https://app.neuphonic.com/",
     "smallest-ai": "https://console.smallest.ai/",
     "inworld": "https://platform.inworld.ai/",
+    "sambanova": "https://cloud.sambanova.ai/apis",
+    "nebius": "https://tokenfactory.nebius.com/",
+    "novita": "https://novita.ai/settings/key-management",
+    "qwen": "https://modelstudio.console.alibabacloud.com/",
+    "inception": "https://platform.inceptionlabs.ai/",
+    "moonshot": "https://platform.moonshot.ai/console/api-keys",
+    "nvidia": "https://build.nvidia.com/",
+    "huggingface": "https://huggingface.co/settings/tokens",
+    "gradium": "https://gradium.ai/",
+    "minimax": "https://platform.minimax.io/",
+    "resemble-ai": "https://app.resemble.ai/account/api",
+    "async-ai": "https://async.com/",
+    "speechify": "https://console.sws.speechify.com/",
     "twilio": "https://console.twilio.com/",
     "telnyx": "https://portal.telnyx.com/#/api-keys",
     "plivo": "https://console.plivo.com/dashboard/",
@@ -61,6 +74,8 @@ def _connectors() -> dict[str, dict[str, Any]]:
     found = {pid: {"fields": [(env, "API key")], "keysUrl": KEY_PAGES[pid]}
              for pid, env in envs.items() if env and pid in KEY_PAGES}
     found["openrouter"]["oauth"] = True
+    # MiniMax's voice API also takes the account's group id (Account > Your profile).
+    found["minimax"]["fields"] = [("MINIMAX_API_KEY", "API key"), ("MINIMAX_GROUP_ID", "Group ID")]
     # OmniRoute runs without a key until its API key protection is on; then calls send this key.
     found["omniroute"] = {"fields": [("OMNIROUTE_API_KEY", "API key")], "keysUrl": KEY_PAGES["omniroute"]}
     # Other OAuth sign-ins only with the server owner's own client (<PROVIDER>_CLIENT_ID).
@@ -122,7 +137,8 @@ CHECKS = {
 }
 ONLY_REJECTIONS = {"rime-ai"}
 # Providers with no endpoint that checks a key; their keys are saved as they are.
-UNCHECKED = {"smallest-ai", "genesys"}
+# No read-only endpoint known to check a key with: saved as given, and the first call tells.
+UNCHECKED = {"smallest-ai", "genesys", "gradium", "minimax", "resemble-ai", "async-ai", "speechify"}
 
 
 class ConnectError(ValueError):

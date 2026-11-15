@@ -368,9 +368,8 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .copyline code { flex: 1; padding: 8px 10px; display: block; min-width: 0; }
 
 /* Assistant editor: the call path drawn left to right */
-.line-diagram { display: grid; grid-template-columns: auto 26px 1fr 26px 1fr 26px 1fr; align-items: stretch; margin-bottom: 8px; }
+.line-diagram { display: grid; grid-template-columns: 1fr 26px 1fr 26px 1fr; align-items: stretch; margin-bottom: 8px; }
 .stage { border: 1.5px solid color-mix(in srgb, var(--accent) 60%, var(--line)); border-radius: var(--radius); padding: 12px 14px; background: var(--panel-2); min-width: 0; }
-.stage.caller { border-style: dashed; background: transparent; display: flex; flex-direction: column; justify-content: center; }
 .stage h3 { font-size: 14px; margin-bottom: 4px; }
 .stage label { display: block; font-size: 12px; color: var(--muted); margin-top: 7px; }
 .stage .stage-hint { margin: 8px 0 0; font-size: 12px; color: var(--warn); }
@@ -885,11 +884,11 @@ function openImport() {
 }
 
 // Provider names are Vapi's, so assistants move between the two unchanged.
-const LLM = ["openai", "anthropic", "google", "groq", "openrouter", "deepseek", "xai", "cerebras", "together-ai", "deepinfra", "perplexity-ai", "mistral", "fireworks", "ollama", "omniroute", "custom-llm"];
+const LLM = ["openai", "anthropic", "google", "groq", "openrouter", "deepseek", "xai", "cerebras", "together-ai", "deepinfra", "perplexity-ai", "mistral", "fireworks", "sambanova", "nebius", "novita", "qwen", "inception", "moonshot", "nvidia", "huggingface", "ollama", "omniroute", "custom-llm"];
 // A model each provider actually serves, filled in when the provider changes.
-const SUGGESTED_MODEL = { openai: "gpt-4.1-mini", anthropic: "claude-haiku-5-5", groq: "openai/gpt-oss-20b", openrouter: "openai/gpt-4.1-mini", deepseek: "deepseek-chat", mistral: "mistral-small-latest", "perplexity-ai": "sonar", ollama: "llama3.2", omniroute: "auto", "custom-llm": "" };
-const TRANSCRIBERS = [["deepgram", "Deepgram"], ["whisper", "Whisper (free, local)"], ["assembly-ai", "AssemblyAI"], ["gladia", "Gladia"], ["soniox", "Soniox"], ["cartesia", "Cartesia"], ["11labs", "ElevenLabs"]];
-const VOICES = [["kokoro", "Kokoro (free, local)"], ["11labs", "ElevenLabs"], ["cartesia", "Cartesia"], ["deepgram", "Deepgram Aura"], ["openai", "OpenAI"], ["rime-ai", "Rime"], ["neuphonic", "Neuphonic"], ["smallest-ai", "Smallest AI"], ["inworld", "Inworld"]];
+const SUGGESTED_MODEL = { openai: "gpt-4.1-mini", anthropic: "claude-haiku-5-5", groq: "openai/gpt-oss-20b", openrouter: "openai/gpt-4.1-mini", deepseek: "deepseek-chat", mistral: "mistral-small-latest", "perplexity-ai": "sonar", ollama: "llama3.2", omniroute: "auto", "custom-llm": "", sambanova: "Meta-Llama-3.3-70B-Instruct", nebius: "Qwen/Qwen3-30B-A3B-Instruct-2507", novita: "moonshotai/kimi-k2.5", qwen: "qwen-plus", inception: "mercury-3", nvidia: "nvidia/nemotron-3.5-super-vl-120b-a12b", huggingface: "openai/gpt-oss-20b" };
+const TRANSCRIBERS = [["deepgram", "Deepgram"], ["whisper", "Whisper (free, local)"], ["assembly-ai", "AssemblyAI"], ["gladia", "Gladia"], ["soniox", "Soniox"], ["cartesia", "Cartesia"], ["11labs", "ElevenLabs"], ["openai", "OpenAI"], ["groq", "Groq (Whisper)"], ["gradium", "Gradium"]];
+const VOICES = [["kokoro", "Kokoro (free, local)"], ["11labs", "ElevenLabs"], ["cartesia", "Cartesia"], ["deepgram", "Deepgram Aura"], ["openai", "OpenAI"], ["rime-ai", "Rime"], ["neuphonic", "Neuphonic"], ["smallest-ai", "Smallest AI"], ["inworld", "Inworld"], ["minimax", "MiniMax"], ["resemble-ai", "Resemble AI"], ["gradium", "Gradium"], ["async-ai", "Async"], ["speechify", "Speechify"]];
 // A voice each provider has, filled in when the provider changes; the others need a voice ID from their library.
 // Transcriber languages; "multi" follows the caller: speech in any language, answers in the same one.
 const LANGUAGES = [["multi", "Follow the caller"], ["en", "English"], ["pt-BR", "Portuguese (Brazil)"], ["es", "Spanish"], ["fr", "French"], ["de", "German"], ["it", "Italian"], ["ja", "Japanese"], ["ko", "Korean"], ["hi", "Hindi"], ["nl", "Dutch"], ["tr", "Turkish"], ["pl", "Polish"], ["ru", "Russian"], ["uk", "Ukrainian"], ["id", "Indonesian"]];
@@ -1126,7 +1125,6 @@ async function viewAssistant(id, known) {
   } else {
     pane.innerHTML = `<form id="f">
     <div class="line-diagram">
-      <div class="stage caller"><h3>Caller</h3><span class="muted" style="font-size:12.5px">Phone or browser</span></div><div class="cable"></div>
       <div class="stage"><h3>Transcriber</h3>${sttRoutes.length ? `<label>Route</label><select name="tr">${option("", "None: one transcriber", t.routeId || "")}${sttRoutes.map(r => option(r.id, r.name, t.routeId || "")).join("")}</select>` : ""}<div id="tfixed"><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select></div><p class="hint stage-hint plain" id="troute" hidden></p><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
       <div class="stage"><h3>Model</h3>${routes.length ? `<label>Route</label><select name="mr">${option("", "None: one model", m.routeId || "")}${routes.map(r => option(r.id, r.name, m.routeId || "")).join("")}</select>` : ""}<div id="mfixed"><label>Provider</label><select name="mp">${LLM.map(p => option(p, p, m.provider === "deep-seek" ? "deepseek" : m.provider)).join("")}</select><label>Model</label><input name="mm" value="${esc(m.model || "")}" list="ollamaModels"><datalist id="ollamaModels"></datalist></div><p class="hint stage-hint plain" id="mroute" hidden></p></div><div class="cable"></div>
       <div class="stage"><h3>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><div id="vvoice">${voiceField(vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro", vo.voiceId)}</div><div id="vlangRow"><label for="vlang">Language</label><select id="vlang" name="vlang">${option("", "Same as the transcriber", vo.language || "")}${LANGUAGES.filter(([k]) => k !== "multi").map(([k, l]) => option(k, l, vo.language || "")).join("")}</select></div><label for="vspeed">Speed <output id="vspeedOut">${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}</output>x</label><input type="range" id="vspeed" name="vspeed" min="0.5" max="2" step="0.05" value="${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}" oninput="vspeedOut.value = this.value"></div><label for="bg">Background sound</label><select id="bg" name="bg">${[["off", "Off"], ["office", "Office"], ["url", "Custom (URL)"]].map(([k, l]) => option(k, l, bgKind)).join("")}</select><div id="bgUrlRow"><input name="bgUrl" type="url" placeholder="https://example.com/rain.mp3" aria-label="Sound file URL" value="${esc(bgKind === "url" ? a.backgroundSound : "")}"></div><p class="hint stage-hint plain">Office is distant chatter and keyboards, made by OpenRing. A file (WAV, MP3, OGG, FLAC) plays as quietly, on a loop.</p><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
@@ -2150,6 +2148,8 @@ const MONOGRAM = {
   openai: "AI", anthropic: "AN", google: "GE", groq: "GQ", openrouter: "OR", deepseek: "DS", xai: "XA",
   cerebras: "CB", "together-ai": "TG", deepinfra: "DI", "perplexity-ai": "PX", mistral: "MI", fireworks: "FW",
   ollama: "OL", omniroute: "OM", "rime-ai": "RI", neuphonic: "NP", "smallest-ai": "SM", inworld: "IW",
+  sambanova: "SN", nebius: "NB", novita: "NV", qwen: "QW", inception: "IN", moonshot: "KM", nvidia: "NI", huggingface: "HF",
+  gradium: "GR", minimax: "MM", "resemble-ai": "RS", "async-ai": "AS", speechify: "SF",
   kokoro: "KO", whisper: "WH", twilio: "TW", telnyx: "TX", genesys: "GC",
 };
 // Provider logos served from /icons/{id}.svg or .ico (downloaded from Simple Icons / provider favicons)
@@ -2157,7 +2157,8 @@ const PROVIDER_ICONS = new Set([
   "openai", "anthropic", "google", "perplexity-ai", "ollama", "deepgram", "11labs", "twilio",
   "groq", "openrouter", "deepseek", "xai", "mistral", "fireworks", "assembly-ai", "gladia", "soniox", "cartesia", "telnyx", "deepinfra", "together-ai",
   "rime-ai", "smallest-ai", "inworld", "vonage", "cerebras", "omniroute", "genesys", "neuphonic",
-  "whisper", "kokoro", "plivo",
+  "whisper", "kokoro", "plivo", "sambanova", "nebius", "novita", "qwen", "inception", "moonshot", "nvidia",
+  "huggingface", "gradium", "minimax", "resemble-ai", "async-ai", "speechify",
 ]);
 function providerIcon(id) {
   if (PROVIDER_ICONS.has(id)) return `/icons/${id}.svg`;
@@ -2172,6 +2173,9 @@ const ABOUT = {
   "transcriber:cartesia": "Fast speech to text",
   "transcriber:11labs": "Realtime speech to text",
   "transcriber:whisper": "Free speech to text that runs on this computer",
+  "transcriber:openai": "GPT transcription models",
+  "transcriber:groq": "Whisper on Groq, fast and cheap",
+  "transcriber:gradium": "Low-latency speech to text",
   "model:openai": "GPT models",
   "model:anthropic": "Claude models",
   "model:google": "Gemini models, with a free tier",
@@ -2187,6 +2191,14 @@ const ABOUT = {
   "model:fireworks": "Fast open models",
   "model:ollama": "Free models on this computer",
   "model:omniroute": "Free gateway to free models, on this computer",
+  "model:sambanova": "Very fast open models",
+  "model:nebius": "Open models at low prices",
+  "model:novita": "Open models at low prices",
+  "model:qwen": "Qwen models from Alibaba Cloud",
+  "model:inception": "Mercury, fast diffusion models",
+  "model:moonshot": "Kimi models",
+  "model:nvidia": "Open models on NVIDIA NIM, free to try",
+  "model:huggingface": "Open models from many providers, with one token",
   "voice:11labs": "Natural, expressive voices",
   "voice:cartesia": "Low-latency voices",
   "voice:deepgram": "Aura voices, low latency",
@@ -2196,6 +2208,11 @@ const ABOUT = {
   "voice:smallest-ai": "Fast, low-cost voices",
   "voice:inworld": "Expressive voices",
   "voice:kokoro": "Free voice that runs on this computer",
+  "voice:minimax": "Expressive voices in many languages",
+  "voice:resemble-ai": "Voices and voice cloning",
+  "voice:gradium": "Low-latency voices",
+  "voice:async-ai": "Low-cost, low-latency voices",
+  "voice:speechify": "Natural voices",
   "telephony:twilio": "Phone numbers and calls",
   "telephony:telnyx": "Phone numbers and calls, often cheaper",
   "telephony:plivo": "Phone numbers and calls, in many countries",

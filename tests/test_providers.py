@@ -32,7 +32,8 @@ def assistant(transcriber=None, model=None, voice=None):
 
 @pytest.mark.parametrize("name", ["openai", "anthropic", "google", "groq", "openrouter", "deepseek", "deep-seek", "xai",
                                   "cerebras", "together-ai", "deepinfra", "perplexity-ai", "mistral", "fireworks",
-                                  "ollama", "omniroute"])
+                                  "ollama", "omniroute", "sambanova", "nebius", "novita", "qwen",
+                                  "inception", "moonshot", "nvidia", "huggingface"])
 def test_every_llm_provider_resolves_to_its_openai_compatible_api(keys, name):
     plan = resolve_plan(assistant(model={"provider": name, "model": "m"}))
     base_url, env = LLM_PROVIDERS[plan.llm_provider]
@@ -58,6 +59,9 @@ STT_CLASSES = {
     "soniox": "SonioxSTTService",
     "cartesia": "CartesiaSTTService",
     "11labs": "ElevenLabsRealtimeSTTService",
+    "openai": "OpenAISTTService",
+    "groq": "OpenAISTTService",  # Groq's Whisper, through OpenAI's transcription API
+    "gradium": "GradiumSTTService",
 }
 TTS_CLASSES = {
     "11labs": "ElevenLabsTTSService",
@@ -68,6 +72,11 @@ TTS_CLASSES = {
     "neuphonic": "NeuphonicTTSService",
     "smallest-ai": "SmallestTTSService",
     "inworld": "InworldTTSService",
+    "resemble-ai": "ResembleAITTSService",
+    "gradium": "GradiumTTSService",
+    "async-ai": "AsyncAITTSService",
+    "minimax": "MiniMaxHttpTTSService",
+    "speechify": "SpeechifyHttpTTSService",
 }
 
 
@@ -374,3 +383,14 @@ def test_an_elevenlabs_voice_speaks_the_language_it_is_given(keys, transcriber, 
              **({"language": voice_language} if voice_language else {})}
     _, _, tts = build_services(resolve_plan(assistant(transcriber=transcriber, voice=voice)))
     assert tts._settings.language == expected  # as ElevenLabs spells it
+
+
+def test_groq_transcribes_with_its_whisper_through_openais_api(keys):
+    stt, _, _ = build_services(resolve_plan(assistant(transcriber={"provider": "groq", "language": "pt-BR"})))
+    assert stt._settings.model == "whisper-large-v3-turbo" and "groq.com" in str(stt._client.base_url)
+
+
+def test_voices_that_need_a_session_open_their_own_and_minimax_gets_its_group(keys, monkeypatch):
+    monkeypatch.setenv("MINIMAX_GROUP_ID", "g-123")
+    _, _, tts = build_services(resolve_plan(assistant(voice={"provider": "minimax", "voiceId": "v"})))
+    assert tts._group_id == "g-123" and tts._session is None  # opened on start, closed on stop
