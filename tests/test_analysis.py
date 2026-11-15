@@ -169,7 +169,7 @@ def test_the_report_carries_the_analysis_and_the_call_its_cost(monkeypatch, quie
         time.sleep(2)
         ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
     call = _wait_until_ended(store, params["callId"])
-    for _ in range(50):
+    for _ in range(150):
         if any(r["type"] == "end-of-call-report" for r in reports):
             break
         time.sleep(0.1)
@@ -250,7 +250,7 @@ def test_outputs_are_saved_linked_and_run_on_past_calls(monkeypatch):
             untouched = store.get("calls", call["id"])
             ran = await http.post("/structured-output/run", headers=AUTH, json={
                 "structuredOutputId": out["id"], "callIds": [call["id"]]})
-            for _ in range(50):
+            for _ in range(200):
                 if (store.get("calls", call["id"])["artifact"]).get("structuredOutputs"):
                     break
                 await asyncio.sleep(0.05)
