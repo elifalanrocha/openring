@@ -52,6 +52,10 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   tools as OpenAI functions (never executed; `tool` messages answer them, unanswered calls get `NO_TOOL_RESULT`),
   judges exact/regex/ai (`drafts.choose` for the judge model), honors `continuePlan`. Runs are tasks in
   `api._eval_tasks`; a run plans with `check_keys=False` (chat only). Dashboard page `#evals`.
+- Assistant editor (dashboard): tabs Assistant/Advanced/Tools are one form with sections shown in turn (`data-sec`,
+  `showAssistantTab`, `ADVANCED_FIELDS`), so nothing typed is lost; Logs/Traffic/Test render in `#extra`
+  (`assistantPane`). Presets from `GET /assistant/presets` (`stats.PRESETS`; latency only measured: `MEASURED_MS`
+  from the smoke calls or `routes.speed`); a preset's voice model rides in the hidden `vmodel` field.
 - `openring/analysis.py`: Vapi's `analysisPlan` (summary, structuredData, successEvaluation) after the call, run by
   `bot.with_analysis` inside the shielded end-of-call `report()`: the plan's own model (`model_for`; a realtime model
   falls back to `drafts.choose`), parts in parallel with Vapi's `timeoutSeconds`, cost into

@@ -14,6 +14,12 @@ All notable changes to OpenRing are listed here. The format follows
   Resemble AI, Gradium, Async and Speechify. None needs a new dependency. Built and checked in tests only, not yet on
   a real call.
 - The assistant editor no longer shows the "Caller" box before the transcriber.
+- Presets in the assistant editor, as on Vapi: Balanced, High intelligence, Ultra fast and Cost saver set the whole
+  stack in one click, each with its estimated cost per minute (list prices) and its time to answer where OpenRing has
+  measured it (its own test calls, or this server's calls), and the keys it still needs (`GET /assistant/presets`).
+- The assistant editor has tabs, as on Vapi: Assistant, Advanced (limits, recording, memory, analysis, voicemail,
+  report URL), Tools (link saved tools), Logs (this assistant's calls), Traffic (calls a day, phone and browser),
+  Test (talk to it, run evals against it) and JSON. `GET /call?assistantId=` lists one assistant's calls.
 - A new identity, in the family of Real Valor, which makes OpenRing: a symbol of two half-discs of a ring pulled apart
   (one ring, two voices), black, white and greys with OpenRing's orange as its one signal, and the Archivo typeface. The
   dashboard takes it: flat surfaces with 1px rules, corners of 4 to 6px, no shadows. Logo files in `docs/assets/brand/`.

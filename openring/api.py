@@ -740,6 +740,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         except drafts.DraftError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get("/assistant/presets", dependencies=auth_deps)
+    def assistant_presets() -> list[dict[str, Any]]:
+        """OpenRing's own: whole stacks in one click (Balanced, High intelligence, Ultra fast, Cost saver), with their
+        estimated cost per minute and the latency OpenRing measured for them (stats.presets)."""
+        return stats.presets()
+
     @app.get("/assistant/{assistant_id}/profile", dependencies=auth_deps)
     def assistant_profile(assistant_id: str) -> dict[str, Any]:
         """OpenRing's own: what this assistant costs per minute and how fast it answers, per layer (stats.profile)."""
@@ -1126,9 +1132,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.get("/call", dependencies=auth_deps)
     def list_calls(
         limit: int = 100, createdAtGt: str | None = None, createdAtLt: str | None = None,
-        createdAtGe: str | None = None, createdAtLe: str | None = None,
+        createdAtGe: str | None = None, createdAtLe: str | None = None, assistantId: str | None = None,  # noqa: N803
     ) -> list[dict[str, Any]]:
-        return store.list("calls", limit, **_created(createdAtGt, createdAtLt, createdAtGe, createdAtLe))
+        created = _created(createdAtGt, createdAtLt, createdAtGe, createdAtLe)
+        if not assistantId:
+            return store.list("calls", limit, **created)
+        mine = [c for c in store.list("calls", 10_000, **created) if c.get("assistantId") == assistantId]
+        return mine[:max(limit, 0)]
 
     def _finished_recording(call_id: str) -> tuple[dict[str, Any], Path]:
         call = _get_or_404("calls", call_id)

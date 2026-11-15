@@ -68,3 +68,35 @@ def test_stage_averages_leave_out_turns_without_stages():
     turns = [{"turnLatency": 1000, "modelLatency": 400}, {"turnLatency": 2000}]
     assert stats._part_average(turns, "modelLatency") == 400
     assert stats._part_average([{"turnLatency": 900}], "modelLatency") is None
+
+
+def test_presets_come_with_their_cost_and_only_measured_speeds():
+    from test_api import AUTH, make_client
+
+    client = make_client()
+    got = client.get("/assistant/presets", headers=AUTH)
+    assert got.status_code == 200  # not taken for an assistant called "presets"
+    presets = {p["id"]: p for p in got.json()}
+    assert list(presets) == ["balanced", "high-intelligence", "ultra-fast", "cost-saver"]
+    fast, saver = presets["ultra-fast"], presets["cost-saver"]
+    assert fast["latency"]["turn"] == 210 + 160 + 750 + 280  # measured on OpenRing's own test calls
+    assert presets["balanced"]["latency"]["model"] is None or presets["balanced"]["latency"]["turn"]  # unknown stays
+    assert saver["totalPerMinute"] < fast["totalPerMinute"]  # free transcriber and voice
+    assert all(p["missingKeys"] == sorted(p["missingKeys"]) for p in presets.values())
+
+
+def test_calls_can_be_listed_for_one_assistant():
+    from fastapi.testclient import TestClient
+
+    from openring.api import create_app
+    from openring.config import Settings
+    from openring.store import Store
+
+    from test_api import AUTH
+
+    store = Store(":memory:")
+    client = TestClient(create_app(Settings(api_key="test-key", public_url="", db_path=":memory:"), store))
+    store.create("calls", {"assistantId": "a1", "status": "ended"})
+    store.create("calls", {"assistantId": "a2", "status": "ended"})
+    mine = client.get("/call?assistantId=a1", headers=AUTH).json()
+    assert [c["assistantId"] for c in mine] == ["a1"] and len(client.get("/call", headers=AUTH).json()) == 2

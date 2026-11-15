@@ -195,3 +195,62 @@ def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
     return {"measured": False, "calls": 0, "minutes": 0, "costPerMinute": cost,
             "totalPerMinute": round(sum(known), 5) if known else None,
             "unpriced": [names[k] for k, v in cost.items() if v is None], "latency": latency, "assumes": ESTIMATE}
+
+
+# ---- Presets: a whole stack in one click, as Vapi's editor offers ----------------------------------------------------
+
+# A premade ElevenLabs voice (Bella): free accounts can use it through the API, library voices they can't.
+PRESET_VOICE = {"provider": "11labs", "voiceId": "hpp4J3VqNfWAUOO0d1Us", "model": "eleven_flash_v2_5"}
+PRESETS = [
+    {"id": "balanced", "name": "Balanced", "about": "Accurate transcriber, a capable small model, a natural voice",
+     "transcriber": {"provider": "deepgram", "model": "nova-3"},
+     "model": {"provider": "openai", "model": "gpt-4.1-mini"}, "voice": PRESET_VOICE},
+    {"id": "high-intelligence", "name": "High intelligence", "about": "A frontier model for calls that need reasoning",
+     "transcriber": {"provider": "deepgram", "model": "nova-3"},
+     "model": {"provider": "anthropic", "model": "claude-sonnet-5-5"}, "voice": PRESET_VOICE},
+    {"id": "ultra-fast", "name": "Ultra fast", "about": "The fastest answers OpenRing measured",
+     "transcriber": {"provider": "deepgram", "model": "nova-3"},
+     "model": {"provider": "groq", "model": "openai/gpt-oss-20b"}, "voice": PRESET_VOICE},
+    {"id": "cost-saver", "name": "Cost saver", "about": "Transcriber and voice free on this computer; slower on a CPU",
+     "transcriber": {"provider": "whisper", "model": "base"},
+     "model": {"provider": "groq", "model": "openai/gpt-oss-20b"},
+     "voice": {"provider": "kokoro", "voiceId": "af_heart"}},
+]
+# Milliseconds per stage, measured on OpenRing's own real test calls (scripts/smoke_call.py, 2026-11-14, a 2018
+# laptop, phone audio). Anything not measured stays unknown: OpenRing doesn't guess how fast a provider is.
+MEASURED_MS = {
+    ("transcriber", "deepgram"): 160,
+    ("model", "groq", "openai/gpt-oss-20b"): 750,
+    ("voice", "11labs"): 280,
+    ("voice", "elevenlabs"): 280,
+    ("voice", "kokoro"): 2600,
+}
+ENDPOINTING_MS = 210  # silence until the turn ends, measured on the same calls
+
+
+def presets() -> list[dict[str, Any]]:
+    """Each preset with its estimated cost per minute (list prices, `ESTIMATE`), its measured latency where OpenRing
+    has measured it, and the keys this server still lacks for it."""
+    import os
+
+    from . import routes
+    from .providers import LLM_PROVIDERS, STT_PROVIDERS, TTS_PROVIDERS, resolve_plan
+
+    out = []
+    for preset in PRESETS:
+        plan = resolve_plan({"transcriber": preset["transcriber"], "model": preset["model"],
+                             "voice": preset["voice"]}, check_keys=False, with_fallbacks=False)
+        estimate = profile([], plan)
+        stages = {"transcriber": MEASURED_MS.get(("transcriber", plan.stt_provider)),
+                  # this server's own calls first (routes keeps each model's time to its first word)
+                  "model": routes.speed(plan.llm_provider, plan.llm_model)
+                  or MEASURED_MS.get(("model", plan.llm_provider, plan.llm_model)),
+                  "voice": MEASURED_MS.get(("voice", plan.tts_provider))}
+        known = None if None in stages.values() else ENDPOINTING_MS + sum(stages.values())
+        envs = [STT_PROVIDERS.get(plan.stt_provider), (LLM_PROVIDERS.get(plan.llm_provider) or (None, None))[1],
+                TTS_PROVIDERS.get(plan.tts_provider)]
+        missing = sorted({e for e in envs if e and not os.environ.get(e, "").strip()})
+        out.append({**preset, "costPerMinute": estimate["costPerMinute"], "totalPerMinute": estimate["totalPerMinute"],
+                    "unpriced": estimate["unpriced"], "latency": {**stages, "turn": known},
+                    "missingKeys": missing})
+    return out

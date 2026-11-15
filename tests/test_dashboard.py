@@ -424,3 +424,25 @@ def test_every_provider_has_a_logo_the_server_serves():
     client = make_client()
     missing = [p for p in sorted(listed) if client.get(f"/icons/{p}.svg").status_code != 200]
     assert missing == []
+
+
+def test_a_presets_voice_model_is_saved_until_the_voice_changes():
+    fn = re.search(r"^function layerSaved\(.*?^}$", PAGE, re.M | re.S).group(0)
+    got = run_js(fn + """
+    const form = values => ({ get: k => values[k] ?? null });
+    console.log(JSON.stringify({
+      preset: layerSaved("voice", null, form({ vp: "11labs", vv: "v1", vmodel: "eleven_flash_v2_5" }),
+                         { provider: "kokoro" }).model,
+      kept: layerSaved("voice", null, form({ vp: "11labs", vv: "v1", vmodel: "" }),
+                       { provider: "11labs", model: "m" }).model,
+      other: layerSaved("voice", null, form({ vp: "cartesia", vv: "v1", vmodel: "" }),
+                        { provider: "11labs", model: "m" }).model ?? null,
+    }));""")
+    assert got == {"preset": "eleven_flash_v2_5", "kept": "m", "other": None}
+    assert 'name="vmodel"' in PAGE and '$("[name=vmodel]").value = "";' in PAGE  # changing the voice clears it
+
+
+def test_the_advanced_tab_fields_are_in_the_form():
+    names = json.loads(re.search(r"^const ADVANCED_FIELDS = (\[.*?\]);$", PAGE, re.M).group(1))
+    assert all(f'name="{n}"' in PAGE for n in [*names, "maxmin"])
+    assert '["advanced", "Advanced"]' in PAGE and '["traffic", "Traffic"]' in PAGE and '<h3>Caller</h3>' not in PAGE
