@@ -82,6 +82,9 @@ def _connectors() -> dict[str, dict[str, Any]]:
     for pid in ("xai", "anthropic", "openai"):
         if pid in found and os.environ.get(f"{pid.upper()}_CLIENT_ID"):
             found[pid]["oauth"] = True
+    # Hugging Face: its own client, or none at all when this server has an https PUBLIC_URL (oauth.cimd_client_id).
+    if os.environ.get("HUGGINGFACE_CLIENT_ID") or os.environ.get("PUBLIC_URL", "").startswith("https://"):
+        found["huggingface"]["oauth"] = True
     found["twilio"] = {"fields": [("TWILIO_ACCOUNT_SID", "Account SID"), ("TWILIO_AUTH_TOKEN", "Auth token")],
                        "keysUrl": KEY_PAGES["twilio"]}
     # The public key (Keys & Credentials > Public Key) checks that webhooks come from Telnyx.

@@ -56,6 +56,10 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   `showAssistantTab`, `ADVANCED_FIELDS`), so nothing typed is lost; Logs/Traffic/Test render in `#extra`
   (`assistantPane`). Presets from `GET /assistant/presets` (`stats.PRESETS`; latency only measured: `MEASURED_MS`
   from the smoke calls or `routes.speed`); a preset's voice model rides in the hidden `vmodel` field.
+- OAuth (`openring/oauth.py`): only sign-ins whose token is a usable key are real: OpenRouter (its own exchange) and
+  Hugging Face (`key_env: HF_TOKEN`; client = `HUGGINGFACE_CLIENT_ID` or the server itself by CIMD,
+  `cimd_client_id`, needs https `PUBLIC_URL`). `api.refresh_oauth_keys` (lifespan, every 5 min, `keep_fresh`) puts
+  tokens into the environment. xai/anthropic/openai tokens are stored but no call uses them.
 - `openring/analysis.py`: Vapi's `analysisPlan` (summary, structuredData, successEvaluation) after the call, run by
   `bot.with_analysis` inside the shielded end-of-call `report()`: the plan's own model (`model_for`; a realtime model
   falls back to `drafts.choose`), parts in parallel with Vapi's `timeoutSeconds`, cost into

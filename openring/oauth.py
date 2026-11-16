@@ -35,6 +35,7 @@ class OAuthProvider(Enum):
     XAI = "xai"
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    HUGGINGFACE = "huggingface"
 
 
 SUPPORTED_PROVIDERS = {p.value for p in OAuthProvider}
@@ -69,7 +70,16 @@ class OAuthToken:
 # No built-in client IDs: OpenRing never signs in as another vendor's app (Claude Code, Codex, Grok CLI);
 # their terms reserve those clients and subscriptions for their own tools. A server owner who has
 # their own OAuth client sets <PROVIDER>_CLIENT_ID. OpenRouter has its own flow (keys.exchange_openrouter_code).
-DEFAULT_CLIENT_IDS: Dict[str, Optional[str]] = {"openrouter": None, "xai": None, "anthropic": None, "openai": None}
+DEFAULT_CLIENT_IDS: Dict[str, Optional[str]] = {"openrouter": None, "xai": None, "anthropic": None, "openai": None,
+                                                "huggingface": None}
+CIMD_PATH = "/.well-known/oauth-cimd"  # Hugging Face reads the client from this server itself (see cimd_client_id)
+
+
+def cimd_client_id(public_url: str) -> str:
+    """This server as its own OAuth client, by a Client ID Metadata Document: no app to register. The provider
+    fetches the document, so the server must be reachable at an https PUBLIC_URL; "" otherwise."""
+    public_url = (public_url or "").rstrip("/")
+    return public_url + CIMD_PATH if public_url.startswith("https://") else ""
 
 PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "openrouter": {
@@ -97,6 +107,14 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "token_url": "https://auth.openai.com/oauth/token",
         "flow": "pkce",
         "default_scope": "openid profile email offline_access",
+    },
+    "huggingface": {
+        "authorize_url": "https://huggingface.co/oauth/authorize",
+        "token_url": "https://huggingface.co/oauth/token",
+        "flow": "pkce",
+        "default_scope": "openid profile inference-api",  # inference-api: calls to Inference Providers
+        "cimd": True,  # the client can be this server's own metadata document
+        "key_env": "HF_TOKEN",  # the access token is the key calls use (router.huggingface.co takes it as Bearer)
     },
 }
 
@@ -306,6 +324,38 @@ class OAuthManager:
             # Corrupted or wrong key - remove and signal missing
             self.remove_token(provider)
             return None
+
+    def stored_token(self, provider: OAuthProvider) -> Optional[OAuthToken]:
+        """The token as stored, expired or not (an expired one may still be refreshed)."""
+        encrypted = self.store.get_setting(f"oauth_token:{provider.value}")
+        if not encrypted:
+            return None
+        try:
+            return self._decrypt_token(encrypted)
+        except (InvalidToken, KeyError, ValueError, json.JSONDecodeError):
+            return None
+
+    async def keep_fresh(self, provider: OAuthProvider, client_id: str, client_secret: str = "",
+                         margin: timedelta = timedelta(minutes=15)) -> Optional[OAuthToken]:
+        """The provider's token, refreshed when it expires within `margin`. None when there is none, or it expired
+        and can't be refreshed (it is then removed)."""
+        token = self.stored_token(provider)
+        if token is None:
+            return None
+        if datetime.now() < token.expires_at - margin:
+            return token
+        if token.refresh_token and client_id:
+            try:
+                fresh = await self.refresh_token(provider, client_id, client_secret, token.refresh_token)
+            except OAuthError:
+                fresh = None
+            if fresh is not None:
+                self.store_token(provider, fresh)
+                return fresh
+        if token.is_expired():
+            self.remove_token(provider)
+            return None
+        return token
 
     def remove_token(self, provider: OAuthProvider) -> None:
         """Remove OAuth token for provider."""

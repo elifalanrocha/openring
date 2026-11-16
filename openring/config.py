@@ -92,6 +92,9 @@ class Settings:
     anthropic_client_secret: str = field(default_factory=lambda: _env("ANTHROPIC_CLIENT_SECRET"))
     openai_client_id: str = field(default_factory=lambda: _env("OPENAI_CLIENT_ID"))
     openai_client_secret: str = field(default_factory=lambda: _env("OPENAI_CLIENT_SECRET"))
+    # Hugging Face needs none when PUBLIC_URL is https: this server is its own client (oauth.cimd_client_id).
+    huggingface_client_id: str = field(default_factory=lambda: _env("HUGGINGFACE_CLIENT_ID"))
+    huggingface_client_secret: str = field(default_factory=lambda: _env("HUGGINGFACE_CLIENT_SECRET"))
 
     @property
     def public_ws_url(self) -> str:

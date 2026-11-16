@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from loguru import logger
 
 from . import (
@@ -129,8 +129,19 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             await sip_server.start()
         await whatsapp.refresh()
         cleaning = asyncio.create_task(clean_recordings_forever())
+
+        async def keep_oauth_keys() -> None:
+            while True:
+                try:
+                    await _app.state.refresh_oauth_keys()
+                except Exception:
+                    logger.exception("refreshing OAuth sign-ins failed")
+                await asyncio.sleep(300)
+
+        signed_in = asyncio.create_task(keep_oauth_keys())
         yield
         cleaning.cancel()
+        signed_in.cancel()
         await whatsapp.stop()
         await sip_server.stop()
         await dialer.close()
@@ -546,6 +557,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     def disconnect_provider(provider: str) -> dict[str, Any]:
         if provider not in keys.CONNECTORS:
             raise HTTPException(status_code=404, detail="unknown provider")
+        if provider in PROVIDER_CONFIGS:  # a sign-in too, or its token would come back as the key
+            app.state.oauth.remove_token(OAuthProvider(provider))
         return _use(provider, {env: "" for env, _ in keys.CONNECTORS[provider]["fields"]})
 
     @app.post("/providers/openrouter/oauth", include_in_schema=False, dependencies=[Depends(require_session)])
@@ -565,7 +578,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
     from cryptography.fernet import Fernet
 
-    from .oauth import PROVIDER_CONFIGS, OAuthError, OAuthManager, OAuthProvider
+    from .oauth import CIMD_PATH, PROVIDER_CONFIGS, OAuthError, OAuthManager, OAuthProvider, cimd_client_id
 
     # Initialize OAuth manager with encryption key from env or generate ephemeral key
     oauth_encryption_key = os.environ.get("OAUTH_ENCRYPTION_KEY", "")
@@ -577,6 +590,42 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         logger.warning("OAUTH_ENCRYPTION_KEY not set: using ephemeral key. Tokens will be lost on restart.")
 
     oauth_manager = OAuthManager(oauth_encryption_key, store)
+    app.state.oauth = oauth_manager
+
+    def _oauth_client(provider: str) -> str:
+        """The client id to sign in with: the owner's own, else (where the provider reads one) this server itself."""
+        own = oauth_manager.get_client_id(provider, settings)
+        return own or (cimd_client_id(settings.public_url) if PROVIDER_CONFIGS[provider].get("cimd") else "")
+
+    def _oauth_callback_uri() -> str:
+        return f"{(settings.public_url or 'http://127.0.0.1:8000').rstrip('/')}/oauth/callback"
+
+    async def refresh_oauth_keys() -> None:
+        """Put each signed-in provider's token where calls read its key, refreshed before it expires; a token that
+        ran out and can't be refreshed takes the key away, so the provider shows as not connected."""
+        for provider, config in PROVIDER_CONFIGS.items():
+            env = config.get("key_env")
+            if not env or oauth_manager.stored_token(OAuthProvider(provider)) is None:
+                continue
+            token = await oauth_manager.keep_fresh(
+                OAuthProvider(provider), _oauth_client(provider),
+                getattr(settings, f"{provider}_client_secret", "") or "")
+            if token is not None:
+                os.environ[env] = token.access_token
+            elif os.environ.get(env, "").startswith("hf_oauth_"):
+                os.environ.pop(env, None)
+
+    app.state.refresh_oauth_keys = refresh_oauth_keys
+
+    @app.get(CIMD_PATH, include_in_schema=False)
+    def oauth_client_metadata() -> dict[str, Any]:
+        """This server as an OAuth client (a Client ID Metadata Document): what Hugging Face fetches when someone
+        signs in from here. Public by design; it holds no secret."""
+        client_id = cimd_client_id(settings.public_url)
+        if not client_id:
+            raise HTTPException(status_code=404, detail="needs an https PUBLIC_URL")
+        return {"client_id": client_id, "client_name": "OpenRing", "redirect_uris": [_oauth_callback_uri()],
+                "token_endpoint_auth_method": "none", "client_uri": settings.public_url.rstrip("/")}
 
     def _valid_redirect_uri(redirect_uri: str) -> bool:
         """Allowlist: localhost/loopback (RFC 8252) or this server's PUBLIC_URL."""
@@ -603,7 +652,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         provider_enum = OAuthProvider(provider)
 
         # Get client credentials for the provider (env override first, then default public client ID)
-        client_id = oauth_manager.get_client_id(provider, settings)
+        client_id = _oauth_client(provider)
 
         # OpenRouter has its own PKCE flow (signInOpenRouter in dashboard, keys.exchange_openrouter_code)
         # The /oauth/authorize endpoint for OpenRouter is not used — dashboard calls internal flow
@@ -612,8 +661,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 status_code=400, detail="OpenRouter uses built-in sign-in (Connect → Sign in with OpenRouter)"
             )
 
-        if not redirect_uri:
-            redirect_uri = f"{settings.public_url or 'http://127.0.0.1:8000'}/oauth/callback"
+        # A client read from this server's own metadata is only good for the redirect URI that document lists.
+        if not redirect_uri or (client_id and client_id == cimd_client_id(settings.public_url)):
+            redirect_uri = _oauth_callback_uri()
 
         if not _valid_redirect_uri(redirect_uri):
             raise HTTPException(status_code=400, detail="redirect_uri not allowed")
@@ -649,13 +699,15 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         return {"flow": "pkce", "authorization_url": auth_url, "state": state}
 
     @app.get("/oauth/callback", include_in_schema=False)
-    async def oauth_callback(provider: str, code: str = "", state: str = "") -> dict[str, Any]:
+    async def oauth_callback(provider: str = "", code: str = "", state: str = "") -> Any:
         """The provider's browser redirect. It carries no dashboard header and, being cross-site, no
-        SameSite=Strict cookie: the one-time state, issued to a signed-in session, is what authorizes it."""
+        SameSite=Strict cookie: the one-time state, issued to a signed-in session, is what authorizes it. The
+        provider is the one the state was issued for (providers don't add it to the redirect)."""
         if not hasattr(settings, "oauth_sessions") or state not in settings.oauth_sessions:
             raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
         session_data = settings.oauth_sessions.pop(state)
+        provider = provider or session_data["provider"]
         if time.time() > session_data["expires"] or session_data["provider"] != provider:
             raise HTTPException(status_code=400, detail="OAuth state expired")
 
@@ -667,7 +719,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             raise HTTPException(status_code=400, detail="OpenRouter uses built-in sign-in")
 
         provider_enum = OAuthProvider(provider)
-        client_id = oauth_manager.get_client_id(provider, settings)
+        client_id = _oauth_client(provider)
         client_secret = getattr(settings, f"{provider}_client_secret", "") or ""
 
         try:
@@ -682,6 +734,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
             # Store the token (encrypted)
             oauth_manager.store_token(provider_enum, token)
+            await refresh_oauth_keys()  # the token becomes the key calls use, where the provider takes it as one
+            if PROVIDER_CONFIGS[provider].get("key_env"):  # a page for the sign-in window, which the dashboard watches
+                return HTMLResponse("<!doctype html><title>OpenRing</title><p>Signed in. You can close this window."
+                                    "</p><script>window.close()</script>")
 
             return {
                 "success": True,
@@ -703,6 +759,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
 
         provider_enum = OAuthProvider(provider)
         oauth_manager.remove_token(provider_enum)
+        env = PROVIDER_CONFIGS[provider].get("key_env")
+        if env:
+            os.environ.pop(env, None)
 
         return {"success": True, "message": f"Disconnected from {provider} OAuth"}
 

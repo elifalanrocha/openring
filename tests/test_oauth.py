@@ -178,3 +178,63 @@ def test_authorize_and_callback_round_trip(monkeypatch):
     # A state works once.
     r = client.get("/oauth/callback", params={"provider": "anthropic", "code": "c", "state": state}, headers=DASH)
     assert r.status_code == 400
+
+
+def test_hugging_face_needs_no_app_when_the_server_has_an_https_address(monkeypatch):
+    assert oauth.cimd_client_id("https://voice.example.com/") == "https://voice.example.com/.well-known/oauth-cimd"
+    assert oauth.cimd_client_id("http://127.0.0.1:8000") == "" and oauth.cimd_client_id("") == ""
+    monkeypatch.delenv("HUGGINGFACE_CLIENT_ID", raising=False)
+    monkeypatch.setenv("PUBLIC_URL", "https://voice.example.com")
+    assert keys._connectors()["huggingface"].get("oauth")
+    monkeypatch.setenv("PUBLIC_URL", "")
+    assert not keys._connectors()["huggingface"].get("oauth")
+
+
+def test_signing_in_with_hugging_face_gives_calls_their_key(monkeypatch):
+    import os
+
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    asked = []
+
+    def handle(request):
+        asked.append(dict(parse_qs(request.content.decode())))
+        return httpx.Response(200, json={"access_token": "hf_oauth_abc", "expires_in": 28800,
+                                         "refresh_token": "r1", "scope": "inference-api"})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handle)))
+    client = signed_in(public_url="https://voice.example.com")
+    app = client.app
+    document = client.get("/.well-known/oauth-cimd").json()
+    assert document["redirect_uris"] == ["https://voice.example.com/oauth/callback"]
+    assert document["token_endpoint_auth_method"] == "none"
+    started = client.get("/oauth/authorize", params={"provider": "huggingface", "redirect_uri":
+                                                     "http://127.0.0.1:8000/oauth/callback"}, headers=DASH).json()
+    query = parse_qs(urlsplit(started["authorization_url"]).query)
+    assert query["client_id"] == [document["client_id"]] and query["redirect_uri"] == document["redirect_uris"]
+    assert "inference-api" in query["scope"][0] and query["code_challenge_method"] == ["S256"]
+    done = client.get("/oauth/callback", params={"code": "c1", "state": started["state"]})  # no provider: as redirected
+    assert done.status_code == 200 and "window.close()" in done.text
+    assert asked[0]["code"] == ["c1"] and asked[0]["client_id"] == [document["client_id"]]
+    assert os.environ["HF_TOKEN"] == "hf_oauth_abc"
+    assert client.delete("/providers/huggingface/connect", headers=DASH).status_code == 200
+    assert not os.environ.get("HF_TOKEN") and app.state.oauth.stored_token(OAuthProvider.HUGGINGFACE) is None
+
+
+def test_a_token_is_refreshed_before_it_runs_out_and_dropped_when_it_cant_be(manager, monkeypatch):
+    def stored(expires_in, refresh):
+        manager.store_token(OAuthProvider.HUGGINGFACE, OAuthToken(
+            provider=OAuthProvider.HUGGINGFACE, access_token="old", token_type="Bearer",
+            expires_at=datetime.now() + timedelta(seconds=expires_in), refresh_token=refresh))
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"access_token": "new", "expires_in": 28800}))))
+    stored(28800, "r1")
+    assert asyncio.run(manager.keep_fresh(OAuthProvider.HUGGINGFACE, "cid")).access_token == "old"  # still good
+    stored(60, "r1")
+    fresh = asyncio.run(manager.keep_fresh(OAuthProvider.HUGGINGFACE, "cid"))
+    assert fresh.access_token == "new" and fresh.refresh_token == "r1"  # the refresh token is kept
+    stored(-10, None)
+    assert asyncio.run(manager.keep_fresh(OAuthProvider.HUGGINGFACE, "cid")) is None
+    assert manager.stored_token(OAuthProvider.HUGGINGFACE) is None

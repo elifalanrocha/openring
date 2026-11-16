@@ -25,6 +25,7 @@ PUBLIC_HTTP = {
     "/fonts/archivo.woff2",
     # The OAuth provider's cross-site redirect; the one-time state from a signed-in session authorizes it.
     "/oauth/callback",
+    "/.well-known/oauth-cimd",  # this server as an OAuth client: the provider fetches it; it holds no secret
 }
 # Media streams: each claims a queued call by id (Twilio, Telnyx, Plivo, Vonage) or checks a signature (Genesys).
 PUBLIC_WS = {"/ws/twilio", "/ws/telnyx", "/ws/plivo", "/ws/vonage", "/ws/genesys"}
