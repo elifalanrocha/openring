@@ -13,6 +13,10 @@ All notable changes to OpenRing are listed here. The format follows
   `nvidia`, `huggingface`). Transcribers: OpenAI, Groq (Whisper) and Gradium. Voices: MiniMax (with its group ID),
   Resemble AI, Gradium, Async and Speechify. None needs a new dependency. Built and checked in tests only, not yet on
   a real call.
+- Versions of an assistant and traffic split between them (OpenRing's own API): `POST /assistant/{id}/version` keeps
+  the assistant as it is, a version can be restored, and `trafficPlan` gives saved versions a percentage of the calls.
+  Each call records which one answered (`assistantVersion`), and the Traffic tab compares them: calls, success rate
+  (from `analysisPlan`) and cost per call. Tested on simulated calls only.
 - Sign in with Hugging Face on the Providers page, with no OAuth app to create: when the server has an https
   `PUBLIC_URL` it is its own client (a Client ID Metadata Document at `/.well-known/oauth-cimd`). The token becomes the
   key calls use and is refreshed before it runs out; one that can't be refreshed disconnects the provider. Checked

@@ -100,6 +100,20 @@ speed. The assistant editor has a slider.
 one, such as `eleven_flash_v2_5`), Kokoro, Cartesia, Rime, Neuphonic, Smallest and Inworld use it. Deepgram's voices
 carry their language in their name and OpenAI's read whatever they are given. The assistant editor has it under Voice.
 
+### Versions and traffic
+
+OpenRing's own. `POST /assistant/{id}/version` (optionally `{"name": ...}`) keeps the assistant as it is now as
+version 1, 2, 3...; `GET /assistant/{id}/version` lists them with how the calls each one answered went (calls, success
+rate from `analysisPlan`, average cost and length); `POST /assistant/{id}/version/{versionId}/restore` makes the
+assistant what a version holds. To compare two, give a saved version a share of the calls:
+
+```json
+{"trafficPlan": {"versions": [{"versionId": "<id>", "weight": 20}]}}
+```
+
+Twenty percent of the assistant's calls are then answered by that version and the rest by the assistant as it is. Each
+call says which in `assistantVersion` (a version's number, or `"current"`).
+
 ### Evals: check an assistant before callers do
 
 `POST /eval` and `POST /eval/run`, as on Vapi. An eval (`type: "chat.mockConversation"`) is a chat you write:

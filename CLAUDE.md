@@ -56,6 +56,10 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   `showAssistantTab`, `ADVANCED_FIELDS`), so nothing typed is lost; Logs/Traffic/Test render in `#extra`
   (`assistantPane`). Presets from `GET /assistant/presets` (`stats.PRESETS`; latency only measured: `MEASURED_MS`
   from the smoke calls or `routes.speed`); a preset's voice model rides in the hidden `vmodel` field.
+- `openring/versions.py` (OpenRing's own; collection `assistant_versions`): `POST|GET /assistant/{id}/version`,
+  `.../{versionId}/restore`; `trafficPlan.versions[{versionId, weight}]` on the assistant. `api._call_target` picks
+  once per call (`versions.pick`) and stores `assistantVersion` (number or "current") on the call;
+  `versions.results` compares them. Dashboard: Traffic tab (`versionsPane`).
 - OAuth (`openring/oauth.py`): only sign-ins whose token is a usable key are real: OpenRouter (its own exchange) and
   Hugging Face (`key_env: HF_TOKEN`; client = `HUGGINGFACE_CLIENT_ID` or the server itself by CIMD,
   `cimd_client_id`, needs https `PUBLIC_URL`). `api.refresh_oauth_keys` (lifespan, every 5 min, `keep_fresh`) puts

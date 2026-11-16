@@ -1934,7 +1934,35 @@ async function assistantPane(a, el, which) {
   const top = Math.max(1, ...count.map(c => c.phone + c.web));
   el.innerHTML = `<div class="traffic">${count.map(c => `<div class="tday" title="${esc(c.d.toLocaleDateString(LOCALE))}: ${c.phone} phone, ${c.web} browser"><div class="tbar"><span class="web" style="height:${c.web / top * 100}%"></span><span class="phone" style="height:${c.phone / top * 100}%"></span></div><small>${c.d.getDate()}</small></div>`).join("")}</div>
     <div class="legend" style="margin-top:10px"><span style="--dot:var(--accent)">Phone</span><span style="--dot:var(--muted)">Browser</span></div>
-    <p class="muted">${calls.length} call${calls.length === 1 ? "" : "s"} in all. Splitting traffic between versions of an assistant comes with versions.</p>`;
+    <p class="muted">${calls.length} call${calls.length === 1 ? "" : "s"} in all.</p><div id="versions"></div>`;
+  versionsPane(a, $("#versions"));
+}
+// Versions of the assistant and the share of calls each gets (versions.py).
+async function versionsPane(a, el) {
+  const data = await api(`/assistant/${a.id}/version`);
+  const share = id => (data.trafficPlan?.versions || []).find(v => v.versionId === id)?.weight || 0;
+  const result = label => data.results.find(r => r.version === label);
+  const cells = r => r ? `<td class="num">${r.calls}</td><td class="num">${r.successRate == null ? "—" : Math.round(r.successRate * 100) + "%"}</td><td class="num hide-sm">${r.averageCost == null ? "—" : usd(r.averageCost)}</td>` : `<td class="num">0</td><td class="num">—</td><td class="num hide-sm">—</td>`;
+  const rest = 100 - data.versions.reduce((n, v) => n + share(v.id), 0);
+  el.innerHTML = `<h3 style="margin:22px 0 4px">Versions</h3><p class="muted" style="margin-top:0">Save the assistant as it is before changing it, then give a saved version a share of the calls to compare the two. Success comes from <b>Analyze calls</b> (Advanced).</p>
+    <form id="verForm"><div class="scroll"><table class="table"><thead><tr><th>Version</th><th class="num">Share of calls</th><th class="num">Calls</th><th class="num">Success</th><th class="num hide-sm">Cost per call</th><th></th></tr></thead><tbody>
+      <tr><td><b>Current</b> <span class="muted">as saved now</span></td><td class="num">${rest}%</td>${cells(result("current"))}<td></td></tr>
+      ${data.versions.slice().reverse().map(v => `<tr><td><b>${esc(v.name)}</b> <span class="muted">${when(v.createdAt)}</span></td><td class="num"><input type="number" min="0" max="100" step="1" name="w" data-version="${esc(v.id)}" value="${share(v.id)}" aria-label="Share of calls for ${esc(v.name)}" style="width:72px"> %</td>${cells(result(v.number))}<td class="num"><button type="button" class="btn ghost small" data-restore="${esc(v.id)}">Restore</button></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="error" id="verErr" role="alert"></div>
+    <div class="row-actions"><button type="button" class="btn ghost" id="verSave">${ICON.plus}Save a version</button><span class="spacer"></span>${data.versions.length ? `<button class="btn">Save shares</button>` : ""}</div></form>`;
+  $("#verSave").onclick = async () => { await api(`/assistant/${a.id}/version`, { method: "POST", body: "{}" }); versionsPane(a, el); };
+  el.querySelectorAll("[data-restore]").forEach(b => b.onclick = async () => {
+    if (!(await ask("Restore this version?", "The assistant becomes what this version holds. Save a version first to keep what it is now.", "Restore"))) return;
+    try { await api(`/assistant/${a.id}/version/${b.dataset.restore}/restore`, { method: "POST" }); go("assistants"); }
+    catch (err) { $("#verErr").textContent = err.message; }
+  });
+  $("#verForm").onsubmit = async e => {
+    e.preventDefault();
+    const versions = [...el.querySelectorAll("[name=w]")].map(i => ({ versionId: i.dataset.version, weight: Number(i.value) || 0 })).filter(v => v.weight > 0);
+    try { await api("/assistant/" + a.id, { method: "PATCH", body: JSON.stringify({ trafficPlan: versions.length ? { versions } : null }) }); versionsPane(a, el); }
+    catch (err) { $("#verErr").textContent = err.message; }
+  };
 }
 function layerSaved(kind, route, f, saved) {
   if (route) { const first = route.models[0]; return { routeId: route.id, provider: first.provider, model: first.model, ...(kind === "voice" ? { voiceId: first.voiceId } : {}) }; }

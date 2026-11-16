@@ -46,6 +46,7 @@ from . import (
     stats,
     telnyx,
     twilio,
+    versions,
     vonage,
     wavoip,
 )
@@ -251,9 +252,22 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             store.update("calls", call["id"], {"rememberedCallIds": remembered})
 
     def _call_target(call: dict[str, Any]) -> dict[str, Any] | None:
-        """Who a call record says should answer: its squad or its assistant."""
-        return (call.get("squad") or store.get("squads", call.get("squadId") or "") or call.get("assistant")
-                or store.get("assistants", call.get("assistantId") or ""))
+        """Who a call record says should answer: its squad or its assistant; for an assistant that splits its
+        traffic (versions.py), the version picked when the call was first looked up, kept on the call."""
+        found = call.get("squad") or store.get("squads", call.get("squadId") or "") or call.get("assistant")
+        if found:
+            return found
+        assistant = store.get("assistants", call.get("assistantId") or "")
+        if not assistant or not (assistant.get("trafficPlan") or {}).get("versions"):
+            return assistant
+        label = call.get("assistantVersion")
+        if label is None and call.get("id"):
+            answers, label = versions.pick(assistant, store)
+            call["assistantVersion"] = label
+            store.update("calls", call["id"], {"assistantVersion": label})
+            return answers
+        saved = next((v for v in versions.of(store, assistant["id"]) if v["number"] == label), None)
+        return {**saved["assistant"], "id": assistant["id"]} if saved else assistant
 
     def _prepare_squad(squad: dict[str, Any]) -> None:
         try:
@@ -289,6 +303,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             if (route.get("kind") or "model") != layer:
                 raise HTTPException(status_code=400, detail=f"{layer}.routeId: route {route_id} holds "
                                     f"{route.get('kind') or 'model'}s, not {layer}s")
+        try:
+            versions.check_plan(doc.get("trafficPlan"), store, (current or {}).get("id"))
+        except versions.VersionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         try:
             _plan(doc, check_keys=False)
             model = doc.get("model") or {}
@@ -798,6 +816,40 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                 body.get("model"), dict) else None)
         except drafts.DraftError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/assistant/{assistant_id}/version", status_code=201, dependencies=auth_deps)
+    def save_assistant_version(assistant_id: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        """OpenRing's own: keep the assistant as it is now as its next version (versions.py)."""
+        return versions.save(store, _get_or_404("assistants", assistant_id), (body or {}).get("name"))
+
+    @app.get("/assistant/{assistant_id}/version", dependencies=auth_deps)
+    def list_assistant_versions(assistant_id: str) -> dict[str, Any]:
+        """Its versions, and how the calls each one answered went."""
+        assistant = _get_or_404("assistants", assistant_id)
+        return {"versions": versions.of(store, assistant_id), "trafficPlan": assistant.get("trafficPlan"),
+                "results": versions.results(store, assistant_id, store.list("calls", limit=10_000))}
+
+    @app.post("/assistant/{assistant_id}/version/{version_id}/restore", dependencies=auth_deps)
+    def restore_assistant_version(assistant_id: str, version_id: str) -> dict[str, Any]:
+        """Make the assistant what this version holds (save a version first to keep what it is now)."""
+        current = _get_or_404("assistants", assistant_id)
+        version = _get_or_404("assistant_versions", version_id)
+        if version.get("assistantId") != assistant_id:
+            raise HTTPException(status_code=404, detail="assistant version not found")
+        stale = {k: None for k in current if k not in version["assistant"] and k not in versions.OWN}
+        _validate_assistant({**version["assistant"]}, current)
+        return store.update("assistants", assistant_id, {**stale, **version["assistant"]})
+
+    @app.delete("/assistant/{assistant_id}/version/{version_id}", dependencies=auth_deps)
+    def delete_assistant_version(assistant_id: str, version_id: str) -> dict[str, Any]:
+        version = _get_or_404("assistant_versions", version_id)
+        assistant = _get_or_404("assistants", assistant_id)
+        if version.get("assistantId") != assistant_id:
+            raise HTTPException(status_code=404, detail="assistant version not found")
+        if any(s.get("versionId") == version_id for s in (assistant.get("trafficPlan") or {}).get("versions") or []):
+            raise HTTPException(status_code=400, detail="this version gets traffic: take it out of trafficPlan first")
+        store.delete("assistant_versions", version_id)
+        return version
 
     @app.get("/assistant/presets", dependencies=auth_deps)
     def assistant_presets() -> list[dict[str, Any]]:

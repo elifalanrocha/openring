@@ -17,7 +17,7 @@ from typing import Any
 
 COLLECTIONS = ("assistants", "phone_numbers", "calls", "tools", "campaigns", "routes", "files", "knowledge_bases",
                "squads", "credentials", "announcements", "escalations", "evals", "eval_runs",
-               "structured_outputs")
+               "structured_outputs", "assistant_versions")
 PROTECTED = {"id", "createdAt"}
 
 
