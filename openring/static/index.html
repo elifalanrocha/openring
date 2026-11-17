@@ -197,6 +197,10 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .cards.secondary .card { animation: rise .32s cubic-bezier(.2, .8, .2, 1) 140ms backwards; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .cards.overview .card, .cards.secondary .card { animation: none; } }
+.chart-switch { display: inline-flex; gap: 4px; }
+.chart-switch .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.bars .bar.spend { background: var(--c2); }
+.inline-select { width: auto; padding: 6px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); margin-right: 10px; }
 .spark { display: block; width: 100%; height: 34px; margin-top: 10px; color: var(--c1); overflow: visible; }
 .spark path.area { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: none; }
 .spark path.line { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -954,8 +958,9 @@ function spark(values) {
 
 async function viewHome() {
   setPage("home");
-  const days = store.get("openring-period") || "30";
-  const [s, assistants, numbers, info, recent] = await Promise.all([api("/stats?days=" + days), api("/assistant"), api("/phone-number"), api("/dashboard/info"), api("/call?limit=6")]);
+  const days = store.get("openring-period") || "30", only = store.get("openring-home-assistant") || "";
+  const chart = store.get("openring-home-chart") || "calls";
+  const [s, assistants, numbers, info, recent] = await Promise.all([api("/stats?days=" + days + (only ? "&assistantId=" + encodeURIComponent(only) : "")), api("/assistant"), api("/phone-number"), api("/dashboard/info"), api("/call?limit=6")]);
   const name = id => assistants.find(a => a.id === id)?.name || "Deleted assistant";
   const ready = id => info.providers.find(p => p.id === id)?.ready;
   const hasModel = info.providers.some(p => p.kind === "model" && p.id !== "omniroute" && p.ready);
@@ -965,7 +970,7 @@ async function viewHome() {
     [s.byType.webCall > 0 || recent.some(c => c.type === "webCall"), "Talk to it here", "Test it with your microphone, no phone number needed.", assistants[0] ? `<button class="btn ghost small" id="firstTest">Test ${esc(assistants[0].name || "it")}</button>` : ""],
     [numbers.length > 0, "Connect a phone number", "Point a Twilio number at this server.", `<a class="btn ghost small" href="#numbers">Add a number</a>`],
   ];
-  const max = Math.max(1, ...s.perDay.map(d => d.calls));
+  const max = Math.max(1, ...s.perDay.map(d => d.calls)), maxCost = Math.max(1e-9, ...s.perDay.map(d => d.cost || 0));
   const lp = s.latencyParts, lpTotal = PARTS.reduce((t, [k]) => t + (lp[k] || 0), 0);
   const label = d => new Date(d + "T12:00:00").toLocaleDateString(LOCALE, { month: "short", day: "numeric" });
   const pd = s.perDay;
@@ -973,7 +978,7 @@ async function viewHome() {
   const v = $("#view");
   v.innerHTML = `
   ${steps.every(x => x[0]) ? "" : `<section class="panel" style="margin-bottom:18px"><header><h2>Get started</h2><span class="muted" style="font-size:13px">${steps.filter(x => x[0]).length} of ${steps.length} done</span></header><div class="body"><div class="steps">${steps.map(([done, t, p, act], i) => `<div class="step ${done ? "done" : ""}"><span class="n">${done ? "✓" : i + 1}</span><div><b>${t}</b><p>${p}</p>${done ? "" : act}</div></div>`).join("")}</div></div></section>`}
-  <div class="toolbar"><h2 style="font-size:18px">Overview</h2>${tabs(PERIODS, days, "period")}</div>
+  <div class="toolbar"><h2 style="font-size:18px">Overview</h2><span class="spacer"></span>${assistants.length > 1 ? `<select id="homeAsst" aria-label="Assistant" class="inline-select">${option("", "All assistants", only)}${assistants.map(a => option(a.id, a.name || "Untitled", only)).join("")}</select>` : ""}${tabs(PERIODS, days, "period")}</div>
   ${s.inProgress ? `<div class="livebar" role="status">${num(s.inProgress)} call${s.inProgress === 1 ? "" : "s"} live now<a href="#calls">Open calls</a></div>` : ""}
   <div class="cards overview primary">
     ${card("Fees avoided", "coin", "$" + s.platformFeeSaved.toFixed(2), "brand", `<span title="Hosted voice platforms charge about US$0.05 per minute for orchestration alone.">${num(s.minutes)} min that hosted platforms bill at about $0.05 each</span>`, "hero")}
@@ -988,11 +993,13 @@ async function viewHome() {
     ${card("Provider cost", "coin", s.cost.calls ? usd(s.cost.total) : "—", "", s.cost.calls ? `<span title="List prices of the models, transcribers, voices and phone lines${s.cost.incomplete ? `. ${s.cost.incomplete} call${s.cost.incomplete === 1 ? " uses a provider" : "s use providers"} without a known price` : ""}">${usd(s.cost.perMinute)} per minute · ${usd(s.cost.perCall)} per call${s.cost.incomplete ? " · partial" : ""}</span>` : "Priced from this version on")}
   </div>
   <div class="grid2">
-    <section class="panel"><header><h2>Calls per day</h2><div class="legend"><span style="--dot:var(--c1)">Calls</span><span style="--dot:var(--bad)">Failed</span></div></header>
-      <div class="body"><div class="bars">${pd.map(d => `<div class="day ${d.calls ? "" : "zero"}" title="${esc(label(d.date))}: ${d.calls} call${d.calls === 1 ? "" : "s"}, ${d.minutes} min${d.failed ? `, ${d.failed} failed` : ""}"><div class="bar" style="height:${d.calls ? Math.max(4, d.calls / max * 100) : 1.5}%">${d.failed ? `<div class="fail" style="height:${d.failed / d.calls * 100}%"></div>` : ""}</div></div>`).join("")}</div>
+    <section class="panel"><header><h2>${chart === "cost" ? "Spend per day" : "Calls per day"}</h2><div class="chart-switch" role="group" aria-label="Chart"><button type="button" class="btn ghost small" data-chart="calls" aria-pressed="${chart !== "cost"}">Calls</button><button type="button" class="btn ghost small" data-chart="cost" aria-pressed="${chart === "cost"}">Spend</button></div></header>
+      <div class="body"><div class="bars" role="img" aria-label="${chart === "cost" ? `Spend per day, ${usd(pd.reduce((t, d) => t + (d.cost || 0), 0))} in all` : `Calls per day, ${num(pd.reduce((t, d) => t + d.calls, 0))} in all`}">${chart === "cost"
+        ? pd.map(d => `<div class="day ${d.cost ? "" : "zero"}" title="${esc(label(d.date))}: ${usd(d.cost || 0)}"><div class="bar spend" style="height:${d.cost ? Math.max(4, d.cost / maxCost * 100) : 1.5}%"></div></div>`).join("")
+        : pd.map(d => `<div class="day ${d.calls ? "" : "zero"}" title="${esc(label(d.date))}: ${d.calls} call${d.calls === 1 ? "" : "s"}, ${d.minutes} min${d.failed ? `, ${d.failed} failed` : ""}"><div class="bar" style="height:${d.calls ? Math.max(4, d.calls / max * 100) : 1.5}%">${d.failed ? `<div class="fail" style="height:${d.failed / d.calls * 100}%"></div>` : ""}</div></div>`).join("")}</div>
       <div class="axis"><span>${esc(label(pd[0].date))}</span>${pd.length > 2 ? `<span>${esc(label(pd[Math.floor(pd.length / 2)].date))}</span>` : ""}<span>${esc(label(pd[pd.length - 1].date))}</span></div></div></section>
     <section class="panel"><header><h2>Where the time goes</h2></header>
-      <div class="body">${lpTotal ? `<div class="stack">${PARTS.map(([k, , c]) => `<span style="width:${(lp[k] || 0) / lpTotal * 100}%;background:${c}" title="${esc(k)}"></span>`).join("")}</div>
+      <div class="body">${lpTotal ? `<div class="stack">${PARTS.map(([k, l, c]) => `<span style="width:${(lp[k] || 0) / lpTotal * 100}%;background:${c}" title="${esc(l)}: ${ms(lp[k])}"></span>`).join("")}</div>
         <div class="parts">${PARTS.map(([k, l, c]) => `<div class="row2"><span style="--dot:${c}">${l}</span><b>${ms(lp[k])}</b></div>`).join("")}
           <div class="row2" style="border-top:1px solid var(--line);padding-top:10px"><span style="--dot:transparent">Whole turn, average</span><b>${ms(s.latencyAverageMs)}</b></div></div>
         <p class="goal">From the moment the caller stops talking to the first word of the answer, averaged per turn. Under 1.2 s feels natural.</p>`
@@ -1009,6 +1016,8 @@ async function viewHome() {
     </div>
   </div>`;
   v.querySelectorAll("[data-period]").forEach(b => b.onclick = () => { store.set("openring-period", b.dataset.period); viewHome(); });
+  if ($("#homeAsst")) $("#homeAsst").onchange = e => { store.set("openring-home-assistant", e.target.value); viewHome(); };
+  v.querySelectorAll("[data-chart]").forEach(b => b.onclick = () => { store.set("openring-home-chart", b.dataset.chart); viewHome(); });
   if ($("#firstTest")) $("#firstTest").onclick = () => startTalk(assistants[0]);
   const fee = v.querySelector(".card.hero .value"), to = s.platformFeeSaved;
   if (fee && to > 0 && !viewHome.counted && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
