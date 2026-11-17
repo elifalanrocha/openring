@@ -470,10 +470,33 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
 
 /* Browser test call: one ring per voice, swelling with its loudness */
 .talk { text-align: center; }
-.voices { display: flex; justify-content: center; gap: 48px; margin: 24px 0 12px; }
-.voice { display: grid; justify-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
-.voice .ring { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent); background: var(--accent-soft); transform: scale(calc(1 + var(--level, 0) * .35)); }
-#youMeter .ring { border-color: var(--muted); background: transparent; }
+/* Two orbs that listen to each other: each swells and swirls with the loudness of its own side of the call. */
+.voices { display: flex; justify-content: center; align-items: center; margin: 30px 0 18px; opacity: .55; filter: saturate(.6); transition: opacity .3s ease-out, filter .3s ease-out; }
+.voices.live { opacity: 1; filter: none; }
+.voice { display: grid; justify-items: center; gap: 4px; width: 136px; --hue: var(--accent); --level: 0; }
+.voice.you { --hue: var(--c1); }
+.voice .name { margin-top: 14px; font-weight: 600; font-size: 14px; color: var(--ink); }
+.voice .status { font-size: 12px; color: var(--muted); min-height: 1.3em; }
+.voice.talking .status { color: var(--hue); font-weight: 600; }
+.orb { position: relative; width: 104px; height: 104px; border-radius: 50%; animation: breathe 4.6s ease-in-out infinite; }
+.voice.talking .orb { animation: none; }
+.orb::before { content: ""; position: absolute; inset: -26%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--hue) 60%, transparent) 0, transparent 68%); opacity: calc(.28 + var(--level) * .72); transform: scale(calc(.88 + var(--level) * .55)); filter: blur(8px); }
+.orb i { position: absolute; inset: 0; border-radius: 50%; transform: scale(calc(1 + var(--level) * .2));
+  background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, .55) 0, transparent 32%), radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--hue) 78%, #fff) 0, var(--hue) 52%, color-mix(in srgb, var(--hue) 62%, #000) 100%);
+  box-shadow: inset 0 -10px 20px rgba(0, 0, 0, .22), 0 14px 30px -12px color-mix(in srgb, var(--hue) 75%, transparent); }
+.orb b { position: absolute; inset: 7%; border-radius: 50%; opacity: 0; mix-blend-mode: soft-light; transition: opacity .25s ease-out;
+  background: conic-gradient(from 0deg, transparent 0, rgba(255, 255, 255, .85) 18%, transparent 38%, rgba(255, 255, 255, .5) 62%, transparent 80%); animation: spin 3.4s linear infinite; }
+.voice.talking .orb b { opacity: 1; animation-duration: 1.5s; }
+/* A thread between them: a dot travels from whoever is speaking to whoever listens. */
+.link { position: relative; width: 84px; height: 2px; margin-bottom: 38px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
+.link::after { content: ""; position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: 0; }
+.voices[data-speaker] .link::after { opacity: 1; animation: travel 1s ease-in-out infinite; }
+.voices[data-speaker="bot"] .link::after { animation-direction: reverse; }
+@keyframes breathe { 50% { transform: scale(1.045); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes travel { from { left: 0; } to { left: calc(100% - 8px); } }
+@media (prefers-reduced-motion: reduce) { .orb, .orb b, .voices[data-speaker] .link::after { animation: none; } .voices, .orb b { transition: none; } }
+@media (max-width: 440px) { .voice { width: 104px; } .orb { width: 84px; height: 84px; } .link { width: 40px; } }
 .talk .state { color: var(--muted); min-height: 3em; margin: 8px 0 0; }
 .talk .row-actions { justify-content: center; }
 
@@ -500,7 +523,8 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
-  .voice .ring { transform: none; opacity: calc(.45 + var(--level, 0) * .55); }
+  .orb i, .orb::before { transform: none; }
+  .orb i { opacity: calc(.7 + var(--level, 0) * .3); }
 }
 </style>
 </head>
@@ -552,9 +576,10 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
 
 <dialog id="talkDialog" class="talk" aria-labelledby="talkTitle">
   <h2 id="talkTitle">Browser test</h2>
-  <div class="voices" aria-hidden="true">
-    <div class="voice" id="youMeter"><span class="ring"></span>You</div>
-    <div class="voice" id="botMeter"><span class="ring"></span>Assistant</div>
+  <div class="voices" id="voices" aria-hidden="true">
+    <div class="voice you" id="youMeter"><div class="orb"><i></i><b></b></div><span class="name">You</span><span class="status">listening</span></div>
+    <div class="link"></div>
+    <div class="voice bot" id="botMeter"><div class="orb"><i></i><b></b></div><span class="name">Assistant</span><span class="status">listening</span></div>
   </div>
   <p class="state" id="talkState" role="status"></p>
   <div class="row-actions" id="talkActions"></div>
@@ -2772,17 +2797,30 @@ function iceGathered(pc) {
   });
 }
 
-// Drives a ring's --level (0 to 1) from the loudness of a stream.
+// Drives an orb's --level (0 to 1) from the loudness of a stream: it rises fast and falls slowly, so it reads as breath
+// and not as flicker. `talking` says whether this side is speaking, with a margin so a short pause doesn't blink it.
 function meter(stream, el) {
   const ctx = new AudioContext(), analyser = ctx.createAnalyser(), data = new Uint8Array(512);
   analyser.fftSize = 512;
   ctx.createMediaStreamSource(stream).connect(analyser);
+  const status = el.querySelector(".status");
+  let level = 0, talking = false;
   (function tick() {
-    if (ctx.state === "closed") return el.style.setProperty("--level", 0);
+    if (ctx.state === "closed") { el.style.setProperty("--level", 0); el.classList.remove("talking"); return; }
     analyser.getByteTimeDomainData(data);
-    let peak = 0;
-    for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
-    el.style.setProperty("--level", Math.min(1, peak / 48).toFixed(2));
+    let sum = 0;
+    for (const v of data) sum += ((v - 128) / 128) ** 2;
+    const target = Math.min(1, Math.sqrt(sum / data.length) * 5);
+    level += (target - level) * (target > level ? 0.55 : 0.1);
+    el.style.setProperty("--level", level.toFixed(3));
+    const now = level > (talking ? 0.06 : 0.12);
+    if (now !== talking) {
+      talking = now;
+      el.classList.toggle("talking", talking);
+      if (status) status.textContent = talking ? "speaking" : "listening";
+      const bar = $("#voices"), who = $("#youMeter").classList.contains("talking") ? "you" : $("#botMeter").classList.contains("talking") ? "bot" : "";
+      if (who) bar.dataset.speaker = who; else delete bar.dataset.speaker;
+    }
     requestAnimationFrame(tick);
   })();
   return ctx;
@@ -2810,7 +2848,7 @@ async function startTalk(a) {
       talk?.meters.push(meter(voice, $("#botMeter")));
     };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") talkState("Connected. Say hello.");
+      if (pc.connectionState === "connected") { talkState("Connected. Say hello."); $("#voices").classList.add("live"); }
       if (["failed", "disconnected", "closed"].includes(pc.connectionState)) endTalk();
     };
     talkState("Connecting…");
@@ -2832,6 +2870,7 @@ function endTalk(problem) {
   pc?.close();
   mic?.getTracks().forEach(t => t.stop());
   meters.forEach(m => m.close());
+  $("#voices").classList.remove("live"); delete $("#voices").dataset.speaker;
   $("#talkAudio").srcObject = null;
   showTalkEnd(callId, problem);
 }
