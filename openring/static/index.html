@@ -51,8 +51,9 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.5 Archivo, "Segoe UI", system-ui, sans-serif; }
-h1, h2, h3 { font-family: Archivo, "Segoe UI", system-ui, sans-serif; margin: 0; letter-spacing: -0.02em; font-weight: 700; text-wrap: balance; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.55 Archivo, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.table, .parts, .minirow, .card, .totals, .bars, .stage, .mpick { font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: Archivo, "Segoe UI", system-ui, sans-serif; margin: 0; letter-spacing: -0.015em; font-weight: 700; text-wrap: balance; }
 a, button, input, select, textarea, label, summary { touch-action: manipulation; }
 .skip { position: absolute; left: 12px; top: -48px; z-index: 50; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
 .skip:focus { top: 12px; }
@@ -103,7 +104,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 
 .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 16px 32px; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
 .top .title { flex: 1; min-width: 0; }
-.top h1 { font-size: 21px; }
+.top h1 { font-size: 24px; font-stretch: 112%; letter-spacing: -0.025em; }
 .top p { margin: 0; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .iconbtn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
 .iconbtn:hover { color: var(--ink); background: var(--panel-2); border-color: var(--line); }
@@ -132,7 +133,7 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .btn:disabled { opacity: .5; cursor: default; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 0; }
-.panel > header h2 { font-size: 15px; font-weight: 600; color: var(--ink); }
+.panel > header h2 { font-size: 16px; font-weight: 650; color: var(--ink); }
 .panel .body { padding: 16px 20px 20px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .toolbar .spacer { flex: 1; }
@@ -166,9 +167,9 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .card .label svg.i { width: 16px; height: 16px; }
 /* Traffic light on a metric: a word and a color, so it never relies on color alone */
 .card .label .light { margin-left: auto; font-size: 11.5px; padding: 1px 8px; }
-.card .value { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card .value { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 32px; font-weight: 650; font-stretch: 110%; letter-spacing: -0.02em; line-height: 1.15; margin-top: 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .card .value small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 3px; }
-.card .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.card .sub { color: var(--muted); font-size: 12.5px; margin-top: 4px; line-height: 1.45; }
 .value.warn { color: var(--warn); } .value.bad { color: var(--bad); } .value.brand { color: var(--accent); }
 /* The headline card: what OpenRing saved, twice as wide and larger */
 .card.hero { grid-column: span 2; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), var(--panel); }
@@ -187,7 +188,7 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .livebar a { margin-left: auto; font-size: 13px; }
 @keyframes ping { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .livebar::before { animation: none; } }
-.card.hero .value { font-size: 40px; }
+.card.hero .value { font-size: 44px; }
 
 .grid2 { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
 .grid2.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -393,11 +394,11 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .line-diagram { display: grid; grid-template-columns: 1fr 38px 1fr 38px 1fr; align-items: stretch; margin-bottom: 8px; }
 .stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 16px; background: var(--panel); box-shadow: var(--shadow); min-width: 0; }
 .stage:focus-within { border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); }
-.stage h3 { display: flex; align-items: center; gap: 9px; font-size: 15px; margin-bottom: 6px; }
+.stage h3 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-stretch: 108%; margin-bottom: 6px; }
 .slogo { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 7px; background: #fff; border: 1px solid var(--line); }
 .slogo:empty { display: none; }
 .slogo img { width: 18px; height: 18px; }
-.stage label { display: block; font-size: 12px; color: var(--muted); margin-top: 7px; }
+.stage label { display: block; font-size: 12.5px; font-weight: 500; color: var(--muted); margin-top: 9px; }
 .stage .stage-hint { margin: 8px 0 0; font-size: 12px; color: var(--warn); }
 .stage .stage-hint.plain { color: var(--muted); }
 .mrow { display: flex; gap: 6px; align-items: center; }
