@@ -664,6 +664,7 @@ dialog::backdrop { background: rgba(24, 16, 8, .55); backdrop-filter: blur(2px);
       <a href="#squads" data-view="squads"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 15a5 5 0 0 1 6 5"/></svg>Squads</a>
       <a href="#knowledge" data-view="knowledge"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5M8 13h8M8 17h6"/></svg>Knowledge</a>
       <a href="#numbers" data-view="numbers"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Phone numbers</a>
+      <a href="#tools" data-view="tools"><svg class="i" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.3-.7-.7-2.3z"/></svg>Tools</a>
       <a href="#evals" data-view="evals"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Evals</a>
       <a href="#outputs" data-view="outputs"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v4H4zM4 11h10v4H4zM4 17h7v3H4zM17 13l3 3-3 3"/></svg>Outputs</a>
       <a href="#routes" data-view="routes"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h5l6 10h5M4 17h5l1.5-2.5M15 7h5M17 4l3 3-3 3M17 14l3 3-3 3"/></svg>Model routes</a>
@@ -970,6 +971,7 @@ const PAGES = {
   routes: ["Model routes", "Models in order: the next one takes over when a model fails or is slow"],
   calls: ["Calls", "Every call with its transcript and response time"],
   outputs: ["Structured outputs", "Data a model pulls out of every call: names, dates, yes or no"],
+  tools: ["Tools", "What an assistant can do during a call: call your server, send a request, transfer, hang up"],
   evals: ["Evals", "Chats you script for an assistant, with checks on what it answers"],
   escalations: ["Escalations", "Call an on-call list in order until someone presses the key that confirms"],
   campaigns: ["Campaigns", "Call a list of people with one assistant, a few at a time"],
@@ -1461,7 +1463,7 @@ async function viewAssistant(id, known) {
     <div class="field"><label for="vmMsg">Message to leave on voicemail</label><p class="hint">Optional. A sentence in the assistant's voice, or the URL of a .wav or .mp3. Without one, the call hangs up.</p><input id="vmMsg" name="vmMsg" value="${esc(a.voicemailMessage || "")}" placeholder="Hi, this is Ava from the clinic. Please call us back."></div>
     <div data-sec="tools" class="tools-sec">
       <p class="muted" style="margin-top:0">Functions the model can call during the call. Saved tools are shared by assistants; tools written into this assistant are edited in the JSON tab.</p>
-      ${savedTools.length ? `<fieldset class="outputs"><legend>Saved tools</legend>${savedTools.map(t => `<label class="consent"><input type="checkbox" name="toolIds" value="${esc(t.id)}" ${(m.toolIds || []).includes(t.id) ? "checked" : ""}><span><b>${esc(t.function?.name || t.name || t.type)}</b> <span class="muted">${esc(t.type)}${t.function?.description ? " · " + esc(t.function.description) : ""}</span></span></label>`).join("")}</fieldset>` : `<p class="muted">No saved tools yet: create them with <code>POST /tool</code>, as on Vapi.</p>`}
+      ${savedTools.length ? `<fieldset class="outputs"><legend>Saved tools</legend>${savedTools.map(t => `<label class="consent"><input type="checkbox" name="toolIds" value="${esc(t.id)}" ${(m.toolIds || []).includes(t.id) ? "checked" : ""}><span><b>${esc(t.function?.name || t.name || t.type)}</b> <span class="muted">${esc(t.type)}${t.function?.description ? " · " + esc(t.function.description) : ""}</span></span></label>`).join("")}</fieldset>` : `<p class="muted">No saved tools yet. Make one on the <a href="#tools">Tools</a> page.</p>`}
       ${(m.tools || []).length ? `<fieldset class="outputs"><legend>In this assistant</legend>${m.tools.map(t => `<div class="minirow"><span><b>${esc(t.function?.name || t.name || t.type)}</b> <span class="muted">${esc(t.type)}</span></span></div>`).join("")}</fieldset>` : ""}
     </div>
     ${footer}</form><div id="extra" hidden></div>`;
@@ -1977,6 +1979,81 @@ async function viewEscalations() {
       await api("/escalation", { method: "POST", body: JSON.stringify({ name: f.get("name") || undefined, phoneNumberId: f.get("from"), assistantId: f.get("play"), rounds: Number(f.get("rounds")), customers }) });
       viewEscalations();
     } catch (err) { $("#escErr").textContent = err.message; }
+  };
+}
+
+
+// ---- Tools (Vapi's /tool): what an assistant can do during a call. Link them in an assistant's Tools tab ----------------
+const TOOL_KINDS = [["function", "Call my server (function)"], ["apiRequest", "Send a request (the model fills in the body)"], ["transferCall", "Transfer the call to a number"], ["endCall", "Hang up"], ["mcp", "Use an MCP server's tools"]];
+const TOOL_LABEL = { function: "Function", apiRequest: "Request", transferCall: "Transfer", endCall: "Hang up", mcp: "MCP server", query: "Knowledge", handoff: "Handoff" };
+async function viewTools() {
+  setPage("tools");
+  const [list, assistants] = await Promise.all([api("/tool"), api("/assistant")]);
+  const tools = Array.isArray(list) ? list : list.results || [];
+  const nameOf = t => t.function?.name || t.name || TOOL_LABEL[t.type] || t.type;
+  const usedBy = t => assistants.filter(a => (a.model?.toolIds || []).includes(t.id)).map(a => a.name || "Untitled");
+  const where = t => t.type === "transferCall" ? (t.destinations || []).map(d => d.number).join(", ") : t.type === "apiRequest" ? `${t.method || "POST"} ${t.url ? new URL(t.url, location.href).host : ""}` : t.server?.url ? new URL(t.server.url, location.href).host : "";
+  const v = $("#view");
+  v.innerHTML = `<section class="panel" style="margin-bottom:18px">${tools.length ? `<div class="scroll"><table class="table"><thead><tr><th>Tool</th><th class="hide-sm">Kind</th><th class="hide-sm">Goes to</th><th>Used by</th><th></th></tr></thead><tbody>
+    ${tools.map(t => `<tr><td><b>${esc(nameOf(t))}</b>${t.function?.description ? `<div class="muted">${esc(t.function.description)}</div>` : ""}</td><td class="hide-sm">${esc(TOOL_LABEL[t.type] || t.type)}</td><td class="hide-sm muted">${esc(where(t) || "—")}</td><td>${usedBy(t).length ? esc(usedBy(t).join(", ")) : `<span class="muted">No assistant yet</span>`}</td><td class="num"><button class="btn ghost small quiet-danger" data-del="${esc(t.id)}">Delete</button></td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="empty">No tools yet. A tool lets an assistant do something during a call: look up an order on your server, transfer to a person, hang up. Make one below, then tick it in the assistant's Tools tab.</div>`}</section>
+  <section class="panel"><header><h2>New tool</h2></header><div class="body"><form id="toolForm">
+    <div class="field"><label for="tKind">What it does</label><select id="tKind">${TOOL_KINDS.map(([k, l]) => option(k, l, "function")).join("")}</select></div>
+    <div class="field" data-for="function apiRequest mcp"><label for="tName">Name</label><p class="hint">What the model calls it: letters, digits, _ and -.</p><input id="tName" maxlength="64" placeholder="lookup_order" spellcheck="false" autocomplete="off"></div>
+    <div class="field" data-for="function apiRequest"><label for="tDesc">When to use it</label><p class="hint">Written for the model: it decides from this.</p><input id="tDesc" maxlength="500" placeholder="Look up an order by its number"></div>
+    <div class="field" data-for="function mcp"><label for="tServer">Server address</label><input id="tServer" type="url" placeholder="https://example.com/tools" spellcheck="false" autocomplete="off"></div>
+    <div class="field" data-for="mcp"><label for="tAuth">Authorization header (optional)</label><p class="hint">Kept on this server; the model never sees it.</p><input id="tAuth" placeholder="Bearer ..." spellcheck="false" autocomplete="off"></div>
+    <div class="field" data-for="apiRequest" hidden><label for="tUrl">URL</label><div class="mrow"><select id="tMethod" aria-label="Method" style="width:110px">${["POST", "GET", "PUT", "PATCH", "DELETE"].map(m => option(m, m, "POST")).join("")}</select><input id="tUrl" type="url" placeholder="https://example.com/orders" spellcheck="false" autocomplete="off"></div></div>
+    <div class="field" data-for="function apiRequest"><label>What the model fills in</label><p class="hint">One row for each value the model must give: an order number, a date.</p><div id="tParams"></div><button type="button" class="btn ghost small" id="tAddParam">${ICON.plus}Add a value</button></div>
+    <div class="field" data-for="transferCall" hidden><label for="tNumber">Transfer to</label><input id="tNumber" type="tel" placeholder="+15551234567" autocomplete="off"></div>
+    <div class="field" data-for="transferCall" hidden><label for="tSay">Say before transferring (optional)</label><input id="tSay" placeholder="One moment, I'll connect you."></div>
+    <div class="error" id="toolErr" role="alert"></div>
+    <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.plus}Save tool</button></div>
+  </form></div></section>`;
+  const paramRow = () => {
+    const row = document.createElement("div"); row.className = "step field-row-b";
+    row.innerHTML = `<label>Name<input class="p-name" placeholder="orderNumber" spellcheck="false" autocomplete="off"></label>
+      <label>Kind<select class="p-kind">${[["string", "Text"], ["number", "Number"], ["boolean", "Yes or no"]].map(([k, l]) => option(k, l, "string")).join("")}</select></label>
+      <label class="f-about">What it is<input class="p-desc" placeholder="The number on the receipt"></label>
+      <button type="button" class="btn ghost small quiet-danger" aria-label="Remove this value">Remove</button>`;
+    $("button", row).onclick = () => row.remove();
+    return row;
+  };
+  const showFor = () => { const kind = $("#tKind").value; v.querySelectorAll("[data-for]").forEach(el => { el.hidden = !el.dataset.for.split(" ").includes(kind); }); };
+  $("#tKind").onchange = showFor; showFor();
+  $("#tAddParam").onclick = () => { const r = paramRow(); $("#tParams").append(r); $(".p-name", r).focus(); };
+  v.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!(await ask("Delete this tool?", "Assistants using it go on without it.", "Delete"))) return;
+    try { await api("/tool/" + b.dataset.del, { method: "DELETE" }); } catch (err) { tell("Couldn't delete it", err.message); }
+    viewTools();
+  });
+  const schema = () => {
+    const rows = [...$("#tParams").children].map(r => [$(".p-name", r).value.trim(), $(".p-kind", r).value, $(".p-desc", r).value.trim()]);
+    if (rows.some(([n]) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(n))) throw new Error("Each value needs a name: letters, digits and _, not starting with a digit.");
+    return { type: "object", properties: Object.fromEntries(rows.map(([n, k, d]) => [n, { type: k, ...(d ? { description: d } : {}) }])), required: rows.map(r => r[0]) };
+  };
+  $("#toolForm").onsubmit = async e => {
+    e.preventDefault();
+    const kind = $("#tKind").value, name = $("#tName").value.trim();
+    try {
+      let doc;
+      if (kind === "function") {
+        if (!name || !$("#tServer").value.trim()) throw new Error("A function needs a name and the address of your server.");
+        doc = { type: "function", function: { name, description: $("#tDesc").value.trim(), parameters: schema() }, server: { url: $("#tServer").value.trim() } };
+      } else if (kind === "apiRequest") {
+        if (!name || !$("#tUrl").value.trim()) throw new Error("A request needs a name and a URL.");
+        const body = schema();
+        doc = { type: "apiRequest", name, description: $("#tDesc").value.trim(), method: $("#tMethod").value, url: $("#tUrl").value.trim(), body };
+      } else if (kind === "transferCall") {
+        if (!$("#tNumber").value.trim()) throw new Error("Say which number to transfer to.");
+        doc = { type: "transferCall", destinations: [{ type: "number", number: $("#tNumber").value.trim(), ...($("#tSay").value.trim() ? { message: $("#tSay").value.trim() } : {}) }] };
+      } else if (kind === "mcp") {
+        if (!$("#tServer").value.trim()) throw new Error("An MCP server needs its address.");
+        doc = { type: "mcp", ...(name ? { function: { name } } : {}), server: { url: $("#tServer").value.trim(), ...($("#tAuth").value.trim() ? { headers: { Authorization: $("#tAuth").value.trim() } } : {}) } };
+      } else doc = { type: "endCall" };
+      await api("/tool", { method: "POST", body: JSON.stringify(doc) });
+      viewTools();
+    } catch (err) { $("#toolErr").textContent = err.message; }
   };
 }
 
@@ -3307,7 +3384,7 @@ async function openCall(id) {
 $("#talkDialog").addEventListener("close", () => endTalk());
 
 // ---- Routing and shell ------------------------------------------------------------------
-const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, evals: viewEvals, outputs: viewOutputs, providers: viewProviders, settings: viewSettings };
+const views = { home: viewHome, assistants: viewAssistants, squads: viewSquads, knowledge: viewKnowledge, numbers: viewNumbers, routes: viewRoutes, calls: viewCalls, campaigns: viewCampaigns, escalations: viewEscalations, tools: viewTools, evals: viewEvals, outputs: viewOutputs, providers: viewProviders, settings: viewSettings };
 function go(name) { location.hash = name; }
 let shownHash = location.hash;
 async function route() {

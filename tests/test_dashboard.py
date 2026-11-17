@@ -520,3 +520,9 @@ def test_evals_and_outputs_are_written_in_fields_with_the_json_one_click_away():
     assert 'id="evalSteps"' in PAGE and "stepsToMessages" in PAGE and 'id="addStep"' in PAGE
     assert 'id="outFields"' in PAGE and "fieldsToSchema" in PAGE and 'id="outRegex"' in PAGE
     assert PAGE.count('<details class="advanced-json">') == 2  # the hand-written JSON stays, folded
+
+
+def test_tools_have_a_page_and_the_assistant_tab_points_to_it():
+    assert "async function viewTools()" in PAGE and 'href="#tools" data-view="tools"' in PAGE
+    assert "tools: viewTools" in PAGE and 'Make one on the <a href="#tools">Tools</a> page.' in PAGE
+    assert "POST /tool" not in PAGE.split("async function viewTools", 1)[0].split("No saved tools yet", 1)[-1][:200]
