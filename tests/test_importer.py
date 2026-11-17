@@ -68,7 +68,11 @@ def test_import_copies_tools_assistants_and_twilio_numbers():
     assert front["analysisPlan"] == ASSISTANT["analysisPlan"] and "orgId" not in front
     by_name = {a["name"]: a for a in report["assistants"]}
     assert by_name["Front desk"]["problems"] == [] and by_name["Front desk"]["created"] is True
-    assert "playht" in by_name["Fancy"]["problems"][0]  # imported anyway, flagged for a fix
+    assert "playht voice x" in by_name["Fancy"]["problems"][0]  # imported anyway, flagged for a fix
+    fancy = store.get("assistants", by_name["Fancy"]["id"])
+    assert fancy["voice"] == {"provider": "kokoro", "voiceId": "af_heart"}  # so it can take calls at once
+    assert fancy["importedVoice"] == {"provider": "playht", "voiceId": "x"}  # and what it had is kept
+    assert "importedVoice" not in store.get("assistants", by_name["Front desk"]["id"])
     assert next(t for t in report["tools"] if t["name"] == "dtmf")["problems"]
 
     number = store.find_phone_number("+15551234567")
@@ -173,3 +177,15 @@ def test_structured_outputs_come_along_and_the_assistants_point_at_the_copies():
 def test_a_source_without_structured_outputs_still_imports():
     report = run(Store(":memory:"), DATA)  # the stub answers [] for structured-output
     assert report["structuredOutputs"] == [] and report["assistants"]
+
+def test_a_voice_of_the_source_alone_is_swapped_for_kokoro_and_elliot_points_to_inworld():
+    store = Store(":memory:")
+    own = {"provider": "vapi", "voiceId": "Elliot", "version": "2"}
+    elliot = {**UNSUPPORTED, "id": "a-3", "name": "Own", "voice": own}
+    report = run(store, {**DATA, "assistant": [elliot]})
+    notes = report["assistants"][0]["problems"]
+    assert "vapi voice Elliot" in notes[0] and "inworld" in notes[0]
+    doc = store.get("assistants", report["assistants"][0]["id"])
+    assert doc["voice"]["provider"] == "kokoro" and doc["importedVoice"]["voiceId"] == "Elliot"
+    from openring.providers import resolve_plan
+    resolve_plan(doc, check_keys=False)  # the copy can take calls

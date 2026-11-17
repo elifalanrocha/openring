@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 
 from . import netguard
-from .providers import ProviderError, resolve_plan
+from .providers import DEFAULT_VOICE, TTS_PROVIDERS, ProviderError, _canonical, resolve_plan
 from .store import Store, is_phone_number
 from .tools import SUPPORTED, ToolError, check_tool
 
@@ -61,6 +61,22 @@ def _clean(doc: dict[str, Any], source: str) -> dict[str, Any]:
     clean = {k: v for k, v in doc.items() if k not in DROP}
     clean["importedFrom"] = {"baseUrl": source, "id": doc.get("id")}
     return clean
+
+
+def _own_voice(assistant: dict[str, Any]) -> str | None:
+    """A voice from a provider that isn't here (Vapi's own voices, say) can't speak a call. The assistant gets the
+    free Kokoro voice so it works at once; the voice it had stays in `importedVoice`.
+    Returns what to tell the person."""
+    voice = assistant.get("voice")
+    if not isinstance(voice, dict) or not voice.get("provider") or _canonical(voice["provider"]) in TTS_PROVIDERS:
+        return None
+    assistant["importedVoice"] = voice
+    assistant["voice"] = dict(DEFAULT_VOICE)
+    name = f"{voice['provider']} voice {voice.get('voiceId')}" if voice.get("voiceId") else f"{voice['provider']} voice"
+    note = f"the {name} is not available here, so Kokoro (free, on this computer) speaks instead; pick another voice"
+    if _canonical(voice["provider"]) == "vapi" and str(voice.get("voiceId")).lower() == "elliot":
+        note += " (Elliot is an Inworld voice: provider inworld, voiceId Elliot, with your Inworld key)"
+    return note
 
 
 def _upsert(store: Store, collection: str, doc: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -156,6 +172,7 @@ async def import_account(
         if model.get("toolIds"):
             model["toolIds"] = [tool_ids[str(t)] for t in model["toolIds"] if str(t) in tool_ids]
             clean["model"] = model
+        voice_note = _own_voice(clean)
         plan = dict(clean.get("artifactPlan") or {})
         if plan.get("structuredOutputIds"):  # Vapi's ids, pointed at the copies
             plan["structuredOutputIds"] = [output_ids[str(o)] for o in plan["structuredOutputIds"]
@@ -164,7 +181,7 @@ async def import_account(
         doc, created = _upsert(store, "assistants", clean)
         assistant_ids[str(assistant.get("id"))] = doc["id"]
         report["assistants"].append({"id": doc["id"], "name": doc.get("name") or "Untitled", "created": created,
-                                     "problems": _assistant_problems(doc)})
+                                     "problems": [*([voice_note] if voice_note else []), *_assistant_problems(doc)]})
 
     # Handoffs name assistants by id, so they can only be pointed at the copies now.
     for collection in ("tools", "assistants"):
