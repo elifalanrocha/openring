@@ -6,6 +6,13 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The dashboard has its own look: warm paper and warm ink instead of pure grey, soft depth and rounder corners, with the
+  orange kept as the one signal. In the assistant editor the call path (transcriber, model, voice) is drawn as three
+  cards joined by a line, each with its provider's logo; Save sits in a bar that stays on screen and says "Unsaved
+  changes"; saving keeps you on the assistant and confirms with "Saved" (so you can edit, save and test).
+
 ### Added
 
 - Importing an account now makes its assistants work with the keys this server has: a transcriber or model whose
