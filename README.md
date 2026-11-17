@@ -118,7 +118,8 @@ with any of them.
 ## 🔁 Moving from Vapi
 
 Copy every assistant, squad, tool and Twilio number of an account in one request, or press **Import** on the
-Assistants page. The key is used once and never stored; importing again updates what came in before.
+Assistants page. The full walk-through, with what changes and what is missing, is in
+[Migrating from Vapi](docs/migrating-from-vapi.md). The key is used once and never stored; importing again updates what came in before.
 
 ```bash
 curl -X POST http://localhost:8000/import \

@@ -8,6 +8,18 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- Importing an account now makes its assistants work with the keys this server has: a transcriber or model whose
+  provider has no key here is swapped for a provider that has one (the original kept in `importedTranscriber` /
+  `importedModel`, and said in the import report). Assistants that already work are left alone.
+- The `mcp` tool: an assistant can use the tools of an MCP server (Streamable HTTP). At the start of a call OpenRing asks
+  the server for its tools and gives each to the model; the server's address goes through the same guard as every address
+  a person typed, answers are capped, and errors never carry the address or headers. A server that can't be reached costs
+  its tools, not the call.
+- Three more of Vapi's server messages, sent only to an assistant that lists them in `serverMessages`: `model-output`
+  (the model's text as it writes), `voice-input` (the text handed to the voice) and `transfer-update` (a transfer to a
+  number, or a handoff between assistants).
+- A guide, [Migrating from Vapi](docs/migrating-from-vapi.md): importing an account, reading the report, what changes
+  (Vapi's own voices become Kokoro), pointing code and phone webhooks at OpenRing, and what is not here.
 - Choosing a model, as in Vapi's editor: **Choose** opens one list of every provider's models to search, filter by
   provider and sort by name, low latency or low cost per minute. Each model shows its time to the first word (from
   OpenRing's own test calls or this server's calls; **Measure** times one now, with a few tokens of your account) and

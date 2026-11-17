@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import WebSocket
 from loguru import logger
 
-from . import ambience, analysis, overrides, prices, recordings, routes, server_messages, squads
+from . import ambience, analysis, mcpclient, overrides, prices, recordings, routes, server_messages, squads
 from .config import Settings
 from .providers import StackPlan, build_services
 from .store import Store, now_iso
@@ -495,6 +495,7 @@ async def run_call(
 
     share_call_models()
     from pipecat.frames.frames import (
+        AggregatedTextFrame,
         BotStartedSpeakingFrame,
         BotStoppedSpeakingFrame,
         CancelFrame,
@@ -507,9 +508,11 @@ async def run_call(
         LLMFullResponseStartFrame,
         LLMMessagesAppendFrame,
         LLMRunFrame,
+        LLMTextFrame,
         MetricsFrame,
         TranscriptionFrame,
         TTSSpeakFrame,
+        TTSTextFrame,
         UserStartedSpeakingFrame,
         UserStoppedSpeakingFrame,
     )
@@ -642,6 +645,7 @@ async def run_call(
                 ended_reason = "assistant-forwarded-call"
                 logger.info("call {} transferred to {}", call_id, number)
                 outbox.send("status-update", status="forwarding", destination={"type": "number", "number": number})
+                live.transfer({"type": "number", "number": number})
                 await transfer(number)
             except Exception:  # the caller is still here with the assistant, and the limits apply again
                 keep_phone_line_open(transport, False)
@@ -717,6 +721,8 @@ async def run_call(
                 handoffs.append({"from": squads.name_of(came_from.assistant), "to": squads.name_of(target.assistant),
                                  "at": now_iso()})
                 logger.info("call {}: {} handed off to {}", call_id, handoffs[-1]["from"], handoffs[-1]["to"])
+                live.transfer({k: v for k, v in destination.items() if k != "assistantOverrides"},
+                              fromAssistant={"name": handoffs[-1]["from"]}, toAssistant={"name": handoffs[-1]["to"]})
                 how = opening(target)
                 first = overrides.fill(target.first_message or "", values)
                 if how == "speak" and first:
@@ -745,9 +751,10 @@ async def run_call(
             )
             groups = getattr(getattr(llm, "strategy", None), "groups", None)
             schema = None
+            offered = await mcpclient.expand(assistant_tools(member.assistant, store))  # an MCP server's tools
             # A model with fallbacks registers on all of them; on a team, each assistant's model gets its own tools.
             for model_service in (groups[position] if groups else [llm]):
-                schema = register_tools(model_service, assistant_tools(member.assistant, store), controls)
+                schema = register_tools(model_service, offered, controls)
             schemas.append(schema)
         tools = schemas[0]
         context = LLMContext(messages=list(plan.messages), **({"tools": tools} if tools else {}))
@@ -835,6 +842,11 @@ async def run_call(
                             # Straight into the context, for the model's next answer. A frame queued now would reach
                             # the user aggregator mid-turn and drop the rest of what the caller is saying.
                             context.add_message({"role": "system", "content": AI_CALLER_HINT})
+                elif isinstance(data.frame, LLMTextFrame):
+                    live.model_output(data.frame.text)
+                elif isinstance(data.frame, TTSSpeakFrame) or (
+                        isinstance(data.frame, AggregatedTextFrame) and not isinstance(data.frame, TTSTextFrame)):
+                    live.voice_input(data.frame.text)
                 elif isinstance(data.frame, (LLMFullResponseStartFrame, LLMFullResponseEndFrame)):
                     if limits:
                         limits.model(isinstance(data.frame, LLMFullResponseStartFrame), time.monotonic())

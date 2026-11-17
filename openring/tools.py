@@ -22,11 +22,11 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 import httpx
 from loguru import logger
 
-from . import knowledge, netguard, overrides
+from . import knowledge, mcpclient, netguard, overrides
 from .store import Store
 
 # Tool types OpenRing runs. Assistants imported with other types still load; those tools are skipped.
-SUPPORTED = ("function", "apiRequest", "endCall", "transferCall", "query", "handoff")
+SUPPORTED = ("function", "apiRequest", "endCall", "transferCall", "query", "handoff", "mcp")
 DEFAULT_TIMEOUT = 20  # seconds, like Vapi's server.timeoutSeconds default
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 MAX_RESPONSE_BYTES = 100_000  # what's read of an apiRequest's answer; the rest is never downloaded
@@ -59,8 +59,10 @@ def tool_name(tool: dict[str, Any]) -> str:
         if len(destinations) == 1:  # so each of several handoff tools has a name of its own
             return ("handoff_to_" + re.sub(r"[^A-Za-z0-9_-]+", "_", destination_key(destinations[0])))[:MAX_NAME_CHARS]
         return "handoff"
-    if tool.get("type") == "function":
+    if tool.get("type") in ("function", "mcpTool"):
         return str((tool.get("function") or {}).get("name") or "")
+    if tool.get("type") == "mcp":  # stands for every tool of its server until the call starts and they are listed
+        return str((tool.get("function") or {}).get("name") or "mcp:" + str((tool.get("server") or {}).get("url")))
     if tool.get("type") == "apiRequest":
         return str(tool.get("name") or (tool.get("function") or {}).get("name") or "")
     if tool.get("type") == "query":
@@ -129,6 +131,13 @@ def check_tool(tool: dict[str, Any]) -> None:
             raise ToolError("a tool's timeoutSeconds must be a number")
     if kind == "apiRequest":
         _check_api_request(tool)
+    if kind == "mcp":
+        url = str(server.get("url") or "")
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            raise ToolError("an mcp tool needs server.url: the address of an MCP server (https://...)")
+        if server.get("headers") is not None and not isinstance(server["headers"], dict):
+            raise ToolError("an mcp tool's server.headers must be an object")
     if kind == "handoff":
         _check_name(tool_name(tool), "a handoff tool's function.name")
         destinations = tool.get("destinations")
@@ -186,7 +195,7 @@ def assistant_tools(assistant: dict[str, Any], store: Store) -> list[dict[str, A
 
 def function_schema(tool: dict[str, Any]) -> dict[str, Any]:
     """name, description and JSON-schema parameters, as the model sees the tool."""
-    if tool["type"] == "function":
+    if tool["type"] in ("function", "mcpTool"):
         fn = tool["function"]
         params = fn.get("parameters") or {}
         return {
@@ -501,6 +510,10 @@ def make_handler(tool: dict[str, Any], controls: CallControls):
                     tool, str(_arguments(params.arguments).get("query") or ""), store=controls.store,
                     messages=controls.messages(), call=without_secrets(controls.current_call()),
                 )
+            elif tool["type"] == "mcpTool":
+                result = await mcpclient.call_tool(
+                    tool["server"], tool["mcpName"], _arguments(params.arguments),
+                    timeout=float(tool.get("timeoutSeconds") or DEFAULT_TIMEOUT))
             else:
                 result = await call_server(
                     tool,
@@ -511,7 +524,7 @@ def make_handler(tool: dict[str, Any], controls: CallControls):
                     assistant=controls.assistant,
                 )
         except Exception as exc:  # whatever it was, the model must hear, or the caller waits in silence for the timeout
-            explained = isinstance(exc, (ToolError, knowledge.KnowledgeError))
+            explained = isinstance(exc, (ToolError, knowledge.KnowledgeError, mcpclient.McpError))
             if explained:
                 logger.warning("tool {} failed: {}", tool_name(tool), exc)
             else:  # a bug: its text might carry what the model shouldn't read
@@ -599,12 +612,13 @@ def make_handler(tool: dict[str, Any], controls: CallControls):
         await params.result_callback(f"The call went to {destination_key(destination)}.",
                                      properties=FunctionCallResultProperties(run_llm=False))
 
-    return {"function": run_function, "apiRequest": run_function, "query": run_function, "endCall": end_call,
-            "transferCall": transfer_call, "handoff": hand_off}[tool["type"]]
+    return {"function": run_function, "apiRequest": run_function, "query": run_function, "mcpTool": run_function,
+            "endCall": end_call, "transferCall": transfer_call, "handoff": hand_off}[tool["type"]]
 
 
 def register_tools(llm: Any, tools: list[dict[str, Any]], controls: CallControls) -> Any:
     """Give the model its tools; returns the ToolsSchema for the call's LLM context (None without tools)."""
+    tools = [t for t in tools if t.get("type") != "mcp"]  # an mcp tool is its server's tools: `mcpclient.expand`
     if not tools:
         return None
     from pipecat.adapters.llm.schemas.function_schema import FunctionSchema

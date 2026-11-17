@@ -20,7 +20,8 @@ from .tools import without_secrets
 
 # What Vapi sends when the assistant doesn't list `serverMessages`. OpenRing sends status-update,
 # conversation-update, speech-update, user-interrupted, hang and end-of-call-report of them; tool-calls go to each
-# tool's server (see tools.py). Transcripts go only to an assistant that lists them (`transcript_kind`).
+# tool's server (see tools.py). Transcripts, model-output (the model's text as it is written), voice-input (the text
+# handed to the voice) and transfer-update (a transfer or handoff) go only to an assistant that lists them.
 DEFAULT_MESSAGES = (
     "conversation-update", "end-of-call-report", "function-call", "hang", "speech-update", "status-update",
     "tool-calls", "transfer-destination-request", "user-interrupted",
@@ -213,6 +214,20 @@ class Live:
         """What the assistant said, once it's said."""
         if (text or "").strip():
             self._transcript("assistant", text, True)
+
+    def model_output(self, text: str) -> None:
+        """A piece of what the model is writing, as it writes it (only for an assistant that asks: it is chatty)."""
+        if text:
+            self.outbox.send("model-output", droppable=True, output=text)
+
+    def voice_input(self, text: str) -> None:
+        """Text handed to the voice to be spoken (only for an assistant that asks)."""
+        if (text or "").strip():
+            self.outbox.send("voice-input", droppable=True, input=text)
+
+    def transfer(self, destination: dict[str, Any], **fields: Any) -> None:
+        """The call is being moved: to a phone number, or to another assistant of a squad."""
+        self.outbox.send("transfer-update", destination=destination, **fields)
 
     def close(self) -> None:
         self._stop_waiting()

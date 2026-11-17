@@ -172,9 +172,16 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   fields `body` declares (`_fillable`). `assistant_tools` skips a tool `check_tool` refuses (imports keep them), and
   `without_secrets` strips keys and addresses from what tool servers and webhooks see of a call. Registered with `llm.register_function`
   and `ToolsSchema` on the LLMContext; the transcript keeps `tool_calls` / `tool_call_result` rows.
+- MCP tool (`openring/mcpclient.py`, Vapi's `mcp` tool): `Connection` speaks Streamable HTTP (initialize, `tools/list`,
+  `tools/call`; JSON or event-stream answers; server `headers` and `Mcp-Session-Id` kept) through `netguard`. `bot.run_call`
+  calls `mcpclient.expand` per squad member before registering tools: each server tool becomes an internal `mcpTool`
+  (function name sanitized, original in `mcpName`); an unreachable server costs its tools, not the call. Errors never carry
+  the URL or headers. `register_tools` skips an unexpanded `mcp`. Tests: `tests/test_mcp_tool.py`.
 - `openring/importer.py` + `POST /import {baseUrl, apiKey}`: copies tools, assistants and Twilio numbers from
   any Vapi-compatible API (pages back with `createdAtLt`), drops source-owned fields and secrets, remaps
-  `model.toolIds`, marks docs with `importedFrom` so a re-import updates them; reports per-assistant problems
+  `model.toolIds`, marks docs with `importedFrom` so a re-import updates them; swaps what can't work here so the copy takes
+  calls at once (`_own_voice`: a voice provider this server lacks becomes Kokoro; `_with_keys_here`: a transcriber or model
+  with no key becomes one that has a key; originals in `importedVoice|Transcriber|Model`); reports per-assistant problems
   (unsupported providers/tools) without refusing the import. Dashboard: **Import** on the Assistants page.
 - Plivo (`openring/plivo.py`, `/plivo/voice|status|transfer/{token}`, `/ws/plivo`) and Vonage (`openring/vonage.py`,
   `/vonage/voice|event`, `/ws/vonage`, 16 kHz), beta, in and out, never tried on a real call. Plivo's V3 signature follows its SDK
@@ -204,7 +211,9 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
 - Live server messages (`server_messages.Live`, fed by `bot.SpeechObserver`): `speech-update` (role, status, `turn`),
   `user-interrupted`, `hang` (`HANG_SECONDS` after something heard goes unanswered) by default; `transcript` only when
   `serverMessages` lists it (`transcript_kind`; `transcript[transcriptType="final"]` for finals alone). Partial
-  transcripts are `droppable`: `Outbox` leaves them out past `BACKLOG` undelivered messages.
+  transcripts are `droppable`: `Outbox` leaves them out past `BACKLOG` undelivered messages. Also opt-in, never in
+  `DEFAULT_MESSAGES`: `model-output` (`LLMTextFrame`, droppable), `voice-input` (`TTSSpeakFrame` and the TTS's
+  `AggregatedTextFrame`, droppable) and `transfer-update` (`Live.transfer`, from `transfer_to` and `finish_hand_off`).
 - Memory per caller (`openring/memory.py`, `callerMemory`, beta, OpenRing's own field): `api._remember` appends a system
   message with the number's last calls with the same assistant or squad (`Store.calls_of`, an index on
   `$.customer.number`) to each plan that asks; ids go to the call's `rememberedCallIds`. Transcripts only, no model, off by default.

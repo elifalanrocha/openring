@@ -189,3 +189,32 @@ def test_a_voice_of_the_source_alone_is_swapped_for_kokoro_and_elliot_points_to_
     assert doc["voice"]["provider"] == "kokoro" and doc["importedVoice"]["voiceId"] == "Elliot"
     from openring.providers import resolve_plan
     resolve_plan(doc, check_keys=False)  # the copy can take calls
+
+
+def test_a_provider_without_a_key_here_is_replaced_by_one_that_has_one(monkeypatch):
+    for name in ("SONIOX_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    odd = {**ASSISTANT, "id": "a-9", "name": "Odd", "voice": {"provider": "11labs", "voiceId": "v1"},
+           "transcriber": {"provider": "soniox", "language": "en"},
+           "model": {"provider": "openai", "model": "gpt-4.1", "messages": [{"role": "system", "content": "Hi"}]}}
+    store = Store(":memory:")
+    report = run(store, {**DATA, "assistant": [odd, ASSISTANT]})
+    by_name = {a["name"]: a for a in report["assistants"]}
+    got = store.get("assistants", by_name["Odd"]["id"])
+    assert got["transcriber"] == {"provider": "deepgram", "model": "nova-3", "language": "en"}
+    assert got["importedTranscriber"]["provider"] == "soniox"
+    assert (got["model"]["provider"], got["model"]["model"]) == ("groq", "openai/gpt-oss-120b")
+    assert got["model"]["messages"] == [{"role": "system", "content": "Hi"}]  # the rest of the model is kept
+    assert got["importedModel"] == {"provider": "openai", "model": "gpt-4.1"}
+    assert any("no soniox key" in p for p in by_name["Odd"]["problems"])
+    assert any("no openai key" in p for p in by_name["Odd"]["problems"])
+    # one whose providers have keys, or that has nowhere to go, is left as it was
+    fine = store.get("assistants", by_name["Front desk"]["id"])
+    assert fine["transcriber"]["provider"] == "deepgram" and "importedTranscriber" not in fine
+    monkeypatch.delenv("DEEPGRAM_API_KEY")
+    monkeypatch.delenv("GROQ_API_KEY")
+    lone = Store(":memory:")
+    again = run(lone, {**DATA, "assistant": [odd]})
+    assert lone.get("assistants", again["assistants"][0]["id"])["transcriber"]["provider"] == "soniox"

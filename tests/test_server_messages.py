@@ -308,6 +308,27 @@ def test_speech_updates_say_who_spoke_and_count_the_turns(monkeypatch):
                    ("user", "started", 2)]
 
 
+def test_model_output_voice_input_and_transfers_go_only_to_an_assistant_that_asks(monkeypatch):
+    async def steps(live):
+        live.model_output("Hel")
+        live.model_output("lo!")
+        live.model_output("")
+        live.voice_input("Hello!")
+        live.voice_input("   ")
+        live.transfer({"type": "number", "number": "+15551234567"})
+        live.transfer({"type": "assistant", "assistantName": "Billing"}, fromAssistant={"name": "Front"},
+                      toAssistant={"name": "Billing"})
+
+    asked = ["model-output", "voice-input", "transfer-update"]
+    got = _live(monkeypatch, steps, assistant={"serverMessages": asked})
+    assert [(k, m.get("output") or m.get("input")) for k, m in got if k != "transfer-update"] == [
+        ("model-output", "Hel"), ("model-output", "lo!"), ("voice-input", "Hello!")]
+    moves = [m for k, m in got if k == "transfer-update"]
+    assert moves[0]["destination"] == {"type": "number", "number": "+15551234567"}
+    assert moves[1]["fromAssistant"] == {"name": "Front"} and moves[1]["toAssistant"] == {"name": "Billing"}
+    assert _live(monkeypatch, steps) == []  # none of the three is among the defaults
+
+
 def test_a_caller_who_talks_over_the_assistant_is_reported(monkeypatch):
     async def steps(live):
         live.user_speaking(True)        # nobody was talking: no interruption
@@ -450,3 +471,24 @@ def test_each_delivery_is_logged_for_its_call_without_query_string_or_payload(mo
     assert [d["type"] for d in shown] == ["status-update"]
     assert client.get(f"/call/{call['id']}/webhooks").status_code == 401
     assert client.get("/call/nobody/webhooks", headers=AUTH).status_code == 404
+
+
+def test_the_greeting_reaches_the_server_as_voice_input(monkeypatch):
+    """Through the pipeline: what the assistant hands to its voice, for an assistant that asks for voice-input."""
+    from test_call_flow import _handshake, _scripted_call, _wait_until_ended
+
+    client, store, params, _said = _scripted_call(monkeypatch, (1.5, 0), on_start=[], speaking=0.2)
+    sent = capture(monkeypatch)
+    assistant = store.list("assistants")[0]
+    client.patch(f"/assistant/{assistant['id']}", headers=AUTH, json={
+        "server": SERVER, "serverMessages": ["voice-input", "model-output"]})
+    with client.websocket_connect("/ws/twilio") as ws:
+        _handshake(ws, params)
+        _wait_until_ended(store, params["callId"])
+    for _ in range(50):
+        if any(m["type"] == "voice-input" for _, m in sent):
+            break
+        time.sleep(0.1)
+    inputs = [m["input"] for _, m in sent if m["type"] == "voice-input"]
+    assert ASSISTANT["firstMessage"] in inputs
+    assert all(m["call"]["id"] == params["callId"] for _, m in sent)

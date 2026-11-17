@@ -8,12 +8,21 @@ instead of creating a copy.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import httpx
 
 from . import netguard
-from .providers import DEFAULT_VOICE, TTS_PROVIDERS, ProviderError, _canonical, resolve_plan
+from .providers import (
+    DEFAULT_VOICE,
+    LLM_PROVIDERS,
+    STT_PROVIDERS,
+    TTS_PROVIDERS,
+    ProviderError,
+    _canonical,
+    resolve_plan,
+)
 from .store import Store, is_phone_number
 from .tools import SUPPORTED, ToolError, check_tool
 
@@ -77,6 +86,42 @@ def _own_voice(assistant: dict[str, Any]) -> str | None:
     if _canonical(voice["provider"]) == "vapi" and str(voice.get("voiceId")).lower() == "elliot":
         note += " (Elliot is an Inworld voice: provider inworld, voiceId Elliot, with your Inworld key)"
     return note
+
+
+STT_ORDER = ("deepgram", "assembly-ai", "gladia", "soniox", "cartesia", "openai", "groq")
+
+
+def _has_key(env: str | None) -> bool:
+    return not env or bool(os.environ.get(env, "").strip())
+
+
+def _with_keys_here(assistant: dict[str, Any]) -> list[str]:
+    """A transcriber or model whose provider has no key on this server can't take a call. Where another provider has
+    one, the assistant gets that instead (the original stays in `importedTranscriber` / `importedModel`) and the
+    person is told. Nothing that already works is touched."""
+    notes = []
+    stt = assistant.get("transcriber")
+    if isinstance(stt, dict) and _canonical(stt.get("provider")) in STT_PROVIDERS \
+            and not _has_key(STT_PROVIDERS[_canonical(stt["provider"])]):
+        alt = next((p for p in STT_ORDER if _has_key(STT_PROVIDERS[p])), None)
+        if alt:
+            assistant["importedTranscriber"] = stt
+            assistant["transcriber"] = {"provider": alt, **({"model": "nova-3"} if alt == "deepgram" else {}),
+                                        **({"language": stt["language"]} if stt.get("language") else {})}
+            notes.append(f"no {stt['provider']} key here, so the transcriber is {alt}")
+    model = assistant.get("model")
+    if isinstance(model, dict) and _canonical(model.get("provider")) in LLM_PROVIDERS \
+            and not _has_key(LLM_PROVIDERS[_canonical(model["provider"])][1]):
+        was = _canonical(model["provider"])
+        options = (("groq", "openai/gpt-oss-120b"), ("cerebras", "gpt-oss-120b"),
+                   ("openrouter", f"{was}/{model.get('model')}"))
+        alt = next(((p, m) for p, m in options if _has_key(LLM_PROVIDERS[p][1])), None)
+        if alt:
+            assistant["importedModel"] = {"provider": model.get("provider"), "model": model.get("model")}
+            assistant["model"] = {**model, "provider": alt[0], "model": alt[1]}
+            notes.append(f"no {model['provider']} key here, so the model is {alt[1]} on {alt[0]}: check it answers as "
+                         "you want")
+    return notes
 
 
 def _upsert(store: Store, collection: str, doc: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -173,6 +218,7 @@ async def import_account(
             model["toolIds"] = [tool_ids[str(t)] for t in model["toolIds"] if str(t) in tool_ids]
             clean["model"] = model
         voice_note = _own_voice(clean)
+        key_notes = _with_keys_here(clean)
         plan = dict(clean.get("artifactPlan") or {})
         if plan.get("structuredOutputIds"):  # Vapi's ids, pointed at the copies
             plan["structuredOutputIds"] = [output_ids[str(o)] for o in plan["structuredOutputIds"]
@@ -181,7 +227,8 @@ async def import_account(
         doc, created = _upsert(store, "assistants", clean)
         assistant_ids[str(assistant.get("id"))] = doc["id"]
         report["assistants"].append({"id": doc["id"], "name": doc.get("name") or "Untitled", "created": created,
-                                     "problems": [*([voice_note] if voice_note else []), *_assistant_problems(doc)]})
+                                     "problems": [*([voice_note] if voice_note else []), *key_notes,
+                                                  *_assistant_problems(doc)]})
 
     # Handoffs name assistants by id, so they can only be pointed at the copies now.
     for collection in ("tools", "assistants"):

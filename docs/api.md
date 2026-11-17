@@ -412,6 +412,21 @@ expects. Run it yourself with `scripts/vapi_sdk_check.py`.
   carriers), recording downloads, and Vapi's evals, simulations, scorecards and structured outputs, which OpenRing
   doesn't have.
 
+### MCP tool
+
+An `mcp` tool gives an assistant the tools of an MCP server (a Model Context Protocol server over HTTP):
+
+```json
+{"type": "mcp", "function": {"name": "docs"}, "server": {"url": "https://mcp.example.com/mcp",
+ "headers": {"Authorization": "Bearer ..."}}}
+```
+
+When a call starts, OpenRing asks the server which tools it has (`tools/list`) and gives each to the model as a function;
+when the model calls one, OpenRing sends `tools/call` and gives the model the text that comes back. Only the Streamable HTTP
+transport is spoken; a server that only offers the older SSE transport gives no tools, and the call goes on without them.
+At most 50 tools are used, an answer is cut at 4,000 characters, and nothing is retried or followed. The server's headers
+stay on your server: the model never sees them.
+
 ### Memory per caller
 
 Beta, and OpenRing's own: Vapi has no field for it. An assistant with `callerMemory` on is given, at the start of a phone
