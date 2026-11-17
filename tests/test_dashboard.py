@@ -509,3 +509,8 @@ def test_model_providers_have_names_and_a_numbers_remove_is_quiet():
 def test_a_squad_of_one_reads_in_the_singular_and_an_empty_knowledge_page_offers_the_upload():
     assert 'assistant${s.members?.length === 1 ? "" : "s"}' in PAGE
     assert 'id="pickFiles"' in PAGE and 'class="btn ghost small quiet-danger" data-del="${esc(file.id)}">Delete' in PAGE
+
+
+def test_a_call_leads_with_one_summary_strip_not_seven_cards():
+    assert 'class="panel callsum"' in PAGE and "const stats = [" in PAGE
+    assert 'class="cards compact"' not in PAGE

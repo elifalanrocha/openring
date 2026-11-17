@@ -203,6 +203,13 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .cards.secondary .card { animation: rise .32s cubic-bezier(.2, .8, .2, 1) 140ms backwards; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .cards.overview .card, .cards.secondary .card { animation: none; } }
+.callsum { padding: 16px 20px; }
+.callsum .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 24px; }
+.callsum .stat { display: grid; gap: 2px; min-width: 0; }
+.callsum .stat small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+.callsum .stat b { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 22px; font-weight: 650; font-stretch: 108%; font-variant-numeric: tabular-nums; }
+.callsum .stat .sub { color: var(--muted); font-size: 12px; }
+.callsum .fine { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; }
 .chart-switch { display: inline-flex; gap: 4px; }
 details.carriers > summary { cursor: pointer; font-weight: 600; margin-bottom: 4px; }
 details.carriers[open] > summary { margin-bottom: 12px; }
@@ -2690,15 +2697,20 @@ async function viewCall(id) {
     analysis: () => { const a = c.analysis || {}, value = v => v == null ? `<span class="muted">Not in the call</span>` : typeof v === "object" ? `<pre class="json">${esc(JSON.stringify(v, null, 2))}</pre>` : esc(String(v)); return `<dl class="analysis">${a.summary ? `<dt>Summary</dt><dd>${esc(a.summary)}</dd>` : ""}${a.successEvaluation != null ? `<dt>Success</dt><dd>${esc(a.successEvaluation)}</dd>` : ""}${a.structuredData ? `<dt>Data</dt><dd>${value(a.structuredData)}</dd>` : ""}${outputs.map(o => `<dt>${esc(o.name)}</dt><dd>${value(o.result)}</dd>`).join("")}</dl>${Object.keys(a).length || outputs.length ? "" : `<p class="muted">The model gave no analysis for this call.</p>`}`; },
     webhooks: () => hooks.length ? `<div class="scroll"><table class="table"><thead><tr><th>Sent</th><th>Message</th><th>To</th><th>Answer</th><th class="num">Time</th></tr></thead><tbody>${hooks.map(h => `<tr><td>${esc(new Date(h.at).toLocaleTimeString(LOCALE))}</td><td><code>${esc(h.type)}</code></td><td class="cut">${esc(h.url)}</td><td>${h.status ? `<span class="badge${h.status < 300 ? " ok" : " bad"}">HTTP ${esc(h.status)}</span>` : `<span class="badge bad">${esc(h.error || "failed")}</span>`}</td><td class="num">${esc(h.ms)} ms</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">${c.assistant?.server?.url || assistants.find(a => a.id === c.assistantId)?.server?.url ? "No messages sent to your server for this call since OpenRing last started." : "This call's assistant has no server URL, so nothing was sent. Set one under Call report URL."}</p>`,
   };
-  const cards = [
-    card("Duration", "clock", dur(c.durationSeconds), ""),
-    card("Response time", "bolt", ms(pm.turnLatencyAverage), tone(light("latency", pm.turnLatencyAverage)), turns.length > 1 ? `average of ${turns.length} turns` : turns.length ? "1 turn" : "", "", light("latency", pm.turnLatencyAverage)),
-    card("First word", "timer", ms(pm.firstWordLatency), tone(light("firstWord", pm.firstWordLatency)), pm.firstWordLatency == null ? "" : "wait for the greeting", "", light("firstWord", pm.firstWordLatency)),
-    typeof c.cost === "number" ? card("Cost", "coin", usd(c.cost), "", `<span title="List prices${c.costBreakdown?.unpriced ? ". No known price for: " + esc(c.costBreakdown.unpriced.join(", ")) : ""}">model ${usd(c.costBreakdown?.llm)} · speech ${usd(c.costBreakdown?.stt)} · voice ${usd(c.costBreakdown?.tts)}${c.costBreakdown?.line != null ? ` · line ${usd(c.costBreakdown.line)}` : ""}${c.costBreakdown?.unpriced ? " · partial" : ""}</span>`) : "",
-    c.costBreakdown ? card("Tokens", "hash", num((c.costBreakdown.llmPromptTokens || 0) + (c.costBreakdown.llmCompletionTokens || 0)), "", `${num(c.costBreakdown.llmPromptTokens)} in · ${num(c.costBreakdown.llmCompletionTokens)} out · ${num(c.costBreakdown.ttsCharacters)} voice characters`) : "",
-    card("Messages", "bot", num(msgs.filter(m => m.role === "user" || m.role === "assistant").length), "", toolCalls ? `${toolCalls} tool call${toolCalls === 1 ? "" : "s"}` : ""),
-    card(c.endedReason ? "Ended" : "Type", "phone", c.endedReason ? endedCell(c) : esc(TYPE[c.type] || c.type), "", c.endedReason ? esc(TYPE[c.type] || c.type) : ""),
+  // One summary strip: how it ended, how long, what it cost, how fast. Tokens and messages ride below it, as text.
+  const stat = (label, value, sub = "", lit = null) => `<div class="stat"><small>${label}${lit ? ` <span class="badge ${lit.cls} light">${esc(lit.word)}</span>` : ""}</small><b>${value}</b>${sub ? `<span class="sub">${sub}</span>` : ""}</div>`;
+  const spent = typeof c.cost === "number" ? `<span title="List prices${c.costBreakdown?.unpriced ? ". No known price for: " + esc(c.costBreakdown.unpriced.join(", ")) : ""}">model ${usd(c.costBreakdown?.llm)} · speech ${usd(c.costBreakdown?.stt)} · voice ${usd(c.costBreakdown?.tts)}${c.costBreakdown?.line ? ` · line ${usd(c.costBreakdown.line)}` : ""}</span>` : "";
+  const stats = [
+    stat(c.endedReason ? "Ended" : "Type", c.endedReason ? endedCell(c) : esc(TYPE[c.type] || c.type), c.endedReason ? esc(TYPE[c.type] || c.type) : ""),
+    stat("Duration", dur(c.durationSeconds)),
+    typeof c.cost === "number" ? stat("Cost", usd(c.cost), spent) : "",
+    stat("Response time", `<span class="${tone(light("latency", pm.turnLatencyAverage))}">${ms(pm.turnLatencyAverage)}</span>`, turns.length > 1 ? `average of ${turns.length} turns` : turns.length ? "1 turn" : "", light("latency", pm.turnLatencyAverage)),
+    pm.firstWordLatency != null ? stat("First word", `<span class="${tone(light("firstWord", pm.firstWordLatency))}">${ms(pm.firstWordLatency)}</span>`, "wait for the greeting", light("firstWord", pm.firstWordLatency)) : "",
   ].filter(Boolean);
+  const fine = [
+    c.costBreakdown ? `${num((c.costBreakdown.llmPromptTokens || 0) + (c.costBreakdown.llmCompletionTokens || 0))} tokens (${num(c.costBreakdown.llmPromptTokens)} in · ${num(c.costBreakdown.llmCompletionTokens)} out)` : "",
+    `${num(msgs.filter(m => m.role === "user" || m.role === "assistant").length)} messages${toolCalls ? ` · ${toolCalls} tool call${toolCalls === 1 ? "" : "s"}` : ""}`,
+  ].filter(Boolean).join(" · ");
   const v = $("#view");
   v.innerHTML = `<div class="toolbar">
     <a class="btn ghost" href="#calls">← All calls</a>
@@ -2706,7 +2718,7 @@ async function viewCall(id) {
     <button class="btn ghost small" id="copyTranscript">Copy transcript</button>
     ${statusBadge(c)}
   </div>
-  <div class="cards compact" style="--cols:${Math.ceil(cards.length / Math.ceil(cards.length / 4))}">${cards.join("")}</div>
+  <section class="panel callsum"><div class="stats">${stats.join("")}</div><p class="muted fine">${fine}</p></section>
   ${(c.providerFallbacks || []).map(f => `<p class="muted fallback-note">${ICON.bolt}${esc(LAYER_NAMES[f.layer] || f.layer)} switched to <b>${esc(f.to)}</b> at ${esc(new Date(f.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}${f.reason && f.reason !== "failed" ? ` (${esc(f.reason)})` : ""}</p>`).join("")}
   ${(c.handoffs || []).map(h => `<p class="muted fallback-note">${ICON.bolt}<b>${esc(h.from)}</b> handed the call to <b>${esc(h.to)}</b> at ${esc(new Date(h.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}</p>`).join("")}
   ${callFacts(c, assistants, line, campaign)}
