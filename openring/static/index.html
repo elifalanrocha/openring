@@ -1211,8 +1211,9 @@ async function viewKnowledge() {
     <form id="up" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><input type="file" id="files" name="file" multiple required aria-label="Files to add"><button class="btn" id="upGo">${ICON.plus}Add</button></form>
     <div class="error" id="err" role="alert"></div></div></section>
   ${files.length ? `<div class="tiles">${files.map(file => `<article class="tile"><div class="head"><div class="grow"><div class="name">${esc(file.name)}</div><div class="sub">${esc(size(file.bytes))} · ${esc(num(file.passages))} passages</div></div></div>
-      <div class="actions"><span style="flex:1"></span><button class="btn danger small" data-del="${esc(file.id)}">Delete</button></div></article>`).join("")}</div>`
-    : `<div class="panel empty">No files yet. Prices, opening hours, policies: whatever callers ask about.</div>`}`;
+      <div class="actions"><span style="flex:1"></span><button class="btn ghost small quiet-danger" data-del="${esc(file.id)}">Delete</button></div></article>`).join("")}</div>`
+    : `<div class="panel empty">No files yet. Prices, opening hours, policies: whatever callers ask about.<br><button class="btn" type="button" id="pickFiles">Choose files</button></div>`}`;
+  if ($("#pickFiles")) $("#pickFiles").onclick = () => $("#files").click();
   $("#up").onsubmit = async e => {
     e.preventDefault();
     const button = $("#upGo");
@@ -1239,7 +1240,7 @@ async function viewSquads() {
   v.innerHTML = `<div class="toolbar"><span class="muted">${items.length} squad${items.length === 1 ? "" : "s"}</span><span class="spacer"></span><button class="btn" id="new">${ICON.plus}New squad</button></div>
     ${items.length ? `<div class="tiles">${items.map(s => `<article class="tile link" tabindex="0" data-id="${esc(s.id)}">
       <div class="head"><span class="avatar">${esc(initials(s.name))}</span><div class="grow"><div class="name">${esc(s.name || "Untitled")}</div><div class="sub">${lines(s.id).length ? esc(lines(s.id).join(", ")) : "No phone number"}</div></div></div>
-      <div class="greet">${esc(num(s.members?.length))} assistants</div>
+      <div class="greet">${esc(num(s.members?.length))} assistant${s.members?.length === 1 ? "" : "s"}</div>
       <div class="actions"><button class="btn small" data-test="${esc(s.id)}">${ICON.mic}Test</button></div>
     </article>`).join("")}</div>` : `<div class="panel empty">No squads yet. A squad lets one assistant answer and pass the caller to specialists, each with its own instructions, tools, model and voice.</div>`}`;
   $("#new").onclick = () => go("squads/new");

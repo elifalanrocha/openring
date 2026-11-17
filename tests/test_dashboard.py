@@ -504,3 +504,8 @@ def test_model_providers_have_names_and_a_numbers_remove_is_quiet():
     assert 'openai: "OpenAI"' in PAGE and "option(p, modelName(p)," in PAGE
     assert '<button class="btn ghost small quiet-danger" data-del="${esc(n.id)}">Remove' in PAGE
     assert "on this assistant's calls" in PAGE  # the model line agrees with the cost and time strip
+
+
+def test_a_squad_of_one_reads_in_the_singular_and_an_empty_knowledge_page_offers_the_upload():
+    assert 'assistant${s.members?.length === 1 ? "" : "s"}' in PAGE
+    assert 'id="pickFiles"' in PAGE and 'class="btn ghost small quiet-danger" data-del="${esc(file.id)}">Delete' in PAGE
