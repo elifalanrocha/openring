@@ -111,7 +111,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .health.down { color: var(--bad); background: var(--bad-soft); }
 .health::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 #menu { display: none; }
-main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; }
+main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; }
 
 /* ---- Building blocks ---- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 8px 15px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
@@ -171,7 +171,22 @@ main { padding: 28px 32px 48px; max-width: 1320px; width: 100%; margin: 0 auto; 
 .card .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 .value.warn { color: var(--warn); } .value.bad { color: var(--bad); } .value.brand { color: var(--accent); }
 /* The headline card: what OpenRing saved, twice as wide and larger */
-.card.hero { grid-column: span 2; background: var(--accent-soft); border-color: transparent; }
+.card.hero { grid-column: span 2; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), var(--panel); }
+.cards.primary { grid-template-columns: 2fr repeat(3, minmax(0, 1fr)); }
+.cards.primary .card.hero { grid-column: auto; }
+@media (max-width: 900px) { .cards.primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cards.secondary { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: -4px; }
+@media (max-width: 900px) { .cards.secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cards.secondary .card { padding: 11px 14px; box-shadow: none; background: var(--panel-2); border-color: transparent; }
+.cards.secondary .card .value { font-size: 20px; margin-top: 4px; }
+.spark { display: block; width: 100%; height: 34px; margin-top: 10px; color: var(--c1); overflow: visible; }
+.spark path.area { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: none; }
+.spark path.line { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.livebar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 10px 16px; border-radius: var(--radius); background: var(--signal-soft); color: var(--ink); font-weight: 600; }
+.livebar::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 0 var(--signal); animation: ping 1.6s ease-out infinite; }
+.livebar a { margin-left: auto; font-size: 13px; }
+@keyframes ping { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .livebar::before { animation: none; } }
 .card.hero .value { font-size: 40px; }
 
 .grid2 { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
@@ -836,6 +851,14 @@ function setPage(name, title, sub) {
 const PERIODS = [["1", "Today"], ["7", "7D"], ["30", "30D"], ["90", "90D"], ["0", "All"]];
 const PARTS = [["endpointingLatency", "Waiting for silence", "var(--muted)"], ["transcriberLatency", "Transcription", "var(--c2)"], ["modelLatency", "Model", "var(--c4)"], ["voiceLatency", "Voice", "var(--c1)"]];
 
+function spark(values) {
+  if (values.filter(x => x != null).length < 2) return "";
+  const max = Math.max(...values.filter(x => x != null), 1e-9), n = values.length - 1;
+  const pts = values.map((x, i) => [i / n * 100, 30 - (x ?? 0) / max * 26]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join("");
+  return `<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path class="area" d="${line}L100,32L0,32Z"/><path class="line" d="${line}"/></svg>`;
+}
+
 async function viewHome() {
   setPage("home");
   const days = store.get("openring-period") || "30";
@@ -858,12 +881,15 @@ async function viewHome() {
   v.innerHTML = `
   ${steps.every(x => x[0]) ? "" : `<section class="panel" style="margin-bottom:18px"><header><h2>Get started</h2><span class="muted" style="font-size:13px">${steps.filter(x => x[0]).length} of ${steps.length} done</span></header><div class="body"><div class="steps">${steps.map(([done, t, p, act], i) => `<div class="step ${done ? "done" : ""}"><span class="n">${done ? "✓" : i + 1}</span><div><b>${t}</b><p>${p}</p>${done ? "" : act}</div></div>`).join("")}</div></div></section>`}
   <div class="toolbar"><h2 style="font-size:18px">Overview</h2>${tabs(PERIODS, days, "period")}</div>
-  <div class="cards overview">
+  ${s.inProgress ? `<div class="livebar" role="status">${num(s.inProgress)} call${s.inProgress === 1 ? "" : "s"} live now<a href="#calls">Open calls</a></div>` : ""}
+  <div class="cards overview primary">
     ${card("Fees avoided", "coin", "$" + s.platformFeeSaved.toFixed(2), "brand", '<span title="Hosted voice platforms charge about US$0.05 per minute for orchestration alone.">vs $0.05/min platforms</span>', "hero")}
-    ${card("Calls", "phone", num(s.calls), "", s.inProgress ? `${s.inProgress} live now` : `${num(s.byType.inboundPhoneCall || 0)} in · ${num(s.byType.outboundPhoneCall || 0)} out · ${num(s.byType.webCall || 0)} browser`)}
-    ${card("Minutes", "clock", num(s.minutes), "", s.averageDurationSeconds ? `${dur(s.averageDurationSeconds)} per call` : "")}
-    ${card("Success rate", "check", s.successRate == null ? "—" : s.successRate + '<small>%</small>', tone(light("successRate", s.successRate)), [s.failed ? `${s.failed} failed` : "No failures", s.transferRate ? `${s.transferRate}% transferred` : ""].filter(Boolean).join(" · "), "", light("successRate", s.successRate))}
+    ${card("Calls", "phone", num(s.calls), "", s.inProgress ? `${s.inProgress} live now` : `${num(s.byType.inboundPhoneCall || 0)} in · ${num(s.byType.outboundPhoneCall || 0)} out · ${num(s.byType.webCall || 0)} browser` + spark(pd.map(d => d.calls)))}
+    ${card("Success rate", "check", s.successRate == null ? "—" : s.successRate + '<small>%</small>', tone(light("successRate", s.successRate)), [s.failed ? `${s.failed} failed` : "No failures", s.transferRate ? `${s.transferRate}% transferred` : ""].filter(Boolean).join(" · ") + spark(pd.map(d => d.calls ? 100 - d.failed / d.calls * 100 : null)), "", light("successRate", s.successRate))}
     ${card("Response time", "bolt", ms(s.latencyMedianMs), tone(light("latency", s.latencyMedianMs)), s.turns ? `median of ${num(s.turns)} turns · p95 ${ms(s.latencyP95Ms)}` : "No turns yet", "", light("latency", s.latencyMedianMs))}
+  </div>
+  <div class="cards secondary">
+    ${card("Minutes", "clock", num(s.minutes), "", s.averageDurationSeconds ? `${dur(s.averageDurationSeconds)} per call` : "")}
     ${card("First word", "timer", ms(s.firstWordMedianMs), tone(light("firstWord", s.firstWordMedianMs)), s.firstWordMedianMs == null ? "No answered calls yet" : "median wait for the greeting", "", light("firstWord", s.firstWordMedianMs))}
     ${card("Tokens", "hash", num(s.usage.llmPromptTokens + s.usage.llmCompletionTokens), "", s.usage.calls ? `${num(s.usage.tokensPerCall)} per call · ${num(s.usage.ttsCharacters)} voice characters` : "Counted from this version on")}
     ${card("Provider cost", "coin", s.cost.calls ? usd(s.cost.total) : "—", "", s.cost.calls ? `<span title="List prices of the models, transcribers, voices and phone lines${s.cost.incomplete ? `. ${s.cost.incomplete} call${s.cost.incomplete === 1 ? " uses a provider" : "s use providers"} without a known price` : ""}">${usd(s.cost.perMinute)} per minute · ${usd(s.cost.perCall)} per call${s.cost.incomplete ? " · partial" : ""}</span>` : "Priced from this version on")}
