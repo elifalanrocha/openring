@@ -212,7 +212,7 @@ tools, squads and Twilio numbers.
 Ollama and the Kokoro voice cost nothing per minute. Only a phone line costs money; browser test calls don't.
 
 **Which phone providers work?** Twilio, Telnyx, Plivo, Vonage, Genesys Cloud and SIP trunks, and WhatsApp calls
-through Wavoip (unofficial: WhatsApp may ban a number used that way). Only Twilio has taken
+through Wavoip or a WaCalls server of your own (unofficial: WhatsApp may ban a number used that way). Only Twilio has taken
 real calls so far; the others are tested against simulated carriers, and each one's section says what's left to confirm.
 The [comparison](#-how-it-compares) says what each one does today.
 

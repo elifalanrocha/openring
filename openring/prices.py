@@ -50,6 +50,7 @@ TTS: dict[str, dict[str, float]] = {
 # other countries stay unknown until you add them.
 LINE: dict[str, dict[str, float]] = {
     "twilio": {"inbound:+1": 0.0129, "inbound-tollfree:+1": 0.0264, "outbound:+1": 0.0184},
+    "wacalls": {"inbound": 0.0, "outbound": 0.0},  # software you run, over WhatsApp, which charges nothing per minute
 }
 LINE_UPDATED = "2026-11-08"
 LINE_ROUNDED_UP = {"twilio"}  # billed in whole minutes, a started minute counts

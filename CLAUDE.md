@@ -213,6 +213,14 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   `pong`); `api.dial` places calls with `call.start` and `call:answered` brings the relay. `transport_for` is the Pipecat
   transport; `run_wavoip_call` runs it at 16 kHz with no transfer. WebRTC offers (official devices) are left ringing.
   Tests use python-socketio's server (a dev dependency) as the pretend Wavoip.
+- WhatsApp calls without a third party (`openring/wacalls.py`, beta, unofficial, never tried on a real call): a number with
+  `provider: "wacalls"` + `wacallsSession`; `WACALLS_URL` is the self-hosted WaCalls server (JotaDev66/WaCalls, no auth, trusted
+  network only). `wacalls.Hub` (`app.state.wacalls`) keeps one SSE stream (`/api/events`) for every such number; `incoming`
+  is answered (`answer_inbound`, provider `wacalls`), accepted by REST, and its `Session` makes a WebRTC offer with a data
+  channel `pcm` (16-bit LE, 16 kHz, 20 ms every 20 ms, silence included; aiortc with no ICE servers). WaCalls lets one
+  client id be on one call, so each call has its own `X-Client-Id`. Placing a call opens the audio at once and runs the
+  assistant on `call-status connected`; `call-ended` reasons map to endedReasons. Reuses `wavoip.transport_for` and
+  `api.run_wavoip_call`; tests use a pretend WaCalls (aiohttp + aiortc) in `tests/test_wacalls.py`.
 - `openring/store.py` SQLite document store (JSON docs) for assistants, phone_numbers, calls, tools, campaigns, routes, files,
   knowledge_bases, squads, credentials.
 - `openring/static/index.html` single-file dashboard (vanilla JS, no build step), styled after OmniRoute:

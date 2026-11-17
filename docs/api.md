@@ -696,6 +696,29 @@ Wavoip's official kind (Meta's Calling API over WebRTC), whose calls are left ri
 per minute, so the line shows as `phone line (wavoip)` in a call's `unpriced`. WAHA can tell that a call is coming and
 reject it, but can't carry its audio (its docs, November 2026), which is why this goes through Wavoip.
 
+#### WhatsApp calls with no third party (WaCalls)
+
+Beta, unofficial, never tried on a real call. [WaCalls](https://github.com/JotaDev66/WaCalls) (MIT, written in Go) is a
+server of your own that links a WhatsApp account and carries its calls, so no company stands between you and the audio and
+there is no per-minute fee. The same warnings apply: WhatsApp doesn't allow unofficial clients and may restrict or ban a
+number used this way, and WaCalls can change without notice (OpenRing follows its source of 2026-10-07).
+
+Run WaCalls (Go 1.26+; see its README), open its page, pair the account (QR code under *Linked devices* in WhatsApp), and
+read the session's id from `GET /api/sessions` on WaCalls. Then tell OpenRing where WaCalls is and add the number:
+
+```bash
+export WACALLS_URL=http://127.0.0.1:8080
+curl -X POST http://localhost:8000/phone-number   -H "Authorization: Bearer $OPENRING_API_KEY" -H "Content-Type: application/json"   -d '{"provider": "wacalls", "number": "+5511999990000", "wacallsSession": "SESSION_ID", "assistantId": "ASSISTANT_ID"}'
+```
+
+**WaCalls has no login of its own.** Anyone who can reach its port can place and hear calls from the linked account, so
+keep it on `127.0.0.1` or a network only you are on. OpenRing connects to it from your server (no `PUBLIC_URL`, no
+tunnel): one event stream, a REST call per action, and a WebRTC data channel per call that carries the audio at 16 kHz.
+A WhatsApp call to the number is answered by its assistant or squad; `POST /call` and campaigns with this `phoneNumberId`
+ring people on WhatsApp. The number comes back with `wacallsConnected`, `wacallsStatus` (`ready`, or what is missing) and
+`wacallsLinkedNumber`. A call that isn't picked up ends as `customer-busy`, `customer-did-not-answer` or
+`wacalls-failed-to-connect-call`. Not there: `transferCall` and voicemail detection. A call's line cost is 0.
+
 ### Genesys Cloud
 
 If your contact center runs on Genesys Cloud, an assistant can take calls inside your Architect flows,

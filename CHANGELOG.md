@@ -8,6 +8,11 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- WhatsApp calls with no third party, through [WaCalls](https://github.com/JotaDev66/WaCalls) (beta, unofficial, self-hosted,
+  never tried on a real call): a phone number with `"provider": "wacalls"` and a `wacallsSession` answers and places
+  WhatsApp voice calls with an assistant, the audio going to a WaCalls server of your own (`WACALLS_URL`) over a WebRTC data
+  channel, with no per-minute fee. WaCalls has no login: keep it on a trusted network. Tested against a pretend WaCalls
+  speaking its protocol, as read from its source.
 - More providers, each with its logo. Models: SambaNova, Nebius, Novita AI, Qwen (Alibaba Cloud), Inception (Mercury),
   Moonshot (Kimi), NVIDIA NIM and Hugging Face (`sambanova`, `nebius`, `novita`, `qwen`, `inception`, `moonshot`,
   `nvidia`, `huggingface`). Transcribers: OpenAI, Groq (Whisper) and Gradium. Voices: MiniMax (with its group ID),

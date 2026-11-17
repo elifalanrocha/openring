@@ -77,6 +77,8 @@ class Settings:
     # ports. SIP_PUBLIC_IP is the address it should send to, when this computer doesn't have it (behind a NAT).
     # Where Wavoip's devices are reached (WhatsApp calls); only tests change it.
     wavoip_url: str = field(default_factory=lambda: _env("WAVOIP_URL", "https://devices.wavoip.com"))
+    # Where your WaCalls server is (WhatsApp calls with no third party), e.g. http://127.0.0.1:8080. Unset: off.
+    wacalls_url: str = field(default_factory=lambda: _env("WACALLS_URL", "").rstrip("/"))
     sip_host: str = field(default_factory=lambda: _env("SIP_HOST", "0.0.0.0"))
     sip_port: int = field(default_factory=lambda: int(_env("SIP_PORT", "5060")))
     sip_public_ip: str = field(default_factory=lambda: _env("SIP_PUBLIC_IP"))
