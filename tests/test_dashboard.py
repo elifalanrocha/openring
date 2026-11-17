@@ -475,3 +475,8 @@ def test_calls_show_how_they_ended_their_facts_and_each_replys_wait_and_evals_th
       {role: "assistant", message: "Done"}], [{turnLatency: 900}, {turnLatency: 2500}]);
     console.log(JSON.stringify([...html.matchAll(/class="lat-note ?([^"]*)"[^>]*>([^<]*)/g)].map(m => m.slice(1))));""")
     assert got == [["", "900 ms"], ["bad", "2500 ms"]]
+
+
+def test_calls_can_be_narrowed_by_words_assistant_and_how_they_ended():
+    assert 'id="callFind"' in PAGE and 'id="callAsst"' in PAGE and 'id="callWhy"' in PAGE
+    assert 'data-text="${esc([caller(c), c.id' in PAGE  # what was said is searchable, not only the number

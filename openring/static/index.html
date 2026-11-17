@@ -201,6 +201,9 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .chart-switch .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .bars .bar.spend { background: var(--c2); }
 .inline-select { width: auto; padding: 6px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); margin-right: 10px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -6px 0 14px; }
+.filters input[type="search"] { flex: 1 1 260px; padding: 7px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
+.filters select { width: auto; padding: 7px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
 .spark { display: block; width: 100%; height: 34px; margin-top: 10px; color: var(--c1); overflow: visible; }
 .spark path.area { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: none; }
 .spark path.line { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -1794,6 +1797,12 @@ async function viewCalls() {
       <button class="btn ghost" id="exportCsv">Export CSV</button>
       <button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button>
     </div>
+    ${shown.length ? `<div class="filters">
+      <input type="search" id="callFind" placeholder="Search number, call id or what was said" aria-label="Search calls" autocomplete="off" spellcheck="false">
+      <select id="callAsst" aria-label="Assistant"><option value="">All assistants</option>${[...new Set(shown.map(c => c.assistantId).filter(Boolean))].map(id => option(id, assistants.find(a => a.id === id)?.name || "Deleted assistant", "")).join("")}</select>
+      <select id="callWhy" aria-label="How it ended"><option value="">Any ending</option>${[...new Set(shown.map(c => c.endedReason).filter(Boolean))].map(r => option(r, endedLabel(r), "")).join("")}</select>
+      <span class="muted" id="callCount" role="status"></span>
+    </div>` : ""}
 
     <section class="panel">
       ${shown.length ? `
@@ -1815,7 +1824,7 @@ async function viewCalls() {
             </thead>
             <tbody>
               ${shown.map(c => `
-                <tr class="link" tabindex="0" data-id="${esc(c.id)}">
+                <tr class="link" tabindex="0" data-id="${esc(c.id)}" data-assistant="${esc(c.assistantId || "")}" data-why="${esc(c.endedReason || "")}" data-text="${esc([caller(c), c.id, ...(c.messages || c.artifact?.messages || []).map(m => m.message || "")].join(" ").toLowerCase().slice(0, 4000))}">
                   <td><b>${esc(caller(c))}</b></td>
                   <td>${esc(assistantOf(c, assistants))}</td>
                   <td class="hide-sm muted">${esc(TYPE[c.type] || c.type)}</td>
@@ -1844,6 +1853,16 @@ async function viewCalls() {
 
   $("#exportCsv").onclick = () => exportCallsCsv(calls, assistants);
   $("#refresh").onclick = viewCalls;
+  const narrow = () => {
+    const find = ($("#callFind")?.value || "").trim().toLowerCase(), who = $("#callAsst")?.value, why = $("#callWhy")?.value;
+    let left = 0;
+    v.querySelectorAll("tr.link").forEach(r => {
+      const keep = (!find || r.dataset.text.includes(find)) && (!who || r.dataset.assistant === who) && (!why || r.dataset.why === why);
+      r.hidden = !keep; left += keep;
+    });
+    if ($("#callCount")) $("#callCount").textContent = find || who || why ? `${num(left)} of ${num(shown.length)}` : "";
+  };
+  ["callFind", "callAsst", "callWhy"].forEach(id => $("#" + id)?.addEventListener("input", narrow));
 
   v.querySelectorAll("[data-filter]").forEach(b => {
     b.onclick = () => {
