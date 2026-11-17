@@ -195,7 +195,8 @@ def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
     done = [c for c in calls if c.get("status") == "ended" and float(c.get("durationSeconds") or 0) > 0
             and isinstance(c.get("costBreakdown"), dict)][:MEASURED_CALLS]
     minutes = sum(float(c["durationSeconds"]) for c in done) / 60
-    turns = [t for c in done for t in ((c.get("artifact") or {}).get("performanceMetrics") or {}).get("turns") or []
+    turns = [t for c in done
+             for t in ((c.get("artifact") or {}).get("performanceMetrics") or {}).get("turnLatencies") or []
              if isinstance(t, dict)]
     latency = {p: _part_average(turns, p) for p in LATENCY_PARTS}
     latency["turnLatency"] = round(sum(t.get("turnLatency", 0) for t in turns) / len(turns)) if turns else None

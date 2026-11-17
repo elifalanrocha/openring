@@ -67,6 +67,8 @@ code { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; f
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 input, textarea { caret-color: var(--accent); }
+::placeholder { color: color-mix(in srgb, var(--muted) 82%, transparent); opacity: 1; }
+#sys { min-height: 220px; resize: vertical; }
 input[type="range"] { accent-color: var(--accent); width: 100%; }
 html { scrollbar-color: var(--line) transparent; }
 svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -293,7 +295,7 @@ a.rowlink:hover { background: var(--panel-2); }
 .sidelist a[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .sidelist .who { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--muted); }
 .sidelist .who img { width: 16px; height: 16px; }
-.sidelist .who:has(img) { background: #ffffff; }  /* provider logos are drawn for a light background */
+.sidelist .who { font-weight: 700; font-size: 11.5px; color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .sidelist strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidelist small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } .sidelist { position: static; } .sidelist nav { max-height: 220px; } }
@@ -407,7 +409,7 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 
 /* Assistant editor: the call path drawn left to right */
 .line-diagram { display: grid; grid-template-columns: 1fr 38px 1fr 38px 1fr; align-items: stretch; margin-bottom: 8px; }
-.stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 16px; background: var(--panel); box-shadow: var(--shadow); min-width: 0; }
+.stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 16px; background: var(--panel-2); min-width: 0; }
 .stage:focus-within { border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); }
 .stage h3 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-stretch: 108%; margin-bottom: 6px; }
 .slogo { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 7px; background: var(--chip); border: 1px solid var(--line); }
@@ -497,7 +499,7 @@ pre.json { margin: 0; padding: 16px; overflow: auto; max-height: 560px; font-siz
 .gate .btn { width: 100%; margin-top: 18px; padding: 10px; }
 
 dialog { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; width: min(440px, 92vw); background: var(--panel); color: var(--ink); }
-dialog::backdrop { background: rgba(5,8,12,.6); }
+dialog::backdrop { background: rgba(24, 16, 8, .55); backdrop-filter: blur(2px); }
 
 /* Browser test call: one ring per voice, swelling with its loudness */
 .talk { text-align: center; }
@@ -899,8 +901,8 @@ async function viewHome() {
   <div class="toolbar"><h2 style="font-size:18px">Overview</h2>${tabs(PERIODS, days, "period")}</div>
   ${s.inProgress ? `<div class="livebar" role="status">${num(s.inProgress)} call${s.inProgress === 1 ? "" : "s"} live now<a href="#calls">Open calls</a></div>` : ""}
   <div class="cards overview primary">
-    ${card("Fees avoided", "coin", "$" + s.platformFeeSaved.toFixed(2), "brand", '<span title="Hosted voice platforms charge about US$0.05 per minute for orchestration alone.">vs $0.05/min platforms</span>', "hero")}
-    ${card("Calls", "phone", num(s.calls), "", s.inProgress ? `${s.inProgress} live now` : `${num(s.byType.inboundPhoneCall || 0)} in · ${num(s.byType.outboundPhoneCall || 0)} out · ${num(s.byType.webCall || 0)} browser` + spark(pd.map(d => d.calls)))}
+    ${card("Fees avoided", "coin", "$" + s.platformFeeSaved.toFixed(2), "brand", `<span title="Hosted voice platforms charge about US$0.05 per minute for orchestration alone.">${num(s.minutes)} min that hosted platforms bill at about $0.05 each</span>`, "hero")}
+    ${card("Calls", "phone", num(s.calls), "", (s.inProgress ? `${s.inProgress} live now` : `${num(s.byType.inboundPhoneCall || 0)} in · ${num(s.byType.outboundPhoneCall || 0)} out · ${num(s.byType.webCall || 0)} browser`) + spark(pd.map(d => d.calls)))}
     ${card("Success rate", "check", s.successRate == null ? "—" : s.successRate + '<small>%</small>', tone(light("successRate", s.successRate)), [s.failed ? `${s.failed} failed` : "No failures", s.transferRate ? `${s.transferRate}% transferred` : ""].filter(Boolean).join(" · ") + spark(pd.map(d => d.calls ? 100 - d.failed / d.calls * 100 : null)), "", light("successRate", s.successRate))}
     ${card("Response time", "bolt", ms(s.latencyMedianMs), tone(light("latency", s.latencyMedianMs)), s.turns ? `median of ${num(s.turns)} turns · p95 ${ms(s.latencyP95Ms)}` : "No turns yet", "", light("latency", s.latencyMedianMs))}
   </div>
@@ -934,7 +936,8 @@ async function viewHome() {
   v.querySelectorAll("[data-period]").forEach(b => b.onclick = () => { store.set("openring-period", b.dataset.period); viewHome(); });
   if ($("#firstTest")) $("#firstTest").onclick = () => startTalk(assistants[0]);
   const fee = v.querySelector(".card.hero .value"), to = s.platformFeeSaved;
-  if (fee && to > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (fee && to > 0 && !viewHome.counted && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    viewHome.counted = true;  // once per visit, not on every period change
     const start = performance.now();
     (function step(now) {
       const t = Math.min(1, (now - start) / 900), eased = 1 - Math.pow(2, -10 * t);
@@ -953,7 +956,7 @@ function pathChips(a, routes = []) {
 
 function assistantList(items, current) {
   const layers = a => [a.transcriber?.provider, a.model?.provider, a.voice?.provider].filter(Boolean).join(" · ");
-  const who = a => { const icon = providerIcon(a.model?.provider === "elevenlabs" ? "11labs" : a.model?.provider || ""); return icon ? `<img src="${esc(icon)}" alt="">` : esc(initials(a.name)); };
+  const who = a => esc(initials(a.name));
   return `<aside class="sidelist" aria-label="Assistants">
     <header><button type="button" class="btn small" id="newA">${ICON.plus}New</button><button type="button" class="btn ghost small" id="importA">Import</button></header>
     <nav>${items.map(a => `<a href="#assistants/${esc(a.id)}"${a.id === current ? ' aria-current="page"' : ""}><span class="who">${who(a)}</span><span><strong>${esc(a.name || "Untitled")}</strong><small>${esc(layers(a) || "Not set up")}</small></span></a>`).join("")}</nav>
@@ -1244,6 +1247,9 @@ async function viewAssistant(id, known) {
     showAssistantTab(a, savedTools);
   });
   if (a.id) $("#test").onclick = () => startTalk(a);
+  v.onkeydown = e => {  // Ctrl+S (Cmd+S) saves, as in an editor
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && $("#f")) { e.preventDefault(); $("#f").requestSubmit(); }
+  };
   const pane = $("#pane");
   const save = async body => {
     try {
@@ -1253,7 +1259,7 @@ async function viewAssistant(id, known) {
     } catch (err) { $("#err").textContent = err.message; }
   };
   const footer = `<div class="error" id="err" role="alert"></div>
-    <div class="savebar"><span class="dirty" id="dirty" hidden>Unsaved changes</span><span class="spacer"></span><a class="btn ghost" href="#assistants">Back</a>${a.id ? `<button type="button" class="btn danger" id="del">Delete</button>` : ""}<button class="btn">${a.id ? "Save changes" : "Create assistant"}</button></div>`;
+    <div class="savebar">${a.id ? `<button type="button" class="btn danger" id="del">Delete</button>` : ""}<span class="dirty" id="dirty" hidden>Unsaved changes</span><span class="spacer"></span><a class="btn ghost" href="#assistants">Close</a><button class="btn" title="Ctrl+S">${a.id ? "Save changes" : "Create assistant"}</button></div>`;
 
   if (tab === "json") {
     const { id: _i, createdAt: _c, updatedAt: _u, ...doc } = a;
@@ -1267,6 +1273,17 @@ async function viewAssistant(id, known) {
     };
   } else {
     pane.innerHTML = `<form id="f">
+    <h2 class="sect" data-sec="setup">Behavior</h2>
+    <div class="field"><label for="name">Name</label><input id="name" name="name" required value="${esc(a.name || "")}" placeholder="Front desk"></div>
+    <div class="field"><label for="greet">Greeting</label><p class="hint">The first thing callers hear.</p><input id="greet" name="greet" value="${esc(a.firstMessage || "")}" placeholder="Hi! How can I help you today?"></div>
+    <div class="field"><label for="sys">System prompt</label><p class="hint">How the assistant should behave on the call.</p><textarea id="sys" name="sys" placeholder="You are a friendly assistant for…">${esc(system)}</textarea></div>
+    <h2 class="sect" data-sec="advanced">Limits</h2>
+    <div class="field-row">
+      <div class="field narrow"><label for="maxmin">Max length</label><p class="hint">Minutes</p><input id="maxmin" name="maxmin" type="number" min="1" max="720" value="${limitsShown.minutes}"></div>
+      <div class="field narrow"><label for="silence">Silence limit</label><p class="hint">Seconds</p><input id="silence" name="silence" type="number" min="5" max="3600" value="${esc(limitsShown.silence)}"></div>
+      <div class="field"><label for="idle">If the caller goes quiet, say</label><p class="hint">Optional. After ${esc(a.messagePlan?.idleTimeoutSeconds ?? 10)} s without an answer, up to ${esc(a.messagePlan?.idleMessageMaxSpokenCount ?? 3)} times.</p><input id="idle" name="idle" value="${esc((a.messagePlan?.idleMessages || [])[0] || "")}" placeholder="Are you still there?"></div>
+    </div>
+    <h2 class="sect" data-sec="setup">Call path</h2>
     ${presets.length ? `<div class="presets"><span class="muted">Start from</span>${presets.map(p => `<button type="button" class="preset" data-preset="${esc(p.id)}" title="${esc(p.about)}"><b>${esc(p.name)}</b><span>${p.totalPerMinute == null ? "price unknown" : esc(usd(p.totalPerMinute)) + "/min"}</span><span class="muted">${p.latency.turn ? "~" + (p.latency.turn / 1000).toFixed(1) + " s to answer" : "speed not measured"}</span>${p.missingKeys.length ? `<small class="warn-text">needs ${esc(p.missingKeys.map(k => k.replace(/_API_KEY$/, "").toLowerCase()).join(", "))}</small>` : ""}</button>`).join("")}</div>` : ""}
     <div class="line-diagram">
       <div class="stage"><h3><span class="slogo" data-for="tp"></span>Transcriber</h3>${sttRoutes.length ? `<label>Route</label><select name="tr">${option("", "None: one transcriber", t.routeId || "")}${sttRoutes.map(r => option(r.id, r.name, t.routeId || "")).join("")}</select>` : ""}<div id="tfixed"><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select></div><p class="hint stage-hint plain" id="troute" hidden></p><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
@@ -1274,29 +1291,19 @@ async function viewAssistant(id, known) {
       <div class="stage"><h3><span class="slogo" data-for="vp"></span>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><input type="hidden" name="vmodel" value=""><div id="vvoice">${voiceField(vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro", vo.voiceId)}</div><div id="vlangRow"><label for="vlang">Language</label><select id="vlang" name="vlang">${option("", "Same as the transcriber", vo.language || "")}${LANGUAGES.filter(([k]) => k !== "multi").map(([k, l]) => option(k, l, vo.language || "")).join("")}</select></div><label for="vspeed">Speed <output id="vspeedOut">${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}</output>x</label><input type="range" id="vspeed" name="vspeed" min="0.5" max="2" step="0.05" value="${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}" oninput="vspeedOut.value = this.value"></div><label for="bg">Background sound</label><select id="bg" name="bg">${[["off", "Off"], ["office", "Office"], ["url", "Custom (URL)"]].map(([k, l]) => option(k, l, bgKind)).join("")}</select><div id="bgUrlRow"><input name="bgUrl" type="url" placeholder="https://example.com/rain.mp3" aria-label="Sound file URL" value="${esc(bgKind === "url" ? a.backgroundSound : "")}"></div><p class="hint stage-hint plain">Office is distant chatter and keyboards, made by OpenRing. A file (WAV, MP3, OGG, FLAC) plays as quietly, on a loop.</p><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
     </div>
     <div class="free-stack"><button type="button" class="btn ghost small" id="freeStack">Use the free local stack</button><span class="muted">Whisper, Ollama and Kokoro, all on this computer: no per-minute cost, and the call's audio never leaves it.</span><span class="muted" id="freeNote" role="status"></span></div>
-    <h3 class="sect" data-sec="setup">Behavior</h3>
-    <div class="field"><label for="name">Name</label><input id="name" name="name" required value="${esc(a.name || "")}" placeholder="Front desk"></div>
-    <div class="field"><label for="greet">Greeting</label><p class="hint">The first thing callers hear.</p><input id="greet" name="greet" value="${esc(a.firstMessage || "")}" placeholder="Hi! How can I help you today?"></div>
-    <div class="field"><label for="sys">System prompt</label><p class="hint">How the assistant should behave on the call.</p><textarea id="sys" name="sys" placeholder="You are a friendly assistant for…">${esc(system)}</textarea></div>
-    <h3 class="sect" data-sec="advanced">Limits</h3>
-    <div class="field-row">
-      <div class="field narrow"><label for="maxmin">Max length</label><p class="hint">Minutes</p><input id="maxmin" name="maxmin" type="number" min="1" max="720" value="${limitsShown.minutes}"></div>
-      <div class="field narrow"><label for="silence">Silence limit</label><p class="hint">Seconds</p><input id="silence" name="silence" type="number" min="5" max="3600" value="${esc(limitsShown.silence)}"></div>
-      <div class="field"><label for="idle">If the caller goes quiet, say</label><p class="hint">Optional. After ${esc(a.messagePlan?.idleTimeoutSeconds ?? 10)} s without an answer, up to ${esc(a.messagePlan?.idleMessageMaxSpokenCount ?? 3)} times.</p><input id="idle" name="idle" value="${esc((a.messagePlan?.idleMessages || [])[0] || "")}" placeholder="Are you still there?"></div>
-    </div>
-    <h3 class="sect" data-sec="setup">Knowledge</h3>
-    <div class="field"><label>Knowledge</label><p class="hint">Files this assistant can look things up in during a call. Add them on the <a href="#knowledge">Knowledge</a> page, and say in the instructions when to use them.</p>
+    <h2 class="sect" data-sec="setup">Knowledge</h2>
+    <div class="field"><p class="hint">Files this assistant can look things up in during a call. Add them on the <a href="#knowledge">Knowledge</a> page, and say in the instructions when to use them.</p>
       ${files.length ? files.map(file => `<label class="consent" style="margin:4px 0"><input type="checkbox" name="kb" value="${esc(file.id)}" ${knowledgeIds(m).includes(file.id) ? "checked" : ""}><span>${esc(file.name)}</span></label>`).join("") : '<p class="muted" style="margin:0">No files yet.</p>'}
     </div>
-    <h3 class="sect" data-sec="advanced">Privacy</h3>
+    <h2 class="sect" data-sec="advanced">Privacy</h2>
     <label class="consent"><input type="checkbox" name="recOn" ${a.artifactPlan?.recordingEnabled === true ? "checked" : ""}><span>Record calls, on this server. About 2 MB per minute on the phone. Many places require telling people they are being recorded, so say it in the greeting.</span></label>
     <label class="consent"><input type="checkbox" name="memOn" ${a.callerMemory === true || a.callerMemory?.enabled === true ? "checked" : ""}><span>Remember callers. On a phone call, the assistant is given what was said on that number's last 3 calls with it, from the transcripts on this server. A caller ID can be faked, so leave it off where a past call holds something private.</span></label>
-    <h3 class="sect" data-sec="advanced">After the call</h3>
+    <h2 class="sect" data-sec="advanced">After the call</h2>
     <label class="consent"><input type="checkbox" name="anOn" ${a.analysisPlan ? "checked" : ""}><span>Analyze calls when they end. The assistant's model writes a summary and judges whether the call did its job; both go in the call and the end-of-call report. It spends that model's tokens.</span></label>
     ${outputs.length ? `<fieldset class="outputs"><legend>Structured outputs to pull out of each call (<a href="#outputs">manage</a>)</legend>${outputs.map(o => `<label class="consent"><input type="checkbox" name="outIds" value="${esc(o.id)}" ${(a.artifactPlan?.structuredOutputIds || []).includes(o.id) ? "checked" : ""}><span>${esc(o.name)}${o.description ? ` <span class="muted">${esc(o.description)}</span>` : ""}</span></label>`).join("")}</fieldset>` : ""}
     <div id="anMore"><label for="anSchema">Data to pull out of each call (a JSON Schema, optional)</label><textarea id="anSchema" name="anSchema" rows="4" spellcheck="false" placeholder='{"type": "object", "properties": {"name": {"type": "string"}, "partySize": {"type": "integer"}}}'>${esc(a.analysisPlan?.structuredDataPlan?.enabled && a.analysisPlan.structuredDataPlan.schema ? JSON.stringify(a.analysisPlan.structuredDataPlan.schema, null, 2) : "")}</textarea></div>
     <div class="field"><label for="hook">Call report URL</label><p class="hint">Optional. We send the transcript here when a call ends.</p><input id="hook" name="hook" value="${esc((a.server || {}).url || "")}" placeholder="https://your-app.com/webhook"></div>
-    <h3 class="sect" data-sec="advanced">Outbound and notices</h3>
+    <h2 class="sect" data-sec="advanced">Outbound and notices</h2>
     <div class="field"><label for="annId">Play a recording instead of talking</label><p class="hint">For notices and on-call alerts: the call plays this file and hangs up, with no transcriber, model or voice, so it costs only the line. Use it in a campaign for a whole list, or in an escalation. Twilio numbers only, for now.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="annId" name="annId" style="flex:1;min-width:200px">${option("", "No: the assistant talks", a.announcement?.audioId || "")}${recordings.map(r => option(r.id, r.name + (r.durationSeconds ? ` · ${r.durationSeconds} s` : ""), a.announcement?.audioId || "")).join("")}</select><label class="btn ghost small" style="cursor:pointer">Upload WAV or MP3<input type="file" id="annFile" accept=".wav,.mp3,audio/wav,audio/mpeg" hidden></label></div>
       <p class="error" id="annErr" role="alert"></p></div>

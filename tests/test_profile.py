@@ -17,7 +17,7 @@ LOCAL = {"transcriber": {"provider": "whisper", "model": "base", "language": "en
 def _call(assistant_id, seconds, stt, llm, tts, turns, **more):
     return {"assistantId": assistant_id, "status": "ended", "durationSeconds": seconds,
             "costBreakdown": {"stt": stt, "llm": llm, "tts": tts, "total": stt + llm + tts, **more},
-            "artifact": {"performanceMetrics": {"turns": turns}}}
+            "artifact": {"performanceMetrics": {"turnLatencies": turns}}}
 
 
 def test_an_assistant_without_calls_gets_an_estimate_and_no_made_up_latency():
