@@ -362,6 +362,10 @@ def seed(store: Store) -> None:
             kind = rng.choices(["inboundPhoneCall", "outboundPhoneCall", "webCall"], [5, 3, 2])[0]
             when = NOW - timedelta(days=day, hours=rng.randint(0, 9), minutes=rng.randint(0, 59))
             reason = rng.choices([r for r, _ in ENDINGS], [w for _, w in ENDINGS])[0]
+            if kind == "outboundPhoneCall":
+                a = 1  # the sales assistant places the outbound calls; its script opens the conversation
+            if kind == "webCall" and reason in ("customer-did-not-answer", "customer-busy"):
+                reason = "customer-ended-call"  # nobody misses a test call they started
             reached = reason not in ("customer-did-not-answer", "customer-busy")
             seconds = rng.randint(35, 380) if reached else 0
             script = SCRIPTS[a][: rng.randint(3, len(SCRIPTS[a]))] if reached else []
@@ -420,6 +424,19 @@ def seed(store: Store) -> None:
                 "artifact": {
                     "messages": [{"role": r, "message": m} for r, m in script],
                     "performanceMetrics": performance_metrics(turns, rng.randint(800, 2100) if reached else None),
+                    **(
+                        {
+                            "structuredOutputs": {
+                                outputs[0]["id"]: {"name": outputs[0]["name"], "result": rng.random() > 0.3}
+                            }
+                        }
+                        if reached and a == 0
+                        else {
+                            "structuredOutputs": {outputs[1]["id"]: {"name": outputs[1]["name"], "result": "PX 441902"}}
+                        }
+                        if reached and a == 2
+                        else {}
+                    ),
                 },
                 **(
                     {
@@ -450,7 +467,7 @@ def seed(store: Store) -> None:
     outbound = [c for c in calls if c["type"] == "outboundPhoneCall"]
     for name, chosen, status in (
         ("Spring roof check-ups", outbound[:9], "ended"),
-        ("Reminder: overdue cleanings", outbound[9:15], "ended"),
+        ("Solar follow-ups", outbound[9:15], "ended"),
     ):
         entries = {
             c["id"]: {
@@ -479,7 +496,8 @@ def seed(store: Store) -> None:
                 "callsCounterRetrying": 0,
                 "callsCounterEndedVoicemail": 0,
                 "callsCounterEnded": len(entries),
-                "maxConcurrency": 3, "retryPlan": {"maxAttempts": 2, "delayMinutes": 60},
+                "maxConcurrency": 3,
+                "retryPlan": {"maxAttempts": 2, "delayMinutes": 60},
             },
             NOW - timedelta(days=rng.randint(2, 9)),
         )

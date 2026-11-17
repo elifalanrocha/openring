@@ -491,3 +491,10 @@ def test_a_campaign_shows_each_persons_call_length_cost_and_verdict():
 def test_ctrl_k_goes_anywhere_and_has_a_button():
     assert 'id="jumpDialog"' in PAGE and "function openJump()" in PAGE and 'id="jump"' in PAGE
     assert '(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"' in PAGE
+
+
+def test_data_is_drawn_in_one_ink_and_a_failed_fetch_is_not_kept():
+    assert PAGE.count("--data: #") == 3  # light, dark by the system, dark by choice
+    assert ".bars .bar { background: var(--data);" in PAGE and ".bars .bar.spend { background: var(--data); }" in PAGE
+    assert "catch(() => { recentCallsCache = null; return []; })" in PAGE
+    assert '<details class="carriers"${nums.length ? "" : " open"}>' in PAGE

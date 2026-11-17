@@ -27,6 +27,7 @@
   --shadow: 0 1px 2px rgba(60, 40, 20, .05), 0 8px 20px -12px rgba(60, 40, 20, .2);
   --radius: 10px; --radius-sm: 6px;
   --chip: #ffffff;
+  --data: #8a7f72;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -39,6 +40,7 @@
     --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
     --shadow: 0 1px 0 rgba(255, 235, 210, .04) inset, 0 14px 28px -16px rgba(0, 0, 0, .75);
     --chip: #e4ddd2;
+    --data: #a39787;
     color-scheme: dark;
   }
 }
@@ -51,6 +53,7 @@
   --ok: #34d399; --ok-soft: rgba(52,211,153,.12); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.12); --bad: #fb7185; --bad-soft: rgba(251,113,133,.12);
   --shadow: 0 1px 0 rgba(255, 235, 210, .04) inset, 0 14px 28px -16px rgba(0, 0, 0, .75);
   --chip: #e4ddd2;
+  --data: #a39787;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -198,13 +201,15 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .cards.overview .card, .cards.secondary .card { animation: none; } }
 .chart-switch { display: inline-flex; gap: 4px; }
+details.carriers > summary { cursor: pointer; font-weight: 600; margin-bottom: 4px; }
+details.carriers[open] > summary { margin-bottom: 12px; }
 .chart-switch .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.bars .bar.spend { background: var(--c2); }
+.bars .bar.spend { background: var(--data); }
 .inline-select { width: auto; padding: 6px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); margin-right: 10px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -6px 0 14px; }
 .filters input[type="search"] { flex: 1 1 260px; padding: 7px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
 .filters select { width: auto; padding: 7px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
-.spark { display: block; width: 100%; height: 34px; margin-top: 10px; color: var(--c1); overflow: visible; }
+.spark { display: block; width: 100%; height: 34px; margin-top: 10px; color: var(--data); overflow: visible; }
 .spark path.area { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: none; }
 .spark path.line { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .livebar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 10px 16px; border-radius: var(--radius); background: var(--signal-soft); color: var(--ink); font-weight: 600; }
@@ -220,7 +225,7 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 /* Calls per day */
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 170px; padding-top: 8px; }
 .bars .day { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
-.bars .bar { background: var(--c1); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
+.bars .bar { background: var(--data); border-radius: 3px 3px 0 0; min-height: 2px; opacity: .85; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
 .bars .bar .fail { background: var(--bad); }
 .bars .day:hover .bar { opacity: 1; }
 .bars .day.zero .bar { background: var(--line); opacity: 1; }
@@ -267,7 +272,7 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 a.rowlink { color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
 a.rowlink:hover { background: var(--panel-2); }
 .minirow .meter { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; max-width: 140px; }
-.minirow .meter span { display: block; height: 100%; background: var(--accent); }
+.minirow .meter span { display: block; height: 100%; background: var(--data); }
 /* Rows compared by their bars (busiest assistants, how calls ended) share one set of columns, so every bar starts
    and ends at the same place whatever the length of its label and number. */
 @supports (grid-template-columns: subgrid) {
@@ -319,7 +324,7 @@ a.rowlink:hover { background: var(--panel-2); }
 .sidelist a[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .sidelist .who { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--muted); }
 .sidelist .who img { width: 16px; height: 16px; }
-.sidelist .who { font-weight: 700; font-size: 11.5px; color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.sidelist .who { font-weight: 700; font-size: 11.5px; color: var(--ink); background: var(--accent-soft); border-color: transparent; }
 .sidelist strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidelist small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidelist .find { padding: 8px 12px; border-bottom: 1px solid var(--line); }
@@ -857,7 +862,7 @@ function median(xs) {
 // The last 500 calls, shared for a minute by the pages that count calls (the assistants' list re-renders on every click).
 let recentCallsCache = null;
 function recentCalls() {
-  if (!recentCallsCache || Date.now() - recentCallsCache.at > 60000) recentCallsCache = { at: Date.now(), calls: api("/call?limit=500").catch(() => []) };
+  if (!recentCallsCache || Date.now() - recentCallsCache.at > 60000) recentCallsCache = { at: Date.now(), calls: api("/call?limit=500").catch(() => { recentCallsCache = null; return []; }) };
   return recentCallsCache.calls;
 }
 const DAY_MS = 864e5;
@@ -1420,7 +1425,7 @@ async function viewAssistant(id, known) {
     <h2 class="sect" data-sec="advanced">After the call</h2>
     <label class="consent"><input type="checkbox" name="anOn" ${a.analysisPlan ? "checked" : ""}><span>Analyze calls when they end. The assistant's model writes a summary and judges whether the call did its job; both go in the call and the end-of-call report. It spends that model's tokens.</span></label>
     ${outputs.length ? `<fieldset class="outputs"><legend>Structured outputs to pull out of each call (<a href="#outputs">manage</a>)</legend>${outputs.map(o => `<label class="consent"><input type="checkbox" name="outIds" value="${esc(o.id)}" ${(a.artifactPlan?.structuredOutputIds || []).includes(o.id) ? "checked" : ""}><span>${esc(o.name)}${o.description ? ` <span class="muted">${esc(o.description)}</span>` : ""}</span></label>`).join("")}</fieldset>` : ""}
-    <div id="anMore"><label for="anSchema">Data to pull out of each call (a JSON Schema, optional)</label><textarea id="anSchema" name="anSchema" rows="4" spellcheck="false" placeholder='{"type": "object", "properties": {"name": {"type": "string"}, "partySize": {"type": "integer"}}}'>${esc(a.analysisPlan?.structuredDataPlan?.enabled && a.analysisPlan.structuredDataPlan.schema ? JSON.stringify(a.analysisPlan.structuredDataPlan.schema, null, 2) : "")}</textarea></div>
+    <div id="anMore" class="field"><label for="anSchema">Data to pull out of each call (a JSON Schema, optional)</label><textarea id="anSchema" name="anSchema" rows="4" spellcheck="false" placeholder='{"type": "object", "properties": {"name": {"type": "string"}, "partySize": {"type": "integer"}}}'>${esc(a.analysisPlan?.structuredDataPlan?.enabled && a.analysisPlan.structuredDataPlan.schema ? JSON.stringify(a.analysisPlan.structuredDataPlan.schema, null, 2) : "")}</textarea></div>
     <div class="field"><label for="hook">Call report URL</label><p class="hint">Optional. We send the transcript here when a call ends.</p><input id="hook" name="hook" value="${esc((a.server || {}).url || "")}" placeholder="https://your-app.com/webhook"></div>
     <h2 class="sect" data-sec="advanced">Outbound and notices</h2>
     <div class="field"><label for="annId">Play a recording instead of talking</label><p class="hint">For notices and on-call alerts: the call plays this file and hangs up, with no transcriber, model or voice, so it costs only the line. Use it in a campaign for a whole list, or in an escalation. Twilio numbers only, for now.</p>
@@ -1641,6 +1646,7 @@ async function viewNumbers() {
   };
   const v = $("#view");
   v.innerHTML = `<section class="panel" style="margin-bottom:18px"><header><h2>Connect a phone number</h2></header><div class="body">
+    <details class="carriers"${nums.length ? "" : " open"}><summary>Where each carrier sends its calls (webhooks for Twilio, Telnyx, Plivo, Vonage, Genesys, WhatsApp)</summary>
     <p style="margin-top:0"><b>Twilio:</b> open the number and set <b>A call comes in</b> to this webhook (HTTP POST):</p>
     <div class="copyline"><code>${esc(info.twilioVoiceUrl)}</code><button class="btn ghost small" data-copy="${esc(info.twilioVoiceUrl)}">${ICON.copy}Copy</button></div>
     <p><b>Telnyx:</b> create a TeXML Application with this voice URL (HTTP POST) and assign the number to it:</p>
@@ -1654,6 +1660,7 @@ async function viewNumbers() {
     <p><b>Genesys Cloud:</b> create an <b>Audio Connector</b> integration with this base connection URI and the API key and client secret you set on the <a href="#providers">Providers</a> page. In Architect, the <b>Call Audio Connector</b> action picks the assistant with an <code>assistantId</code> input variable, or add the called number below with provider Genesys. Afterwards, the output variable <code>action</code> is <code>finished</code> or <code>transfer</code>, with the number in <code>transferTo</code>.</p>
     <div class="copyline"><code>${esc(info.genesysUrl)}</code><button class="btn ghost small" data-copy="${esc(info.genesysUrl)}">${ICON.copy}Copy</button></div>
     <p><b>WhatsApp calls</b> (beta, unofficial, never tried on a real call; WhatsApp may ban a number used this way): pick provider <b>WhatsApp (Wavoip)</b> and paste the token of a device you linked in Wavoip's panel, or <b>WhatsApp (WaCalls)</b> to use a WaCalls server of your own (set <code>WACALLS_URL</code>, then paste the session id). No public URL needed: OpenRing connects out. Guide: <a href="https://github.com/elifalanrocha/openring/blob/main/docs/api.md#whatsapp-calls" target="_blank" rel="noopener">WhatsApp calls</a>.</p>
+    </details>
     ${info.publicUrl ? "" : `<p class="muted" style="margin-bottom:0">Phone providers can't reach <code>localhost</code>. Start a tunnel (<code>cloudflared tunnel --url http://localhost:8000</code>), put its URL in <code>PUBLIC_URL</code> and restart.</p>`}
     <form id="add" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:18px">
       <div class="field" style="margin:0;flex:1;min-width:180px"><label for="num">Number</label><input id="num" name="num" required placeholder="+15551234567"></div>
@@ -1976,7 +1983,7 @@ async function viewEvals() {
   for (const r of runs.results) if (r.evalId) (byEval[r.evalId] ||= []).push(r);
   const shown = evalShown && runs.results.find(r => r.id === evalShown);
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar"><label class="muted" for="evalTarget">Run against</label><select id="evalTarget">${assistants.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
+  v.innerHTML = `<div class="toolbar"><label class="muted" for="evalTarget">Run against</label><select id="evalTarget" class="inline-select">${assistants.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
   ${shown ? evalResult(shown, list.results.find(e => e.id === shown.evalId)) : ""}
   <section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Eval</th><th>Checks</th><th>Last run</th><th class="hide-sm">Recent runs</th><th class="hide-sm">When</th><th></th></tr></thead><tbody>
     ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm">${runDots(byEval[e.id] || [])}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">${ICON.trash || "Delete"}</button></td></tr>`).join("")}
@@ -2409,7 +2416,7 @@ async function viewCampaign(id) {
   ${c.error ? `<p class="error" role="alert">${esc(c.error)}</p>` : ""}
   <div class="cards">
     ${card("Called", "phone", `${num(called.size)} <small class="muted">/ ${num(people.length)}</small>`, "", c.callsCounterRetrying ? `${num(c.callsCounterRetrying)} to try again` : "")}
-    ${card("On a call now", "mic", num((c.callsCounterQueued || 0) + (c.callsCounterInProgress || 0)), "", `${num(c.maxConcurrency)} at a time`)}
+    ${card("On a call now", "mic", num((c.callsCounterQueued || 0) + (c.callsCounterInProgress || 0)), "", c.maxConcurrency ? `${num(c.maxConcurrency)} at a time` : "")}
     ${card("Answered", "check", num(answered), "", calls.length ? `${Math.round(answered / calls.length * 100)}% of calls` : "")}
     ${card("Not called yet", "clock", num(waiting.length), "", !live && waiting.length ? "the campaign is over" : "")}
   </div>
