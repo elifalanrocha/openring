@@ -526,3 +526,9 @@ def test_tools_have_a_page_and_the_assistant_tab_points_to_it():
     assert "async function viewTools()" in PAGE and 'href="#tools" data-view="tools"' in PAGE
     assert "tools: viewTools" in PAGE and 'Make one on the <a href="#tools">Tools</a> page.' in PAGE
     assert "POST /tool" not in PAGE.split("async function viewTools", 1)[0].split("No saved tools yet", 1)[-1][:200]
+
+
+def test_home_says_what_needs_attention_and_settings_has_alerts():
+    assert "function attention(s, assistants, info)" in PAGE and 'aria-label="Needs attention"' in PAGE
+    assert 'const LOCAL = ["ollama", "whisper", "kokoro"]' in PAGE  # a local provider needs no key to be missing
+    assert 'id="alertForm"' in PAGE and '["alerts", "Alerts"]' in PAGE

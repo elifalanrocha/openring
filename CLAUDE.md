@@ -123,6 +123,11 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   across providers, each with `costPerMinute` (list price x `stats.ESTIMATE`), `latencyMs` (`routes.speed` of this server,
   else `MEASURED_MS`, else None: never guessed) and `keySet`. Dashboard: the **Choose** button of the model stage
   (`#mpick`, `drawPick`), sorted by name/latency/cost; the chosen model's line is under the field (`#mmeta`).
+- Alerts (`openring/alerts.py`, OpenRing's own): setting `alert_webhook` (`GET|PATCH /settings/alerts`, checked by
+  `netguard`); `alerts.watch` (lifespan task, every 30 s) sends `{"type": "call-failed", "call": {...}}` for each newly ended
+  call whose reason `stats._failed` calls a failure (`FAILED_REASONS`, every carrier's `*-failed` prefix), remembering the
+  last one in `alert_seen_at` so a restart repeats nothing; with no address set it only remembers. No number, transcript or
+  key in the message; nothing retried. Dashboard: Settings > Alerts, and Home's `attention()` panel.
 - `openring/prices.py`: list prices. Models from `llm_prices.json` (regenerate with `scripts/update_prices.py`:
   LiteLLM + OpenRouter), STT per minute and TTS per 1M characters hand-kept in `STT`/`TTS`, user overrides in
   `~/.openring/prices.json`; unknown is None, never guessed. `bot.Usage` keeps usage per Pipecat processor and

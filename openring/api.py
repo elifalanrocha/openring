@@ -22,6 +22,7 @@ from loguru import logger
 
 from . import (
     __version__,
+    alerts,
     analysis,
     announcements,
     auth,
@@ -133,6 +134,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         await whatsapp.refresh()
         await wacalls_hub.refresh()
         cleaning = asyncio.create_task(clean_recordings_forever())
+        alerting = asyncio.create_task(alerts.watch(store))
 
         async def keep_oauth_keys() -> None:
             while True:
@@ -145,6 +147,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         signed_in = asyncio.create_task(keep_oauth_keys())
         yield
         cleaning.cancel()
+        alerting.cancel()
         signed_in.cancel()
         await whatsapp.stop()
         await wacalls_hub.stop()
@@ -1372,6 +1375,20 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                                                         f"to {recordings.MAX_RETENTION_DAYS}")
         store.set_setting(recordings.RETENTION_KEY, str(days))
         return _recordings_settings()
+
+    @app.get("/settings/alerts", dependencies=auth_deps)
+    def alert_settings() -> dict[str, Any]:
+        """OpenRing's own: where a failed call is reported (empty: nowhere)."""
+        return {"alertWebhook": alerts.webhook(store)}
+
+    @app.patch("/settings/alerts", dependencies=auth_deps)
+    async def update_alert_settings(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            url = await alerts.check_url(body.get("alertWebhook"))
+        except alerts.AlertError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        store.set_setting(alerts.KEY, url)
+        return {"alertWebhook": url}
 
     @app.get("/call/{call_id}", dependencies=auth_deps)
     def get_call(call_id: str) -> dict[str, Any]:

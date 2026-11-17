@@ -8,6 +8,9 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Changed
 
+- A Tools page (list, create and delete tools of every kind), evals and structured outputs written in fields instead of
+  hand-typed JSON (the JSON stays one click away), one summary strip on a call instead of seven cards, and a "Needs
+  attention" panel on Home: failed calls by cause, slow answers, providers an assistant needs with no key.
 - The dashboard has its own look: warm paper and warm ink instead of pure grey, soft depth and rounder corners, with the
   orange kept as the one signal. In the assistant editor the call path (transcriber, model, voice) is drawn as three
   cards joined by a line, each with its provider's logo; Save sits in a bar that stays on screen and says "Unsaved
@@ -15,6 +18,9 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- Alerts (OpenRing's own): set `alertWebhook` (Settings, Alerts, or `PATCH /settings/alerts`) and a call that ends because
+  a provider or line failed is reported to that address within half a minute, once, with no caller number or words in it.
+  The address goes through the same guard as every address a person typed; nothing is retried.
 - Importing an account now makes its assistants work with the keys this server has: a transcriber or model whose
   provider has no key here is swapped for a provider that has one (the original kept in `importedTranscriber` /
   `importedModel`, and said in the import report). Assistants that already work are left alone.

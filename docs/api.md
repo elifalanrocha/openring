@@ -412,6 +412,15 @@ expects. Run it yourself with `scripts/vapi_sdk_check.py`.
   carriers), recording downloads, and Vapi's evals, simulations, scorecards and structured outputs, which OpenRing
   doesn't have.
 
+### Alerts
+
+OpenRing's own: `PATCH /settings/alerts {"alertWebhook": "https://..."}` (empty clears it; `GET` reads it). A call that ends
+because a key was rejected, credit ran out or a line wouldn't connect (`pipeline-error`, `provider-error`,
+`assistant-not-found`, or any `<carrier>-failed-to-connect-call`) is reported once, within about 30 seconds, as
+`{"type": "call-failed", "at": ..., "call": {"id", "assistantId", "type", "endedReason", "endedAt", "durationSeconds"}}`. The
+caller's number, the conversation and keys are not in it, and nothing is retried. Slack, Discord and Teams want their own
+shape: put a relay (n8n, Zapier, a small function) between OpenRing and them.
+
 ### MCP tool
 
 An `mcp` tool gives an assistant the tools of an MCP server (a Model Context Protocol server over HTTP):

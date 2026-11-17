@@ -9,7 +9,8 @@ from typing import Any
 # What hosted voice platforms charge per minute just for orchestration, on top of the providers.
 PLATFORM_FEE_PER_MINUTE = 0.05
 # endedReason prefixes that mean the call broke rather than finished.
-FAILED_REASONS = ("pipeline-error", "provider-error", "assistant-not-found", "twilio-failed")
+FAILED_REASONS = ("pipeline-error", "provider-error", "assistant-not-found", "twilio-failed", "telnyx-failed",
+                  "plivo-failed", "vonage-failed", "sip-failed", "wavoip-failed", "wacalls-failed")
 LATENCY_PARTS = ("endpointingLatency", "transcriberLatency", "modelLatency", "voiceLatency")
 
 

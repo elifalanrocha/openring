@@ -219,6 +219,10 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 details.advanced-json { margin-top: 14px; }
 details.advanced-json > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 details.advanced-json[open] > summary { margin-bottom: 8px; }
+.attention { margin-bottom: 16px; border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.attention > header { padding-bottom: 0; }
+.attention ul { list-style: none; margin: 0; padding: 12px 20px 16px; display: grid; gap: 8px; }
+.attention li a { margin-left: 6px; font-size: 13px; }
 .chart-switch { display: inline-flex; gap: 4px; }
 details.carriers > summary { cursor: pointer; font-weight: 600; margin-bottom: 4px; }
 details.carriers[open] > summary { margin-bottom: 12px; }
@@ -999,6 +1003,22 @@ function spark(values) {
   return `<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path class="area" d="${line}L100,32L0,32Z"/><path class="line" d="${line}"/></svg>`;
 }
 
+// What deserves a look, said in one place: failures by cause, assistants that answer slowly, providers a call needs with no key.
+function attention(s, assistants, info) {
+  const items = [];
+  if (s.failed) {
+    const why = Object.entries(s.endedReasons || {}).filter(([r]) => /^(pipeline-error|provider-error|assistant-not-found|\w+-failed)/.test(r)).map(([r, n]) => `${num(n)} ${esc(endedLabel(r))}`);
+    items.push(`<li><b>${num(s.failed)} call${s.failed === 1 ? "" : "s"} failed</b>${why.length ? ` · ${why.join(" · ")}` : ""} <a href="#calls">See them</a></li>`);
+  }
+  const bad = light("latency", s.latencyMedianMs);
+  if (bad && bad.cls === "bad") items.push(`<li><b>Answers are slow</b> · the median wait is ${ms(s.latencyMedianMs)}, above 2 s <a href="#assistants">Open an assistant</a></li>`);
+  const ready = id => info.providers.find(p => p.id === id)?.ready;
+  const LOCAL = ["ollama", "whisper", "kokoro"];  // they need no key
+  const lacking = [...new Set(assistants.flatMap(a => [a.model?.provider, a.transcriber?.provider]).filter(p => p && !LOCAL.includes(p) && info.providers.some(x => x.id === p) && !ready(p)))];
+  if (lacking.length) items.push(`<li><b>No key for ${esc(lacking.map(p => TRANSCRIBERS.find(t => t[0] === p)?.[1] || modelName(p)).join(", "))}</b> · assistants that use ${lacking.length === 1 ? "it" : "them"} can't take calls <a href="#providers">Add a key</a></li>`);
+  return items.length ? `<section class="panel attention" aria-label="Needs attention"><header><h2>Needs attention</h2><a href="#settings">Alerts</a></header><ul>${items.join("")}</ul></section>` : "";
+}
+
 async function viewHome() {
   setPage("home");
   const days = store.get("openring-period") || "30", only = store.get("openring-home-assistant") || "";
@@ -1022,6 +1042,7 @@ async function viewHome() {
   v.innerHTML = `
   ${steps.every(x => x[0]) ? "" : `<section class="panel" style="margin-bottom:18px"><header><h2>Get started</h2><span class="muted" style="font-size:13px">${steps.filter(x => x[0]).length} of ${steps.length} done</span></header><div class="body"><div class="steps">${steps.map(([done, t, p, act], i) => `<div class="step ${done ? "done" : ""}"><span class="n">${done ? "✓" : i + 1}</span><div><b>${t}</b><p>${p}</p>${done ? "" : act}</div></div>`).join("")}</div></div></section>`}
   <div class="toolbar"><h2 style="font-size:18px">Overview</h2><span class="spacer"></span>${assistants.length > 1 ? `<select id="homeAsst" aria-label="Assistant" class="inline-select">${option("", "All assistants", only)}${assistants.map(a => option(a.id, a.name || "Untitled", only)).join("")}</select>` : ""}${tabs(PERIODS, days, "period")}</div>
+  ${attention(s, assistants, info)}
   ${s.inProgress ? `<div class="livebar" role="status">${num(s.inProgress)} call${s.inProgress === 1 ? "" : "s"} live now<a href="#calls">Open calls</a></div>` : ""}
   <div class="cards overview primary">
     ${card("Fees avoided", "coin", "$" + s.platformFeeSaved.toFixed(2), "brand", `<span title="Hosted voice platforms charge about US$0.05 per minute for orchestration alone.">${num(s.minutes)} min that hosted platforms bill at about $0.05 each</span>`, "hero")}
@@ -3218,11 +3239,18 @@ async function viewSettings() {
   setPage("settings");
   const info = await api("/dashboard/info");
   const savedTab = store.get("openring-settings-tab");
-  const tab = ["security", "recordings"].includes(savedTab) ? savedTab : "api";
+  const tab = ["security", "recordings", "alerts"].includes(savedTab) ? savedTab : "api";
   const rec = tab === "recordings" ? await api("/settings/recordings") : null;
+  const alertsNow = tab === "alerts" ? await api("/settings/alerts") : null;
   const v = $("#view");
-  v.innerHTML = `<div class="toolbar">${tabs([["api", "API access"], ["recordings", "Recordings"], ["security", "Password"]], tab, "st")}</div>
-  ${tab === "recordings" ? `<section class="panel" style="max-width:520px"><header><h2>Recordings</h2></header><div class="body"><form id="recForm">
+  v.innerHTML = `<div class="toolbar">${tabs([["api", "API access"], ["recordings", "Recordings"], ["alerts", "Alerts"], ["security", "Password"]], tab, "st")}</div>
+  ${tab === "alerts" ? `<section class="panel" style="max-width:620px"><header><h2>Alerts</h2></header><div class="body"><form id="alertForm">
+      <div class="field"><label for="alertUrl">Tell this address when a call fails</label><p class="hint">OpenRing sends a small message (<code>{"type": "call-failed", "call": {…}}</code>) within half a minute of a call ending because a key was rejected, credit ran out or a line wouldn't connect. Point it at a Slack or Discord incoming webhook through a small relay, Zapier, n8n or your own server. The caller's number and the conversation are never in it. Empty: no alerts.</p>
+        <input id="alertUrl" type="url" placeholder="https://hooks.example.com/openring" value="${esc(alertsNow.alertWebhook || "")}" spellcheck="false" autocomplete="off"></div>
+      <div class="error" id="err" role="alert"></div>
+      <p class="muted" id="alertSaved" role="status" style="font-size:13px"></p>
+      <div class="row-actions"><span class="spacer"></span><button class="btn">Save</button></div></form></div></section>`
+  : tab === "recordings" ? `<section class="panel" style="max-width:520px"><header><h2>Recordings</h2></header><div class="body"><form id="recForm">
       <div class="field"><label for="recDays">Delete recordings after</label><p class="hint">Days. Applies to every recording on this server; 0 keeps them for good. Recording itself is turned on per assistant.</p><input id="recDays" type="number" min="0" max="36500" step="1" required value="${esc(rec.retentionDays)}" style="max-width:120px"></div>
       <div class="error" id="err" role="alert"></div>
       <p class="muted" id="recSaved" role="status" style="font-size:13px"></p>
@@ -3250,6 +3278,13 @@ async function viewSettings() {
   v.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { store.set("openring-settings-tab", b.dataset.st); viewSettings(); });
   copyButtons(v);
   if ($("#reveal")) $("#reveal").onclick = e => { const k = $("#key"), shown = k.textContent === info.apiKey; k.textContent = shown ? "•".repeat(24) : info.apiKey; e.target.textContent = shown ? "Show" : "Hide"; };
+  if ($("#alertForm")) $("#alertForm").onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api("/settings/alerts", { method: "PATCH", body: JSON.stringify({ alertWebhook: $("#alertUrl").value.trim() }) });
+      $("#err").textContent = ""; $("#alertSaved").textContent = r.alertWebhook ? "Saved. Failed calls are reported to this address." : "Saved. No alerts.";
+    } catch (err) { $("#err").textContent = err.message; $("#alertSaved").textContent = ""; }
+  };
   if ($("#recForm")) $("#recForm").onsubmit = async e => {
     e.preventDefault();
     const days = Number($("#recDays").value);
