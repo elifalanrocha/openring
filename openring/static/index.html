@@ -280,6 +280,18 @@ a.rowlink:hover { background: var(--panel-2); }
 @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal) 55%, transparent); } 75%, 100% { box-shadow: 0 0 0 6px transparent; } }
 @media (prefers-reduced-motion: reduce) { .badge.live::before { animation: none; } }
 .why { margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.sm-only { display: none; }  /* shown on phones, where the column that says the same is hidden */
+/* A one-line summary above a table of calls */
+.sumline { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sumline b { color: var(--ink); font-weight: 600; }
+.sumline b.warn { color: var(--warn); }
+.sumline b.bad { color: var(--bad); }
+/* Pass/fail of the latest runs, oldest first */
+.rundots { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.rundot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); }
+.rundot.bad { background: var(--bad); }
+.rundot.live { background: var(--signal); }
+.rundots + .muted { margin-left: 8px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .badge.ok::before, .badge.live::before, .badge.warn::before, .badge.bad::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* The call path: transcriber -> model -> voice */
@@ -295,7 +307,7 @@ a.rowlink:hover { background: var(--panel-2); }
 .sidelist header .btn { flex: 1; }
 .sidelist nav { max-height: calc(100vh - 190px); overflow-y: auto; scrollbar-width: thin; }
 .sidelist a { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); transition: background-color .12s ease-out; }
-.sidelist a:last-child { border-bottom: 0; }
+.sidelist a:last-of-type { border-bottom: 0; }
 .sidelist a:hover { background: var(--panel-2); }
 .sidelist a[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .sidelist .who { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--muted); }
@@ -303,6 +315,10 @@ a.rowlink:hover { background: var(--panel-2); }
 .sidelist .who { font-weight: 700; font-size: 11.5px; color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .sidelist strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidelist small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidelist .find { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.sidelist .find input { width: 100%; padding: 6px 9px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: 13px; }
+.sidelist a[hidden] { display: none; }
+.sidelist .none { padding: 12px; margin: 0; font-size: 12.5px; color: var(--muted); }
 @media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } .sidelist { position: static; } .sidelist nav { max-height: 220px; } }
 #view > * { animation: enter .18s cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes enter { from { opacity: 0; transform: translateY(4px); } }
@@ -322,6 +338,9 @@ a.rowlink:hover { background: var(--panel-2); }
 .tile .greet { color: var(--muted); font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
 .tile .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 .tile .actions .spacer { flex: 1; }
+/* A number's calls lately */
+.tile .activity { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile .activity b { color: var(--ink); font-weight: 600; }
 /* One line; a path too long for a phone ends in an ellipsis (the title has all of it). */
 code.nowrap { white-space: nowrap; overflow-wrap: normal; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .tile .head .avatar { font-size: 13px; letter-spacing: .02em; }
@@ -483,6 +502,20 @@ fieldset.outputs legend { padding: 0; margin-bottom: 6px; color: var(--muted); }
 .bubble { max-width: min(72%, 640px); padding: 9px 13px; border-radius: var(--radius); overflow-wrap: anywhere; }
 .bubble.assistant { background: var(--accent-soft); align-self: flex-start; border-bottom-left-radius: 4px; }
 .bubble.user { background: var(--panel-2); border: 1px solid var(--line); align-self: flex-end; border-bottom-right-radius: 4px; }
+/* How long the caller waited for the reply above */
+.lat-note { align-self: flex-start; margin: -4px 0 2px 4px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lat-note.warn { color: var(--warn); }
+.lat-note.bad { color: var(--bad); }
+/* Call facts: who, which line, which assistant */
+.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 22px; margin: 0; }
+.facts dt { color: var(--muted); font-size: 12.5px; margin-bottom: 2px; }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.facts dd .btn { margin-left: 6px; vertical-align: middle; }
+/* An output's latest results, one line each */
+.recent { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; max-width: 360px; }
+.recent li { display: flex; gap: 10px; min-width: 0; }
+.recent li a { flex: none; font-variant-numeric: tabular-nums; }
+.recent li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A tool the assistant used, between the lines of the conversation */
 .toolrow { align-self: flex-start; max-width: min(88%, 720px); font: 12.5px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 10px; overflow-wrap: anywhere; }
 .toolrow b { color: var(--c5); font-weight: 600; }
@@ -565,6 +598,7 @@ dialog::backdrop { background: rgba(24, 16, 8, .55); backdrop-filter: blur(2px);
   .tiles { grid-template-columns: minmax(0, 1fr); }
   .bubble { max-width: 88%; }
   .hide-sm { display: none; }
+  .sm-only { display: block; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
@@ -782,6 +816,31 @@ function statusBadge(c) {
   if (c.status === "in-progress") return `<span class="badge live">Live</span>`;
   return `<span class="badge warn">${esc(c.status || "queued")}</span>`;
 }
+// How the call ended, in plain words; a call still going has no reason yet.
+const endedCell = c => c.endedReason ? `<span title="${esc(c.endedReason)}">${esc(endedLabel(c.endedReason))}</span>` : `<span class="muted">—</span>`;
+// The model's verdict on the call (analysisPlan.successEvaluation): true/false on PassFail, the rubric's answer otherwise.
+const passed = c => { const s = String(c.analysis?.successEvaluation ?? "").trim().toLowerCase(); return s === "true" ? true : s === "false" ? false : null; };
+function successBadge(c) {
+  const v = c.analysis?.successEvaluation;
+  if (v == null || v === "") return `<span class="muted">—</span>`;
+  const p = passed(c);
+  if (p != null) return `<span class="badge ${p ? "ok" : "bad"}">${p ? "Good" : "Bad"}</span>`;
+  const text = String(v);
+  return `<span class="badge" title="${esc(text)}">${esc(text.length > 24 ? text.slice(0, 23) + "…" : text)}</span>`;
+}
+function median(xs) {
+  const s = xs.filter(x => x != null).sort((a, b) => a - b), mid = s.length >> 1;
+  if (!s.length) return null;
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+// The last 500 calls, shared for a minute by the pages that count calls (the assistants' list re-renders on every click).
+let recentCallsCache = null;
+function recentCalls() {
+  if (!recentCallsCache || Date.now() - recentCallsCache.at > 60000) recentCallsCache = { at: Date.now(), calls: api("/call?limit=500").catch(() => []) };
+  return recentCallsCache.calls;
+}
+const DAY_MS = 864e5;
+const within = (c, days) => Date.now() - new Date(c.startedAt || c.createdAt) < days * DAY_MS;
 
 const ICON = {
   phone: '<svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
@@ -970,13 +1029,27 @@ function pathChips(a, routes = []) {
   return `<div class="path"><span class="node">${tRoute ? "route: " + esc(tRoute.name) : esc(t.provider || "deepgram")} ${esc(t.language || "")}</span><span class="wire"></span><span class="node">${route ? "route: " + esc(route.name) : esc(m.model || "default model")}</span><span class="wire"></span><span class="node">${vRoute ? "route: " + esc(vRoute.name) : `${esc(v.provider || "kokoro")}${v.voiceId ? " · " + esc(v.voiceId) : ""}`}</span></div>`;
 }
 
-function assistantList(items, current) {
+let assistantQuery = "";  // what the list's search box holds, kept while moving between assistants
+function assistantList(items, current, calls = []) {
   const layers = a => [a.transcriber?.provider, a.model?.provider, a.voice?.provider].filter(Boolean).join(" · ");
   const who = a => esc(initials(a.name));
+  const week = {};
+  for (const c of calls) if (c.assistantId && within(c, 7)) week[c.assistantId] = (week[c.assistantId] || 0) + 1;
+  const entry = a => `<a href="#assistants/${esc(a.id)}"${a.id === current ? ' aria-current="page"' : ""} data-name="${esc((a.name || "Untitled").toLowerCase())}">
+    <span class="who">${who(a)}</span>
+    <span><strong>${esc(a.name || "Untitled")}</strong><small>${esc(layers(a) || "Not set up")}</small><small>${num(week[a.id] || 0)} call${week[a.id] === 1 ? "" : "s"} · 7 days</small></span></a>`;
   return `<aside class="sidelist" aria-label="Assistants">
     <header><button type="button" class="btn small" id="newA">${ICON.plus}New</button><button type="button" class="btn ghost small" id="importA">Import</button></header>
-    <nav>${items.map(a => `<a href="#assistants/${esc(a.id)}"${a.id === current ? ' aria-current="page"' : ""}><span class="who">${who(a)}</span><span><strong>${esc(a.name || "Untitled")}</strong><small>${esc(layers(a) || "Not set up")}</small></span></a>`).join("")}</nav>
+    ${items.length > 1 ? `<div class="find"><input type="search" id="findA" placeholder="Search assistants" aria-label="Search assistants" autocomplete="off" value="${esc(assistantQuery)}"></div>` : ""}
+    <nav>${items.map(entry).join("")}<p class="none" hidden>No assistant has that name.</p></nav>
   </aside>`;
+}
+// Hide the list's entries whose name doesn't hold what was typed.
+function filterAssistantList(list) {
+  const q = assistantQuery.trim().toLowerCase();
+  let shown = 0;
+  list.querySelectorAll("nav a[data-name]").forEach(a => { a.hidden = !!q && !a.dataset.name.includes(q); shown += !a.hidden; });
+  list.querySelector(".none").hidden = shown > 0;
 }
 
 async function viewAssistants() {
@@ -1215,7 +1288,7 @@ function profileStrip(p) {
 }
 
 async function viewAssistant(id, known) {
-  const [a, allRoutes, files, profile, everyone, recordings, outputs, presets, savedTools] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => []), api("/announcement").catch(() => []), api("/structured-output?limit=200").then(r => r.results).catch(() => []), api("/assistant/presets").catch(() => []), api("/tool").catch(() => [])]);
+  const [a, allRoutes, files, profile, everyone, recordings, outputs, presets, savedTools, listCalls] = await Promise.all([id === "new" ? structuredClone(NEW_ASSISTANT) : api("/assistant/" + id), api("/model-route").catch(() => []), api("/file").catch(() => []), id === "new" ? null : api("/assistant/" + id + "/profile").catch(() => null), known || api("/assistant").catch(() => []), api("/announcement").catch(() => []), api("/structured-output?limit=200").then(r => r.results).catch(() => []), api("/assistant/presets").catch(() => []), api("/tool").catch(() => []), recentCalls()]);
   const routes = allRoutes.filter(r => kindOf(r) === "model"), sttRoutes = allRoutes.filter(r => kindOf(r) === "transcriber"), ttsRoutes = allRoutes.filter(r => kindOf(r) === "voice");
   setPage("assistants", a.id ? a.name || "Assistant" : "New assistant", "Follow the call from left to right: the caller is transcribed, answered by the model and spoken back");
   const tab = location.hash.endsWith("/json") ? "json" : "setup";
@@ -1231,7 +1304,7 @@ async function viewAssistant(id, known) {
   const v = $("#view");
   const keptList = v.querySelector(".split > .sidelist");
   const keptScroll = keptList?.querySelector("nav")?.scrollTop || 0;
-  v.innerHTML = `<div class="split">${assistantList(everyone, a.id)}<div class="editor-col">
+  v.innerHTML = `<div class="split">${assistantList(everyone, a.id, listCalls)}<div class="editor-col">
   <div class="toolbar">${tabs([["setup", "Assistant"], ["advanced", "Advanced"], ["tools", "Tools"], ...(a.id ? [["logs", "Logs"], ["traffic", "Traffic"], ["test", "Test"]] : []), ["json", "JSON"]], tab === "json" ? "json" : assistantTab)}<span class="spacer"></span>${a.id ? `<button type="button" class="btn ghost" id="test">${ICON.mic}Test</button>` : ""}</div>
   ${a.id ? "" : `<section class="panel" style="margin-bottom:18px"><div class="body"><form id="draftForm"><div class="field" style="margin:0"><label for="draftText">Describe it, and a model you connected writes the first version</label><p class="hint">Who calls, what the assistant does, what it must not do. You check and change it before saving.</p><textarea id="draftText" rows="3" maxlength="2000" placeholder="A receptionist for a dental clinic in São Paulo that books, moves and cancels appointments. It doesn't give prices or medical advice."></textarea></div><div class="error" id="draftErr" role="alert"></div><div class="row-actions" style="margin-top:8px"><span class="spacer"></span><button class="btn" id="draftGo">Write it</button></div></form></div></section>`}
   ${profileStrip(profile)}<section class="panel"><div class="body" id="pane"></div></section></div></div>`;
@@ -1253,6 +1326,10 @@ async function viewAssistant(id, known) {
   }
   $("#newA").onclick = () => go("assistants/new");
   $("#importA").onclick = openImport;
+  const sideList = v.querySelector(".split > .sidelist");
+  filterAssistantList(sideList);
+  // Typing here searches; it isn't an edit of the assistant, so it stops before the editor's unsaved-changes listener.
+  if ($("#findA")) $("#findA").oninput = e => { e.stopPropagation(); assistantQuery = e.target.value; filterAssistantList(sideList); };
   // Assistant, Advanced and Tools are parts of one form, shown in turn so nothing typed is lost; Logs, Traffic and
   // Test are views of the assistant's calls and checks; JSON is the whole document.
   v.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => {
@@ -1527,8 +1604,15 @@ async function viewAssistant(id, known) {
 
 async function viewNumbers() {
   setPage("numbers");
-  const [nums, assistants, info, teams, trunks] = await Promise.all([api("/phone-number"), api("/assistant"), api("/dashboard/info"), api("/squad"), api("/credential")]);
+  const [nums, assistants, info, teams, trunks, calls] = await Promise.all([api("/phone-number"), api("/assistant"), api("/dashboard/info"), api("/squad"), api("/credential"), api("/call?limit=500").catch(() => [])]);
   const answeredBy = n => n.squadId ? teams.find(s => s.id === n.squadId)?.name || "Deleted squad" : assistants.find(a => a.id === n.assistantId)?.name || "No assistant";
+  // Each number's calls lately, from the last 500 calls.
+  const activity = n => {
+    const mine = calls.filter(c => c.phoneNumberId === n.id), month = mine.filter(c => within(c, 30));
+    const last = mine.reduce((t, c) => (c.startedAt || c.createdAt) > t ? c.startedAt || c.createdAt : t, "");
+    const minutes = Math.round(month.reduce((t, c) => t + (c.durationSeconds || 0), 0) / 60);
+    return `<div class="activity"><span><b>${num(month.length)}</b> call${month.length === 1 ? "" : "s"} in 30 days</span><span><b>${num(minutes)}</b> min</span><span>${last ? "Last " + esc(when(last)) : "No calls yet"}</span>${mine.length ? `<a href="#calls?number=${encodeURIComponent(n.id)}">See calls</a>` : ""}</div>`;
+  };
   const v = $("#view");
   v.innerHTML = `<section class="panel" style="margin-bottom:18px"><header><h2>Connect a phone number</h2></header><div class="body">
     <p style="margin-top:0"><b>Twilio:</b> open the number and set <b>A call comes in</b> to this webhook (HTTP POST):</p>
@@ -1558,6 +1642,7 @@ async function viewNumbers() {
     </form><div class="error" id="err" role="alert"></div></div></section>
   ${nums.length ? `<div class="tiles">${nums.map(n => `<article class="tile">
       <div class="head"><span class="avatar">${ICON.phone}</span><div class="grow"><div class="name">${esc(n.number)}</div><div class="sub">Answered by ${esc(answeredBy(n))}${n.provider === "wavoip" ? ` · WhatsApp device: ${esc(n.wavoipStatus || "not connected")}` : n.provider === "wacalls" ? ` · WhatsApp (WaCalls): ${esc(n.wacallsStatus || "not connected")}` : ""}</div></div><span class="badge">${esc(n.provider === "byo-phone-number" ? "SIP" : n.provider === "wavoip" || n.provider === "wacalls" ? "WhatsApp" : n.provider || "twilio")}</span></div>
+      ${activity(n)}
       <div class="actions">${["twilio", "telnyx", "plivo", "vonage", "byo-phone-number", "wavoip", "wacalls"].includes(n.provider || "twilio") && !n.squadId ? `<button class="btn ghost small" data-call="${esc(n.id)}">${ICON.phone}Call a phone</button>` : ""}<span style="flex:1"></span><button class="btn danger small" data-del="${esc(n.id)}">Remove</button></div>
     </article>`).join("")}</div>`
     : `<div class="panel empty">No numbers yet. Add your Twilio number above.</div>`}
@@ -1671,10 +1756,14 @@ function exportCallsCsv(calls, assistants) {
 async function viewCalls() {
   setPage("calls");
 
-  const [calls, assistants] = await Promise.all([
+  // #calls?number=<id> (from a number's tile) shows only that line's calls.
+  const onNumber = new URLSearchParams(location.hash.split("?")[1] || "").get("number");
+  const [all, assistants, line] = await Promise.all([
     api("/call?limit=500"),
-    api("/assistant")
+    api("/assistant"),
+    onNumber ? api("/phone-number/" + encodeURIComponent(onNumber)).catch(() => null) : null
   ]);
+  const calls = onNumber ? all.filter(c => c.phoneNumberId === onNumber) : all;
 
   const filter = CALL_FILTERS[store.get("openring-calls-filter")]
     ? store.get("openring-calls-filter")
@@ -1692,6 +1781,7 @@ async function viewCalls() {
         ["browser", "Browser", count("browser")],
         ["failed", "Failed", count("failed")]
       ], filter, "filter")}
+      ${onNumber ? `<span class="muted">On ${esc(line?.number || "a removed number")}</span><a class="btn ghost small" href="#calls">Show all</a>` : ""}
       <button class="btn ghost" id="exportCsv">Export CSV</button>
       <button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button>
     </div>
@@ -1709,6 +1799,8 @@ async function viewCalls() {
                 <th class="num hide-sm">Response</th>
                 <th class="num hide-sm">Cost</th>
                 <th>Status</th>
+                <th class="hide-sm">Ended</th>
+                <th class="hide-sm">Success</th>
                 <th class="num hide-sm">When</th>
               </tr>
             </thead>
@@ -1721,7 +1813,9 @@ async function viewCalls() {
                   <td class="num">${dur(c.durationSeconds)}</td>
                   <td class="num hide-sm">${ms(c.artifact?.performanceMetrics?.turnLatencyAverage)}</td>
                   <td class="num hide-sm">${usd(c.cost)}</td>
-                  <td>${statusBadge(c)}${failed(c) && c.endedReason ? `<div class="why">${esc(endedLabel(c.endedReason))}</div>` : ""}</td>
+                  <td>${statusBadge(c)}${failed(c) && c.endedReason ? `<div class="why sm-only">${esc(endedLabel(c.endedReason))}</div>` : ""}</td>
+                  <td class="hide-sm">${endedCell(c)}</td>
+                  <td class="hide-sm">${successBadge(c)}</td>
                   <td class="num hide-sm muted">${when(c.createdAt)}</td>
                 </tr>
               `).join("")}
@@ -1819,17 +1913,31 @@ const EVAL_EXAMPLE = JSON.stringify([
 ], null, 2);
 const evalBadge = r => !r ? `<span class="muted">Not run</span>` : r.status !== "ended" ? `<span class="badge live">Running</span>` : r.results?.[0]?.status === "pass" ? `<span class="badge ok">Passed</span>` : `<span class="badge bad" title="${esc(r.endedReason || "")}">Failed</span>`;
 let evalShown = null;
+// An eval's last 8 runs as dots, oldest first, and the share of its finished runs that passed.
+function runDots(runs) {
+  if (!runs.length) return `<span class="muted">—</span>`;
+  const passedRun = r => r.status === "ended" && r.results?.[0]?.status === "pass";
+  const recent = runs.slice().sort((x, y) => String(x.createdAt).localeCompare(String(y.createdAt))).slice(-8);
+  const dot = r => {
+    const state = r.status !== "ended" ? ["live", "Running"] : passedRun(r) ? ["", "Passed"] : ["bad", "Failed"];
+    return `<span class="rundot ${state[0]}" title="${state[1]} · ${esc(when(r.createdAt))}"></span>`;
+  };
+  const done = runs.filter(r => r.status === "ended");
+  const rate = done.length ? Math.round(done.filter(passedRun).length / done.length * 100) + "% passed" : "";
+  return `<span class="rundots" role="img" aria-label="Last ${recent.length} runs: ${recent.map(r => passedRun(r) ? "pass" : r.status === "ended" ? "fail" : "running").join(", ")}">${recent.map(dot).join("")}</span><span class="muted">${rate}</span>`;
+}
 async function viewEvals() {
   setPage("evals");
   const [list, runs, assistants] = await Promise.all([api("/eval?limit=200"), api("/eval/run?limit=500"), api("/assistant")]);
-  const last = {};
+  const last = {}, byEval = {};
   for (const r of runs.results) if (r.evalId && (!last[r.evalId] || r.createdAt > last[r.evalId].createdAt)) last[r.evalId] = r;
+  for (const r of runs.results) if (r.evalId) (byEval[r.evalId] ||= []).push(r);
   const shown = evalShown && runs.results.find(r => r.id === evalShown);
   const v = $("#view");
   v.innerHTML = `<div class="toolbar"><label class="muted" for="evalTarget">Run against</label><select id="evalTarget">${assistants.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
   ${shown ? evalResult(shown, list.results.find(e => e.id === shown.evalId)) : ""}
-  <section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Eval</th><th>Checks</th><th>Last run</th><th class="hide-sm">When</th><th></th></tr></thead><tbody>
-    ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">${ICON.trash || "Delete"}</button></td></tr>`).join("")}
+  <section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Eval</th><th>Checks</th><th>Last run</th><th class="hide-sm">Recent runs</th><th class="hide-sm">When</th><th></th></tr></thead><tbody>
+    ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm">${runDots(byEval[e.id] || [])}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">${ICON.trash || "Delete"}</button></td></tr>`).join("")}
   </tbody></table></div>` : `<div class="empty">No evals yet. An eval is a chat you write for the assistant, with checks on what it answers: exact words, a pattern, the tools it calls, or a model's judgment. Run it after each change to the prompt.</div>`}</section>
   <section class="panel"><header><h2>New eval</h2></header><div class="body"><form id="evalForm">
     <div class="field"><label for="evalName">Name</label><input id="evalName" name="name" maxlength="80" required placeholder="Books a table for two"></div>
@@ -1871,13 +1979,25 @@ function evalResult(run, ev) {
 
 // ---- Structured outputs (Vapi's /structured-output): data a model pulls out of every call of the assistants that link it
 const OUTPUT_EXAMPLE = JSON.stringify({ type: "object", properties: { name: { type: "string" }, partySize: { type: "integer" }, time: { type: "string", description: "HH:MM" } } }, null, 2);
+// An output's 5 latest results, from the calls' artifact.structuredOutputs[id], newest first.
+function outputResults(o, calls) {
+  const found = calls.filter(c => c.artifact?.structuredOutputs?.[o.id])
+    .sort((x, y) => String(y.endedAt || y.createdAt).localeCompare(String(x.endedAt || x.createdAt))).slice(0, 5);
+  if (!found.length) return `<span class="muted">Results appear here after calls end.</span>`;
+  const value = r => r == null ? `<span class="muted">Not in the call</span>` : esc(typeof r === "object" ? JSON.stringify(r) : String(r));
+  const text = r => r == null ? "" : typeof r === "object" ? JSON.stringify(r) : String(r);
+  return `<ul class="recent">${found.map(c => {
+    const r = c.artifact.structuredOutputs[o.id].result;
+    return `<li><a href="#calls/${esc(c.id)}">${esc(when(c.endedAt || c.createdAt))}</a><span title="${esc(text(r))}">${value(r)}</span></li>`;
+  }).join("")}</ul>`;
+}
 async function viewOutputs() {
   setPage("outputs");
-  const [list, assistants] = await Promise.all([api("/structured-output?limit=200"), api("/assistant")]);
+  const [list, assistants, calls] = await Promise.all([api("/structured-output?limit=200"), api("/assistant"), api("/call?limit=500").catch(() => [])]);
   const users = o => assistants.filter(a => (a.artifactPlan?.structuredOutputIds || []).includes(o.id) || (o.assistantIds || []).includes(a.id)).map(a => a.name || "Untitled");
   const v = $("#view");
-  v.innerHTML = `<section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Output</th><th class="hide-sm">Kind</th><th>Used by</th><th></th></tr></thead><tbody>
-    ${list.results.map(o => `<tr><td><b>${esc(o.name)}</b>${o.description ? `<div class="muted">${esc(o.description)}</div>` : ""}</td><td class="hide-sm">${o.type === "regex" ? "Pattern" : "Model"}</td><td>${esc(users(o).join(", ") || "—")}</td><td class="num"><button class="btn ghost small" data-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button></td></tr>`).join("")}
+  v.innerHTML = `<section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Output</th><th class="hide-sm">Kind</th><th>Used by</th><th>Latest results</th><th></th></tr></thead><tbody>
+    ${list.results.map(o => `<tr><td><b>${esc(o.name)}</b>${o.description ? `<div class="muted">${esc(o.description)}</div>` : ""}</td><td class="hide-sm">${o.type === "regex" ? "Pattern" : "Model"}</td><td>${esc(users(o).join(", ") || "—")}</td><td>${outputResults(o, calls)}</td><td class="num"><button class="btn ghost small" data-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button></td></tr>`).join("")}
   </tbody></table></div>` : `<div class="empty">No structured outputs yet. Each one is a piece of data a model pulls out of every call, in the shape of a JSON Schema: a name, a yes or no, a date. Link it in an assistant's editor; the result lands in the call and the end-of-call report.</div>`}</section>
   <section class="panel"><header><h2>New structured output</h2></header><div class="body"><form id="outForm">
     <div class="field"><label for="outName">Name</label><input id="outName" name="name" maxlength="40" required placeholder="booking"></div>
@@ -2127,6 +2247,23 @@ function showAssistantTab(a, savedTools) {
   form.querySelectorAll(".sect").forEach(h => h.classList.toggle("lead", h === first));
   if (!inForm) assistantPane(a, extra, assistantTab);
 }
+// One line over a list of calls: how many, minutes, the median wait per turn and how many went well. "Went well" is the
+// model's verdict where the assistant analyzes calls, else ending without an error, as on Home.
+function callsSummary(calls) {
+  const minutes = Math.round(calls.reduce((t, c) => t + (c.durationSeconds || 0), 0) / 60);
+  const wait = median(calls.flatMap(c => (c.artifact?.performanceMetrics?.turnLatencies || []).map(t => t.turnLatency)));
+  const judged = calls.map(passed).filter(p => p != null), ended = calls.filter(c => c.status === "ended");
+  const rate = judged.length ? Math.round(judged.filter(Boolean).length / judged.length * 100)
+    : ended.length ? Math.round(ended.filter(c => !failed(c)).length / ended.length * 100) : null;
+  const waitLight = light("latency", wait), rateLight = light("successRate", rate);
+  const item = (value, label, l) => `<span><b class="${tone(l)}"${l ? ` title="${esc(l.rule)}"` : ""}>${value}</b> ${label}</span>`;
+  return `<p class="sumline">${[
+    item(num(calls.length), calls.length === 1 ? "call" : "calls"),
+    item(num(minutes), "min"),
+    item(ms(wait), "median response", waitLight),
+    item(rate == null ? "—" : rate + "%", judged.length ? `judged successful (${judged.length})` : "ended normally", rateLight),
+  ].join("")}</p>`;
+}
 async function assistantPane(a, el, which) {
   el.innerHTML = `<p class="muted">Loading…</p>`;
   if (which === "test") {
@@ -2150,7 +2287,11 @@ async function assistantPane(a, el, which) {
   }
   const calls = await api(`/call?assistantId=${encodeURIComponent(a.id)}&limit=${which === "logs" ? 100 : 2000}`);
   if (which === "logs") {
-    el.innerHTML = calls.length ? `<div class="scroll"><table class="table"><thead><tr><th>Caller</th><th class="hide-sm">When</th><th class="num">Length</th><th class="num hide-sm">Cost</th><th>Status</th></tr></thead><tbody>${calls.map(c => `<tr class="link" tabindex="0" data-call="${esc(c.id)}"><td>${esc(caller(c))}</td><td class="hide-sm muted">${when(c.startedAt || c.createdAt)}</td><td class="num">${dur(c.durationSeconds)}</td><td class="num hide-sm">${typeof c.cost === "number" ? usd(c.cost) : "—"}</td><td>${statusBadge(c)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No calls with this assistant yet.</p>`;
+    const rows = calls.map(c => `<tr class="link" tabindex="0" data-call="${esc(c.id)}">
+      <td>${esc(caller(c))}</td><td class="hide-sm muted">${when(c.startedAt || c.createdAt)}</td>
+      <td class="num">${dur(c.durationSeconds)}</td><td class="num hide-sm">${typeof c.cost === "number" ? usd(c.cost) : "—"}</td>
+      <td>${statusBadge(c)}</td><td class="hide-sm">${endedCell(c)}</td><td class="hide-sm">${successBadge(c)}</td></tr>`).join("");
+    el.innerHTML = calls.length ? `${callsSummary(calls)}<div class="scroll"><table class="table"><thead><tr><th>Caller</th><th class="hide-sm">When</th><th class="num">Length</th><th class="num hide-sm">Cost</th><th>Status</th><th class="hide-sm">Ended</th><th class="hide-sm">Success</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted">No calls with this assistant yet.</p>`;
     el.querySelectorAll("[data-call]").forEach(r => r.onclick = () => go("calls/" + r.dataset.call));
     return;
   }
@@ -2419,10 +2560,50 @@ function transcriptRow(m) {
   if (m.role === "tool_call_result") return `<div class="toolrow"><b>←</b> ${esc(typeof m.result === "string" ? m.result : JSON.stringify(m.result))}</div>`;
   return `<div class="bubble ${m.role === "user" ? "user" : "assistant"}">${esc(m.message)}</div>`;
 }
+// The transcript with the caller's wait under each reply: the first assistant line after the caller spoke answers
+// turn i (artifact.performanceMetrics.turnLatencies[i]); a greeting before anyone spoke gets none.
+function transcriptHtml(msgs, turns) {
+  let heard = false, turn = 0;
+  return msgs.map(m => {
+    let row = transcriptRow(m);
+    if (m.role === "user") heard = true;
+    else if ((m.role === "assistant" || m.role === "bot") && heard) {
+      heard = false;
+      const wait = turns[turn++]?.turnLatency;
+      const l = light("latency", wait);
+      if (l) row += `<div class="lat-note ${tone(l)}" title="The caller waited ${ms(wait)} for this reply. ${esc(l.rule)}">${ms(wait)}</div>`;
+    }
+    return row;
+  }).join("");
+}
+// Who, on which line, with which assistant: the call's links to the rest of the dashboard.
+function callFacts(c, assistants, line, campaign) {
+  const fact = (label, value) => value ? `<div><dt>${label}</dt><dd>${value}</dd></div>` : "";
+  const cust = c.customer || {};
+  const person = cust.number ? esc(cust.number) + (cust.name ? ` <span class="muted">${esc(cust.name)}</span>` : "") : c.type === "webCall" ? "Browser test" : "";
+  const saved = assistants.find(a => a.id === c.assistantId);
+  const version = c.assistantVersion == null ? "" : ` <span class="muted">${c.assistantVersion === "current" ? "current version" : "version " + esc(c.assistantVersion)}</span>`;
+  const who = c.squadId ? `<a href="#squads/${esc(c.squadId)}">Squad</a>`
+    : saved ? `<a href="#assistants/${esc(saved.id)}">${esc(saved.name || "Untitled")}</a>${version}`
+    : esc(assistantOf(c, assistants)) + version;
+  const remembered = (c.rememberedCallIds || []).map((r, i) => `<a href="#calls/${esc(r)}" title="${esc(r)}">Call ${i + 1}</a>`).join(", ");
+  return `<section class="panel" style="margin-bottom:18px"><header><h2>Call facts</h2></header><div class="body"><dl class="facts">
+    ${fact(c.type === "outboundPhoneCall" ? "Called" : "Caller", person)}
+    ${fact("Our number", line ? esc(line.number) : c.phoneNumberId ? `<span class="muted">Removed number</span>` : "")}
+    ${fact(c.squadId ? "Squad" : "Assistant", who)}
+    ${fact("Campaign", c.campaignId ? `<a href="#campaigns/${esc(c.campaignId)}">${esc(campaign?.name || "Campaign")}</a>` : "")}
+    ${fact("Remembered calls", remembered)}
+    ${fact("Call ID", `<code>${esc(c.id)}</code><button type="button" class="btn ghost small" data-copy="${esc(c.id)}">${ICON.copy}Copy</button>`)}
+  </dl></div></section>`;
+}
 
 let callTab = "transcript";
 async function viewCall(id) {
   const [c, assistants, hooks] = await Promise.all([api("/call/" + id), api("/assistant"), api("/call/" + id + "/webhooks").catch(() => [])]);
+  const [line, campaign] = await Promise.all([
+    c.phoneNumberId ? api("/phone-number/" + encodeURIComponent(c.phoneNumberId)).catch(() => null) : null,
+    c.campaignId ? api("/campaign/" + encodeURIComponent(c.campaignId)).catch(() => null) : null,
+  ]);
   if (location.hash !== "#calls/" + id) return;
   const name = assistantOf(c, assistants);
   setPage("calls", caller(c), `${name} · ${when(c.startedAt || c.createdAt)}`);
@@ -2435,7 +2616,7 @@ async function viewCall(id) {
   const outputs = Object.values(c.artifact?.structuredOutputs || {}), analyzed = c.analysis || outputs.length;
   if (callTab === "analysis" && !analyzed) callTab = "transcript";
   const panes = {
-    transcript: () => msgs.length ? `<div class="transcript">${msgs.map(transcriptRow).join("")}</div>` : `<p class="muted">${c.status === "ended" ? "No transcript for this call." : "The transcript appears when the call ends."}</p>`,
+    transcript: () => msgs.length ? `<div class="transcript">${transcriptHtml(msgs, turns)}</div>` : `<p class="muted">${c.status === "ended" ? "No transcript for this call." : "The transcript appears when the call ends."}</p>`,
     latency: () => turns.length ? `<div class="legend" style="margin-bottom:14px">${PARTS.map(([, l, col]) => `<span style="--dot:${col}">${l}</span>`).join("")}</div><div class="turns">${turns.map((t, i) => `<div class="turn"><span class="muted">Turn ${i + 1}</span><div class="stack" style="width:${t.turnLatency / maxTurn * 100}%">${PARTS.map(([k, l, col]) => `<span style="width:${(t[k] || 0) / Math.max(1, PARTS.reduce((s, [p]) => s + (t[p] || 0), 0)) * 100}%;background:${col}" title="${l}: ${t[k] || 0} ms"></span>`).join("")}</div><b class="num">${ms(t.turnLatency)}</b></div>`).join("")}</div>` : `<p class="muted">No response times recorded for this call.</p>`,
     json: () => `<pre class="json">${esc(JSON.stringify(c, null, 2))}</pre>`,
     // Vapi's analysisPlan: what the assistant's model made of the call, after it ended.
@@ -2449,7 +2630,7 @@ async function viewCall(id) {
     typeof c.cost === "number" ? card("Cost", "coin", usd(c.cost), "", `<span title="List prices${c.costBreakdown?.unpriced ? ". No known price for: " + esc(c.costBreakdown.unpriced.join(", ")) : ""}">model ${usd(c.costBreakdown?.llm)} · speech ${usd(c.costBreakdown?.stt)} · voice ${usd(c.costBreakdown?.tts)}${c.costBreakdown?.line != null ? ` · line ${usd(c.costBreakdown.line)}` : ""}${c.costBreakdown?.unpriced ? " · partial" : ""}</span>`) : "",
     c.costBreakdown ? card("Tokens", "hash", num((c.costBreakdown.llmPromptTokens || 0) + (c.costBreakdown.llmCompletionTokens || 0)), "", `${num(c.costBreakdown.llmPromptTokens)} in · ${num(c.costBreakdown.llmCompletionTokens)} out · ${num(c.costBreakdown.ttsCharacters)} voice characters`) : "",
     card("Messages", "bot", num(msgs.filter(m => m.role === "user" || m.role === "assistant").length), "", toolCalls ? `${toolCalls} tool call${toolCalls === 1 ? "" : "s"}` : ""),
-    card("Type", "phone", esc(TYPE[c.type] || c.type), "", c.endedReason ? esc(c.endedReason) : ""),
+    card("Type", "phone", esc(TYPE[c.type] || c.type), "", c.endedReason ? endedCell(c) : ""),
   ].filter(Boolean);
   const v = $("#view");
   v.innerHTML = `<div class="toolbar">
@@ -2461,6 +2642,7 @@ async function viewCall(id) {
   <div class="cards compact" style="--cols:${Math.ceil(cards.length / Math.ceil(cards.length / 4))}">${cards.join("")}</div>
   ${(c.providerFallbacks || []).map(f => `<p class="muted fallback-note">${ICON.bolt}${esc(LAYER_NAMES[f.layer] || f.layer)} switched to <b>${esc(f.to)}</b> at ${esc(new Date(f.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}${f.reason && f.reason !== "failed" ? ` (${esc(f.reason)})` : ""}</p>`).join("")}
   ${(c.handoffs || []).map(h => `<p class="muted fallback-note">${ICON.bolt}<b>${esc(h.from)}</b> handed the call to <b>${esc(h.to)}</b> at ${esc(new Date(h.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}</p>`).join("")}
+  ${callFacts(c, assistants, line, campaign)}
   ${c.artifact?.recordingUrl ? `<section class="panel call-recording"><div class="body"><span class="muted">${ICON.mic}Recording</span><button class="btn ghost small" id="recPlay">Load and play</button><span class="spacer"></span><button class="btn danger small" id="recDel">Delete recording</button></div></section>` : ""}
   <div class="toolbar">${tabs([["transcript", "Transcript"], ...(analyzed ? [["analysis", "Analysis"]] : []), ["latency", "Response time"], ["webhooks", "Webhooks", hooks.length], ["json", "JSON"]], callTab)}</div>
   <section class="panel"><div class="body">${panes[callTab]()}</div></section>`;
@@ -2998,7 +3180,7 @@ async function route() {
   shownHash = location.hash;
   if ($("#app").hidden) return;
   $("#app").classList.remove("menu-open");
-  const [name, id] = (location.hash.slice(1) || "home").split("/");
+  const [name, id] = (location.hash.slice(1).split("?")[0] || "home").split("/");
   try {
     if (name === "calls" && id) await viewCall(id);
     else if (name === "campaigns" && id) await viewCampaign(id);

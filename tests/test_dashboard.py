@@ -459,3 +459,19 @@ def test_table_headers_are_not_sticky_inside_their_scrolling_box():
     """A sticky header inside the tables' horizontal scroll box was pushed down over the first rows."""
     head = PAGE.split(".table th {", 1)[1].split("}", 1)[0]
     assert "sticky" not in head
+
+
+def test_calls_show_how_they_ended_their_facts_and_each_replys_wait_and_evals_their_recent_runs():
+    assert "<h2>Call facts</h2>" in PAGE and 'data-copy="${esc(c.id)}"' in PAGE
+    assert '<th class="hide-sm">Ended</th>' in PAGE and '<th class="hide-sm">Success</th>' in PAGE
+    assert 'class="rundot ' in PAGE and "Results appear here after calls end." in PAGE
+    assert 'id="findA"' in PAGE and "#calls?number=" in PAGE
+    # The first reply after the caller spoke carries turn 0's wait; the greeting before anyone spoke carries none.
+    helpers = PAGE[PAGE.index("const LIGHTS"):PAGE.index("const card")]
+    row = PAGE[PAGE.index("function transcriptRow"):PAGE.index("// Who, on which line")]
+    got = run_js("const esc = s => String(s); const ms = n => n + ' ms';" + helpers + "\n" + row + """
+    const html = transcriptHtml([{role: "assistant", message: "Hi"}, {role: "user", message: "Yo"},
+      {role: "assistant", message: "Sure"}, {role: "assistant", message: "More"}, {role: "user", message: "Ok"},
+      {role: "assistant", message: "Done"}], [{turnLatency: 900}, {turnLatency: 2500}]);
+    console.log(JSON.stringify([...html.matchAll(/class="lat-note ?([^"]*)"[^>]*>([^<]*)/g)].map(m => m.slice(1))));""")
+    assert got == [["", "900 ms"], ["bad", "2500 ms"]]
