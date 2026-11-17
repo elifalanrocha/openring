@@ -120,6 +120,11 @@ def llm(provider: str, model: str | None) -> tuple[float, float] | None:
     return None
 
 
+def models(provider: str) -> list[str]:
+    """The models this provider has a list price for (a wildcard entry isn't a model)."""
+    return sorted(m for m in _tables()["llm"].get(provider, {}) if m != "*")
+
+
 def stt(provider: str, model: str | None, language: str | None = None) -> float | None:
     """US$ per minute of audio; None when unknown."""
     if language == "multi" and (found := _find("stt", provider, f"{model}:multi")) is not None:

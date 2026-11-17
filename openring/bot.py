@@ -526,6 +526,7 @@ async def run_call(
         LLMContextAggregatorPair,
         LLMUserAggregatorParams,
     )
+    from pipecat.utils.errors import ErrorCategory
 
     started = time.monotonic()  # the caller already marked the call in-progress
     ended_reason = CALLER_ENDED
@@ -885,12 +886,21 @@ async def run_call(
         async def _on_error(_task, frame):
             nonlocal ended_reason
             failed = getattr(frame, "processor", None)
+            out_of_credit = False
+            if failed is not None and failed.is_usable and getattr(frame, "category", None) is ErrorCategory.QUOTA:
+                # No credit left on the account: Pipecat treats it as passing, but it will not clear during this call.
+                # Unusable, a fallback (if any) takes over; with none left the call ends instead of going silent.
+                await failed.set_usable(False)
+                layer = next((x for x in (stt, llm, tts) if failed in members(x)), None)
+                out_of_credit = not any(m is not failed and m.is_usable for m in members(layer))
             if failed is not None and not failed.is_usable and not ended_reason.startswith("pipeline-error"):
                 price = getattr(failed, "openring_price", None) or ()
                 provider = price[1] if len(price) > 1 and price[0] == "voice" else None
                 ended_reason = (f"pipeline-error: {what_failed(failed)} stopped working: "
                                 f"{short_error(frame.error, provider)}")
                 logger.warning("call {} ends: {}", call_id, ended_reason)
+            if out_of_credit:  # Pipecat's own policy has already looked at this error: end the call here
+                await task.queue_frames([EndFrame()])
 
         @task.event_handler("on_idle_timeout")
         async def _on_idle_timeout(_task):

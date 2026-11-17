@@ -158,6 +158,32 @@ ESTIMATE = {"spokenCharacters": 450, "modelRequests": 5, "promptTokens": 1200, "
 MEASURED_CALLS = 50
 
 
+def llm_per_minute(price: tuple[float, float] | None) -> float | None:
+    """US$ a minute of call costs in model tokens, from its list price (input, output per 1M tokens) and `ESTIMATE`."""
+    if price is None:
+        return None
+    return round(ESTIMATE["modelRequests"] * (ESTIMATE["promptTokens"] * price[0]
+                                              + ESTIMATE["answerTokens"] * price[1]) / 1e6, 5)
+
+
+def model_options(provider: str, extra: list[str] | None = None) -> dict[str, Any]:
+    """The models to choose from for a provider, each with what it costs a minute (list prices) and how fast it
+    answered (the time to its first word: this server's own calls and measurements first, else OpenRing's test calls;
+    unknown stays unknown). `extra` are models the provider offers that have no list price (an Ollama's own)."""
+    from . import prices, routes
+
+    options = []
+    for name in sorted({*prices.models(provider), *(extra or [])}):
+        price = prices.llm(provider, name)
+        here = routes.speed(provider, name)
+        reference = MEASURED_MS.get(("model", provider, name))
+        source = "this server" if here is not None else "OpenRing's tests" if reference else None
+        options.append({"provider": provider, "id": name, "inputPerM": None if price is None else price[0],
+                        "outputPerM": None if price is None else price[1], "costPerMinute": llm_per_minute(price),
+                        "latencyMs": here if here is not None else reference, "latencySource": source})
+    return {"provider": provider, "models": options, "assumes": ESTIMATE}
+
+
 def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
     """What an assistant costs per minute and how long it takes to answer, layer by layer.
 
@@ -183,11 +209,9 @@ def profile(calls: list[dict[str, Any]], plan: Any) -> dict[str, Any]:
     heard = 0.0 if plan.realtime else prices.stt(plan.stt_provider, plan.stt_model, plan.stt_language)
     model = prices.llm(plan.llm_provider, plan.llm_model)  # a speech-to-speech model's audio isn't priced yet
     voice = 0.0 if plan.realtime else prices.tts(plan.tts_provider, plan.tts_model)
-    requests = ESTIMATE["modelRequests"]
     cost = {
         "stt": heard,
-        "llm": None if model is None else round(
-            requests * (ESTIMATE["promptTokens"] * model[0] + ESTIMATE["answerTokens"] * model[1]) / 1e6, 5),
+        "llm": llm_per_minute(model),
         "tts": None if voice is None else round(ESTIMATE["spokenCharacters"] * voice / 1e6, 5),
     }
     known = [v for v in cost.values() if v is not None]

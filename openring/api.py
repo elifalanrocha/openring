@@ -976,6 +976,38 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             body = {**body, "preset": "custom"}  # changing what a preset decides makes the route custom
         return routes.with_status(store.update("routes", route_id, _route_doc(body, current)))
 
+    @app.get("/models", dependencies=auth_deps)
+    async def model_choices(provider: str | None = None) -> dict[str, Any]:
+        """The models to choose from, one list across providers (or one provider's): each with its cost a minute, its
+        time to answer (stats) and whether this server has the provider's key."""
+        names = [providers._canonical(provider)] if provider else list(providers.LLM_PROVIDERS)
+        for name in names:
+            if name not in providers.LLM_PROVIDERS:
+                raise HTTPException(status_code=400, detail=f"model provider '{name}' is not supported")
+        installed = (await ollama_models(timeout=0.5))["models"] if "ollama" in names else []
+        found: list[dict[str, Any]] = []
+        for name in names:
+            env = providers.LLM_PROVIDERS[name][1]
+            has_key = not env or bool(os.environ.get(env, "").strip())
+            found += [{**m, "keySet": has_key}
+                      for m in stats.model_options(name, installed if name == "ollama" else None)["models"]]
+        return {"models": found, "assumes": stats.ESTIMATE}
+
+    @app.post("/models/measure", dependencies=auth_deps)
+    async def measure_model(body: dict[str, Any]) -> dict[str, Any]:
+        """Ask one model for a short answer and time its first word, as a call would (a few tokens, on the
+        provider's account). The time is remembered with the ones calls measure."""
+        model = {"provider": str(body.get("provider") or ""), "model": str(body.get("model") or "")}
+        try:
+            plan = resolve_plan({"model": model}, check_keys=False, with_fallbacks=False)
+        except ProviderError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        result = await routes.probe(model, plan)
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        routes.save_speed(store)
+        return result
+
     @app.post("/model-route/{route_id}/measure", dependencies=auth_deps)
     async def measure_route(route_id: str) -> dict[str, Any]:
         """Ask each model of the route for one short answer and time its first word, as a call would (a few

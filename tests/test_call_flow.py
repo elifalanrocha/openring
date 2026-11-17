@@ -255,6 +255,36 @@ def test_a_provider_that_stops_working_mid_call_ends_the_call_with_the_reason(mo
                                    "HTTP 401: Invalid credentials")
 
 
+def test_a_model_with_no_credit_ends_the_call_instead_of_leaving_the_caller_silent(monkeypatch, quiet_providers):
+    """The model's account has no credit (HTTP 402): Pipecat counts that as passing, so every turn failed and the caller
+    heard nothing until they hung up, the call recorded as a success."""
+    from pipecat.frames.frames import StartFrame
+    from pipecat.processors.frame_processor import FrameProcessor
+    from pipecat.utils.errors import ErrorCategory
+
+    from openring import bot
+
+    class NoCredit(FrameProcessor):
+        openring_price = ("model", "openrouter", "openai/gpt-4.1")
+        openring_label = "openrouter openai/gpt-4.1"
+
+        async def process_frame(self, frame, direction):
+            await super().process_frame(frame, direction)
+            await self.push_frame(frame, direction)
+            if isinstance(frame, StartFrame):
+                await self.push_error("Error code: 402 - Insufficient credits", category=ErrorCategory.QUOTA)
+
+    quiet = quiet_providers
+    monkeypatch.setattr(bot, "build_services", lambda plan: (quiet("transcriber"), NoCredit(), quiet("voice")))
+    _pipeline_started(monkeypatch)
+    client, store, params = _answered_call(monkeypatch)
+    with client.websocket_connect("/ws/twilio") as ws:
+        _handshake(ws, params)
+        call = _wait_until_ended(store, params["callId"])
+    assert call["status"] == "ended"
+    assert call["endedReason"].startswith("pipeline-error: ") and "Insufficient credits" in call["endedReason"]
+
+
 def test_a_provider_that_fails_to_start_ends_the_call(monkeypatch):
     import asyncio
 

@@ -636,6 +636,12 @@ Models are per 1M tokens (input, output), speech-to-text per minute, voices per 
 model of that provider. A line rate is per minute for `inbound`, `inbound-tollfree` or `outbound`; add a prefix
 (`"outbound:+55"`) to limit it to numbers that start so. `GET /prices` shows every price in use.
 
+`GET /models` lists the models to choose from (add `?provider=groq` for one provider's): each has `provider`, `id`,
+`costPerMinute` (the model alone, at list prices for `assumes`: replies of about 1,200 tokens in and 60 out),
+`latencyMs` (the time to the first word, from this server's calls or OpenRing's own tests, `null` when unmeasured) and
+`keySet` (this server has the provider's key). `POST /models/measure {"provider", "model"}` times one short answer
+and remembers it.
+
 ### Telnyx
 
 Calls through Telnyx are new and not yet confirmed on a real Telnyx call. In the Telnyx portal,

@@ -8,6 +8,11 @@ All notable changes to OpenRing are listed here. The format follows
 
 ### Added
 
+- Choosing a model, as in Vapi's editor: **Choose** opens one list of every provider's models to search, filter by
+  provider and sort by name, low latency or low cost per minute. Each model shows its time to the first word (from
+  OpenRing's own test calls or this server's calls; **Measure** times one now, with a few tokens of your account) and
+  what it costs a minute at list prices; models whose provider has no key here say so. `GET /models` and
+  `POST /models/measure`. There is no "intelligence" score: OpenRing has no honest source for one.
 - WhatsApp calls with no third party, through [WaCalls](https://github.com/JotaDev66/WaCalls) (beta, unofficial, self-hosted,
   never tried on a real call): a phone number with `"provider": "wacalls"` and a `wacallsSession` answers and places
   WhatsApp voice calls with an assistant, the audio going to a WaCalls server of your own (`WACALLS_URL`) over a WebRTC data

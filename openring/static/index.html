@@ -374,6 +374,29 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .stage label { display: block; font-size: 12px; color: var(--muted); margin-top: 7px; }
 .stage .stage-hint { margin: 8px 0 0; font-size: 12px; color: var(--warn); }
 .stage .stage-hint.plain { color: var(--muted); }
+.mrow { display: flex; gap: 6px; align-items: center; }
+.mrow input { flex: 1; min-width: 0; }
+.mpick { position: fixed; top: 8vh; left: 50%; transform: translateX(-50%); width: min(640px, 94vw); z-index: 60; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 14px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55); }
+.mpick[hidden] { display: none; }
+.mpick .mhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mpick .mhead h4 { margin: 0; font-size: 14px; }
+.mpick input { margin-bottom: 6px; }
+.mpick .mtools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.mpick .mtools input { flex: 2 1 200px; margin: 0; }
+.mpick .mtools select { flex: 1 1 130px; width: auto; }
+.mpick .mlist { max-height: 56vh; overflow: auto; }
+.mpick .mopt { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+.mpick .mopt:hover, .mpick .mopt:focus { background: var(--panel-2); outline: none; }
+.mpick .mopt.on { background: var(--panel-2); }
+.mpick .mopt.nokey { opacity: .6; }
+.mpick .mopt img, .mpick .micon { width: 22px; height: 22px; flex: none; }
+.mpick .mopt img { background: #fff; padding: 3px; border-radius: 5px; box-sizing: border-box; }
+.mpick .micon { display: grid; place-items: center; font-size: 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); }
+.mpick .mname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mpick .mname b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpick .mname small { font-size: 11px; color: var(--muted); }
+.mpick .mtick { color: var(--accent); font-weight: 700; }
+.mpick .note { margin: 8px 0 0; font-size: 11px; color: var(--muted); }
 .stage input, .stage select { width: 100%; padding: 6px 8px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); }
 .cable { align-self: center; height: 2px; background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) 0 0 / 10px 2px repeat-x; }
 
@@ -1149,7 +1172,7 @@ async function viewAssistant(id, known) {
     ${presets.length ? `<div class="presets"><span class="muted">Start from</span>${presets.map(p => `<button type="button" class="preset" data-preset="${esc(p.id)}" title="${esc(p.about)}"><b>${esc(p.name)}</b><span>${p.totalPerMinute == null ? "price unknown" : esc(usd(p.totalPerMinute)) + "/min"}</span><span class="muted">${p.latency.turn ? "~" + (p.latency.turn / 1000).toFixed(1) + " s to answer" : "speed not measured"}</span>${p.missingKeys.length ? `<small class="warn-text">needs ${esc(p.missingKeys.map(k => k.replace(/_API_KEY$/, "").toLowerCase()).join(", "))}</small>` : ""}</button>`).join("")}</div>` : ""}
     <div class="line-diagram">
       <div class="stage"><h3>Transcriber</h3>${sttRoutes.length ? `<label>Route</label><select name="tr">${option("", "None: one transcriber", t.routeId || "")}${sttRoutes.map(r => option(r.id, r.name, t.routeId || "")).join("")}</select>` : ""}<div id="tfixed"><label>Provider</label><select name="tp">${TRANSCRIBERS.map(([k, l]) => option(k, l, t.provider === "assemblyai" ? "assembly-ai" : t.provider || "deepgram")).join("")}</select></div><p class="hint stage-hint plain" id="troute" hidden></p><label>Language</label><select name="tl">${[...LANGUAGES, ...(LANGUAGES.some(([k]) => k === (t.language || "multi")) ? [] : [[t.language, t.language]])].map(([k, l]) => option(k, l, t.language || "multi")).join("")}</select><div id="tmodel" hidden><label>Model</label><select name="tm">${[...WHISPER_MODELS, ...(t.provider === "whisper" && t.model && !WHISPER_MODELS.some(([k]) => k === t.model) ? [[t.model, t.model]] : [])].map(([k, l]) => option(k, l, t.provider === "whisper" && t.model ? t.model : "base")).join("")}</select></div><label>Words to recognize</label><input name="twords" placeholder="Names, brands, products" title="Separated by commas. The transcriber listens for these." value="${esc([...(t.keyterm || []), ...(t.keytermsPrompt || [])].join(", "))}"></div><div class="cable"></div>
-      <div class="stage"><h3>Model</h3>${routes.length ? `<label>Route</label><select name="mr">${option("", "None: one model", m.routeId || "")}${routes.map(r => option(r.id, r.name, m.routeId || "")).join("")}</select>` : ""}<div id="mfixed"><label>Provider</label><select name="mp">${LLM.map(p => option(p, p, m.provider === "deep-seek" ? "deepseek" : m.provider)).join("")}</select><label>Model</label><input name="mm" value="${esc(m.model || "")}" list="ollamaModels"><datalist id="ollamaModels"></datalist></div><p class="hint stage-hint plain" id="mroute" hidden></p></div><div class="cable"></div>
+      <div class="stage"><h3>Model</h3>${routes.length ? `<label>Route</label><select name="mr">${option("", "None: one model", m.routeId || "")}${routes.map(r => option(r.id, r.name, m.routeId || "")).join("")}</select>` : ""}<div id="mfixed"><label>Provider</label><select name="mp">${LLM.map(p => option(p, p, m.provider === "deep-seek" ? "deepseek" : m.provider)).join("")}</select><label>Model</label><div class="mrow"><input name="mm" value="${esc(m.model || "")}" list="ollamaModels"><button type="button" class="btn ghost small" id="mpickBtn" aria-expanded="false" aria-controls="mpick">Choose</button></div><p class="hint" id="mmeta" style="margin:4px 0 0"></p><datalist id="ollamaModels"></datalist><div id="mpick" class="mpick" hidden></div></div><p class="hint stage-hint plain" id="mroute" hidden></p></div><div class="cable"></div>
       <div class="stage"><h3>Voice</h3>${ttsRoutes.length ? `<label>Route</label><select name="vr">${option("", "None: one voice", vo.routeId || "")}${ttsRoutes.map(r => option(r.id, r.name, vo.routeId || "")).join("")}</select>` : ""}<div id="vfixed"><label>Provider</label><select name="vp">${VOICES.map(([k, l]) => option(k, l, vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro")).join("")}</select><label>Voice ID</label><input type="hidden" name="vmodel" value=""><div id="vvoice">${voiceField(vo.provider === "elevenlabs" ? "11labs" : vo.provider || "kokoro", vo.voiceId)}</div><div id="vlangRow"><label for="vlang">Language</label><select id="vlang" name="vlang">${option("", "Same as the transcriber", vo.language || "")}${LANGUAGES.filter(([k]) => k !== "multi").map(([k, l]) => option(k, l, vo.language || "")).join("")}</select></div><label for="vspeed">Speed <output id="vspeedOut">${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}</output>x</label><input type="range" id="vspeed" name="vspeed" min="0.5" max="2" step="0.05" value="${esc(Number(vo.speed) > 0 ? Number(vo.speed) : 1)}" oninput="vspeedOut.value = this.value"></div><label for="bg">Background sound</label><select id="bg" name="bg">${[["off", "Off"], ["office", "Office"], ["url", "Custom (URL)"]].map(([k, l]) => option(k, l, bgKind)).join("")}</select><div id="bgUrlRow"><input name="bgUrl" type="url" placeholder="https://example.com/rain.mp3" aria-label="Sound file URL" value="${esc(bgKind === "url" ? a.backgroundSound : "")}"></div><p class="hint stage-hint plain">Office is distant chatter and keyboards, made by OpenRing. A file (WAV, MP3, OGG, FLAC) plays as quietly, on a loop.</p><p class="hint stage-hint plain" id="vroute" hidden></p><p class="hint stage-hint" id="vhint" hidden>This voice speaks one language. To follow callers in several, pick ElevenLabs or OpenAI.</p></div>
     </div>
     <div class="free-stack"><button type="button" class="btn ghost small" id="freeStack">Use the free local stack</button><span class="muted">Whisper, Ollama and Kokoro, all on this computer: no per-minute cost, and the call's audio never leaves it.</span><span class="muted" id="freeNote" role="status"></span></div>
@@ -1250,6 +1273,68 @@ async function viewAssistant(id, known) {
     const offer = () => { $("#ollamaModels").innerHTML = mp.value === "ollama" ? ollama.models.map(n => `<option value="${esc(n)}">`).join("") : ""; };
     api("/providers/ollama/models").then(r => { ollama = r; offer(); }).catch(() => {});
     mp.addEventListener("change", offer);
+    // One list of every provider's models to search, filter by provider and sort by speed or price, each with its time
+    // to answer and its cost a minute: the way to choose a model, instead of typing its name.
+    const pick = $("#mpick"), pickBtn = $("#mpickBtn"), meta = $("#mmeta");
+    let all = null, sortBy = "name", only = "", find = "";
+    const isChosen = o => o.provider === mp.value && o.id === mm.value;
+    const line = o => [o.latencyMs != null ? `${o.latencyMs} ms` : "speed not measured", o.costPerMinute != null ? `${usd(o.costPerMinute)}/min` : "price unknown"].join(" · ");
+    const loadAll = async () => { if (!all) all = await api("/models"); return all; };
+    const showMeta = async () => { try { await loadAll(); } catch { return; } const o = all.models.find(isChosen); meta.textContent = o ? line(o) : ""; };
+    const closePick = () => { pick.hidden = true; pickBtn.setAttribute("aria-expanded", "false"); pickBtn.focus(); };
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !pick.hidden) closePick(); });
+    document.addEventListener("mousedown", e => { if (!pick.hidden && !pick.contains(e.target) && e.target !== pickBtn) closePick(); });
+    const CAP = 200;
+    const drawPick = () => {
+      const counts = {}; all.models.forEach(o => counts[o.provider] = (counts[o.provider] || 0) + 1);
+      const order = { name: (a, b) => (b.keySet - a.keySet) || (a.provider + a.id).localeCompare(b.provider + b.id),  // usable ones first
+        latency: (a, b) => (a.latencyMs ?? Infinity) - (b.latencyMs ?? Infinity) || order.name(a, b),
+        cost: (a, b) => (a.costPerMinute ?? Infinity) - (b.costPerMinute ?? Infinity) || order.name(a, b) };
+      const rows = all.models.filter(o => (!only || o.provider === only) && (o.provider + " " + o.id).toLowerCase().includes(find)).sort(order[sortBy]);
+      const at = rows.findIndex(isChosen); if (at > 0) rows.unshift(...rows.splice(at, 1));  // the one in use stays on top
+      const shown = rows.slice(0, CAP);
+      pick.innerHTML = `<div class="mhead"><h4>Choose a model</h4><button type="button" class="btn ghost small" id="mclose">Close</button></div>
+        <div class="mtools"><input type="search" id="mfind" placeholder="Search ${all.models.length} models" value="${esc(find)}" aria-label="Search models">
+          <select id="monly" aria-label="Provider"><option value="">All providers</option>${Object.keys(counts).sort().map(p => option(p, `${p} (${counts[p]})`, only)).join("")}</select>
+          <select id="msort" aria-label="Sort by">${option("name", "Sort: name", sortBy)}${option("latency", "Low latency", sortBy)}${option("cost", "Low cost per minute", sortBy)}</select></div>
+        <div class="mlist" role="listbox">${shown.map(o => `<div class="mopt ${isChosen(o) ? "on" : ""} ${o.keySet ? "" : "nokey"}" role="option" aria-selected="${isChosen(o)}" tabindex="0" data-p="${esc(o.provider)}" data-id="${esc(o.id)}">
+            ${providerIcon(o.provider) ? `<img src="${providerIcon(o.provider)}" alt="" width="18" height="18">` : `<span class="micon">${esc(o.provider.slice(0, 2))}</span>`}
+            <span class="mname"><b>${esc(o.id)}</b><small>${esc(o.provider)} · ${esc(line(o))}${o.keySet ? "" : " · needs a key"}</small></span>
+            ${o.latencyMs == null && o.keySet ? `<button type="button" class="btn ghost small" data-measure title="Ask it for a short answer and time it (uses a few tokens of your account)">Measure</button>` : ""}
+            ${isChosen(o) ? `<span class="mtick" aria-hidden="true">✓</span>` : ""}</div>`).join("") || `<p class="muted" style="padding:8px">No model matches. You can still type the model's name in the field.</p>`}
+          ${rows.length > CAP ? `<p class="muted" style="padding:8px">Showing ${CAP} of ${rows.length}: search or pick a provider to narrow it.</p>` : ""}</div>
+        <p class="note">Answers in: the time to the first word, from OpenRing's own test calls or this server's calls; <b>Measure</b> times one now. Per minute: the model alone, at list prices, for ${all.assumes.modelRequests} replies of about ${all.assumes.promptTokens} tokens in and ${all.assumes.answerTokens} out. "Unknown" is not free.</p>`;
+      pick.querySelector("#mclose").onclick = closePick;
+      pick.querySelector("#mfind").oninput = e => { find = e.target.value.toLowerCase(); drawPick(); const f = pick.querySelector("#mfind"); f.focus(); f.setSelectionRange(f.value.length, f.value.length); };
+      pick.querySelector("#monly").onchange = e => { only = e.target.value; drawPick(); };
+      pick.querySelector("#msort").onchange = e => { sortBy = e.target.value; drawPick(); };
+      const choose = (provider, id) => {
+        closePick();
+        if (mp.value !== provider) { mp.value = provider; mp.dispatchEvent(new Event("change")); }
+        mm.value = id; unsaved = true; showMeta();
+      };
+      pick.querySelectorAll(".mopt").forEach(el => {
+        el.onclick = e => { if (!e.target.closest("[data-measure]")) choose(el.dataset.p, el.dataset.id); };
+        el.onkeydown = e => { if (e.key === "Enter" && e.target === el) choose(el.dataset.p, el.dataset.id); };
+        const b = el.querySelector("[data-measure]");
+        if (b) b.onclick = async () => {
+          b.disabled = true; b.textContent = "Measuring…";
+          try {
+            const r = await api("/models/measure", { method: "POST", body: JSON.stringify({ provider: el.dataset.p, model: el.dataset.id }) });
+            const o = all.models.find(x => x.provider === el.dataset.p && x.id === el.dataset.id); o.latencyMs = r.firstTokenMs; o.latencySource = "this server";
+            drawPick(); showMeta();
+          } catch (err) { b.disabled = false; b.textContent = "Measure"; el.insertAdjacentHTML("beforeend", `<span class="error" role="alert">${esc(err.message)}</span>`); }
+        };
+      });
+    };
+    const openPick = async () => {
+      pick.hidden = false; pickBtn.setAttribute("aria-expanded", "true"); find = ""; only = ""; pick.innerHTML = `<p class="muted">Loading the models…</p>`;
+      try { await loadAll(); } catch (err) { pick.innerHTML = `<p class="error" role="alert">${esc(err.message)}</p>`; return; }
+      drawPick();
+      const chosen = pick.querySelector(".mopt.on"); if (chosen) chosen.scrollIntoView({ block: "center" });
+    };
+    pickBtn.onclick = () => pick.hidden ? openPick() : closePick();
+    mp.addEventListener("change", showMeta); mm.addEventListener("input", showMeta); showMeta();
     $("#freeStack").onclick = () => {
       if (tr) tr.value = "";
       if (vr) vr.value = "";
@@ -1326,6 +1411,7 @@ async function viewNumbers() {
     <div class="copyline"><code>${esc(info.vonageEventUrl)}</code><button class="btn ghost small" data-copy="${esc(info.vonageEventUrl)}">${ICON.copy}Copy</button></div>
     <p><b>Genesys Cloud:</b> create an <b>Audio Connector</b> integration with this base connection URI and the API key and client secret you set on the <a href="#providers">Providers</a> page. In Architect, the <b>Call Audio Connector</b> action picks the assistant with an <code>assistantId</code> input variable, or add the called number below with provider Genesys. Afterwards, the output variable <code>action</code> is <code>finished</code> or <code>transfer</code>, with the number in <code>transferTo</code>.</p>
     <div class="copyline"><code>${esc(info.genesysUrl)}</code><button class="btn ghost small" data-copy="${esc(info.genesysUrl)}">${ICON.copy}Copy</button></div>
+    <p><b>WhatsApp calls</b> (beta, unofficial, never tried on a real call; WhatsApp may ban a number used this way): pick provider <b>WhatsApp (Wavoip)</b> and paste the token of a device you linked in Wavoip's panel, or <b>WhatsApp (WaCalls)</b> to use a WaCalls server of your own (set <code>WACALLS_URL</code>, then paste the session id). No public URL needed: OpenRing connects out. Guide: <a href="https://github.com/elifalanrocha/openring/blob/main/docs/api.md#whatsapp-calls" target="_blank" rel="noopener">WhatsApp calls</a>.</p>
     ${info.publicUrl ? "" : `<p class="muted" style="margin-bottom:0">Phone providers can't reach <code>localhost</code>. Start a tunnel (<code>cloudflared tunnel --url http://localhost:8000</code>), put its URL in <code>PUBLIC_URL</code> and restart.</p>`}
     <form id="add" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:18px">
       <div class="field" style="margin:0;flex:1;min-width:180px"><label for="num">Number</label><input id="num" name="num" required placeholder="+15551234567"></div>

@@ -119,6 +119,10 @@ docs are in English. See CONTRIBUTING.md for setup and rules.
   `routes._expand_layer` puts its first member in the layer and the rest in `fallbackPlan`; members rest under
   `(kind, provider, model|voiceId)` (`StackPlan.stt_ident`/`tts_ident`, `service.openring_member`), `rest_after_switch`
   is called by `bot` on any layer's switch; order `listed`/`cheapest` only, no latency limit.
+- Model picker (`GET /models[?provider=]`, `POST /models/measure`; `stats.model_options`, `stats.llm_per_minute`): one list
+  across providers, each with `costPerMinute` (list price x `stats.ESTIMATE`), `latencyMs` (`routes.speed` of this server,
+  else `MEASURED_MS`, else None: never guessed) and `keySet`. Dashboard: the **Choose** button of the model stage
+  (`#mpick`, `drawPick`), sorted by name/latency/cost; the chosen model's line is under the field (`#mmeta`).
 - `openring/prices.py`: list prices. Models from `llm_prices.json` (regenerate with `scripts/update_prices.py`:
   LiteLLM + OpenRouter), STT per minute and TTS per 1M characters hand-kept in `STT`/`TTS`, user overrides in
   `~/.openring/prices.json`; unknown is None, never guessed. `bot.Usage` keeps usage per Pipecat processor and
