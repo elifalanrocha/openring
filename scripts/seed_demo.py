@@ -479,7 +479,7 @@ def seed(store: Store) -> None:
                 "callsCounterRetrying": 0,
                 "callsCounterEndedVoicemail": 0,
                 "callsCounterEnded": len(entries),
-                "retryPlan": {"maxAttempts": 2, "delayMinutes": 60},
+                "maxConcurrency": 3, "retryPlan": {"maxAttempts": 2, "delayMinutes": 60},
             },
             NOW - timedelta(days=rng.randint(2, 9)),
         )

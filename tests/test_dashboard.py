@@ -480,3 +480,9 @@ def test_calls_show_how_they_ended_their_facts_and_each_replys_wait_and_evals_th
 def test_calls_can_be_narrowed_by_words_assistant_and_how_they_ended():
     assert 'id="callFind"' in PAGE and 'id="callAsst"' in PAGE and 'id="callWhy"' in PAGE
     assert 'data-text="${esc([caller(c), c.id' in PAGE  # what was said is searchable, not only the number
+
+
+def test_a_campaign_shows_each_persons_call_length_cost_and_verdict():
+    head = '<th class="num hide-sm">Duration</th><th class="num hide-sm">Cost</th><th class="hide-sm">Success</th>'
+    assert head in PAGE
+    assert "Turn on Analyze calls to judge them" in PAGE

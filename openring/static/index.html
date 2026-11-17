@@ -2372,8 +2372,9 @@ function routeModel(route, f) {
 const UNREACHED = /^(customer-busy|customer-did-not-answer|twilio-failed|telnyx-failed|plivo-failed|vonage-failed|wavoip-failed|wacalls-failed|voicemail)/;
 let campaignTab = "calls";
 async function viewCampaign(id) {
-  const [c, assistants, nums] = await Promise.all([api("/campaign/" + id), api("/assistant"), api("/phone-number")]);
+  const [c, assistants, nums, everyCall] = await Promise.all([api("/campaign/" + id), api("/assistant"), api("/phone-number"), api("/call?limit=500")]);
   if (location.hash !== "#campaigns/" + id) return;
+  const record = Object.fromEntries(everyCall.filter(x => x.campaignId === id || (c.calls || {})[x.id]).map(x => [x.id, x]));
   const live = c.status === "scheduled" || c.status === "in-progress";
   const start = c.schedulePlan?.earliestAt;
   setPage("campaigns", c.name, `${campaignAssistant(c, assistants, nums)} · ${c.status === "scheduled" && start ? "starts " + when(start) : "created " + when(c.createdAt)}`);
@@ -2383,8 +2384,8 @@ async function viewCampaign(id) {
   const answered = calls.filter(([, e]) => e.status === "ended" && !UNREACHED.test(e.endedReason || "")).length;
   const person = p => p?.name ? `<b>${esc(p.name)}</b> <span class="muted">${esc(p.number)}</span>` : `<b>${esc(p?.number || "?")}</b>`;
   const panes = {
-    calls: () => calls.length ? `<div class="scroll"><table class="table"><thead><tr><th>Person</th><th>Status</th><th class="hide-sm">How it ended</th></tr></thead><tbody>
-      ${calls.map(([callId, e]) => `<tr class="link" tabindex="0" data-call="${esc(callId)}"><td>${person(e.customer)}${e.attempt > 1 ? ` <span class="muted">· try ${e.attempt}</span>` : ""}</td><td>${statusBadge(e)}</td><td class="hide-sm muted">${e.endedReason ? esc(endedLabel(e.endedReason)) : ""}</td></tr>`).join("")}
+    calls: () => calls.length ? `<div class="scroll"><table class="table"><thead><tr><th>Person</th><th>Status</th><th class="hide-sm">How it ended</th><th class="num hide-sm">Duration</th><th class="num hide-sm">Cost</th><th class="hide-sm">Success</th></tr></thead><tbody>
+      ${calls.map(([callId, e]) => `<tr class="link" tabindex="0" data-call="${esc(callId)}"><td>${person(e.customer)}${e.attempt > 1 ? ` <span class="muted">· try ${e.attempt}</span>` : ""}</td><td>${statusBadge(e)}</td><td class="hide-sm muted">${e.endedReason ? esc(endedLabel(e.endedReason)) : ""}</td><td class="num hide-sm">${dur(record[callId]?.durationSeconds)}</td><td class="num hide-sm">${usd(record[callId]?.cost)}</td><td class="hide-sm">${record[callId] ? successBadge(record[callId]) : "—"}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="empty">${c.status === "scheduled" ? `Nobody called yet. Calling starts ${start ? when(start) : "in a moment"}.` : "No calls were made."}</div>`,
     waiting: () => waiting.length ? `<div class="scroll"><table class="table"><thead><tr><th>Person</th></tr></thead><tbody>${waiting.map(p => `<tr><td>${person(p)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Everyone was called.</div>`,
     json: () => `<div class="body"><pre class="json">${esc(JSON.stringify(c, null, 2))}</pre></div>`,
@@ -2397,6 +2398,12 @@ async function viewCampaign(id) {
     ${card("On a call now", "mic", num((c.callsCounterQueued || 0) + (c.callsCounterInProgress || 0)), "", `${num(c.maxConcurrency)} at a time`)}
     ${card("Answered", "check", num(answered), "", calls.length ? `${Math.round(answered / calls.length * 100)}% of calls` : "")}
     ${card("Not called yet", "clock", num(waiting.length), "", !live && waiting.length ? "the campaign is over" : "")}
+  </div>
+  <div class="cards secondary">
+    ${(() => { const rs = Object.values(record), mins = rs.reduce((t, x) => t + (x.durationSeconds || 0), 0) / 60, cost = rs.reduce((t, x) => t + (x.cost || 0), 0), judged = rs.filter(x => x.analysis?.successEvaluation != null), good = judged.filter(x => String(x.analysis.successEvaluation) === "true").length;
+      return card("Minutes", "clock", num(Math.round(mins * 10) / 10), "", rs.length ? `${dur(mins * 60 / rs.length)} per call` : "")
+        + card("Cost", "coin", usd(cost), "", rs.length ? `${usd(cost / Math.max(1, rs.length))} per call` : "")
+        + card("Success", "check", judged.length ? Math.round(good / judged.length * 100) + "<small>%</small>" : "—", "", judged.length ? `${num(good)} of ${num(judged.length)} judged` : "Turn on Analyze calls to judge them"); })()}
   </div>
   <div class="toolbar">${tabs([["calls", "Calls", calls.length], ["waiting", "Not called", waiting.length], ["json", "JSON"]], campaignTab)}</div>
   <section class="panel">${panes[campaignTab]()}</section>`;
