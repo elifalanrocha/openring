@@ -283,7 +283,8 @@ def test_destructive_actions_ask_in_the_page_never_in_the_browsers_own_box():
 
 
 def test_keyboards_can_skip_the_menu_and_labels_point_at_their_controls():
-    assert 'class="skip" href="#view"' in PAGE and '<main id="view" tabindex="-1">' in PAGE and 'id="pageTitle" tabindex="-1"' in PAGE
+    assert 'class="skip" href="#view"' in PAGE and '<main id="view" tabindex="-1">' in PAGE
+    assert 'id="pageTitle" tabindex="-1"' in PAGE  # focused on each new page, so a screen reader hears its name
     assert "function linkLabels(" in PAGE and "label.htmlFor = control.id" in PAGE
     assert 'window.addEventListener("beforeunload"' in PAGE  # an editor with changes asks before leaving
 
