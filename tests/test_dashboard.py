@@ -498,3 +498,9 @@ def test_data_is_drawn_in_one_ink_and_a_failed_fetch_is_not_kept():
     assert ".bars .bar { background: var(--data);" in PAGE and ".bars .bar.spend { background: var(--data); }" in PAGE
     assert "catch(() => { recentCallsCache = null; return []; })" in PAGE
     assert '<details class="carriers"${nums.length ? "" : " open"}>' in PAGE
+
+
+def test_model_providers_have_names_and_a_numbers_remove_is_quiet():
+    assert 'openai: "OpenAI"' in PAGE and "option(p, modelName(p)," in PAGE
+    assert '<button class="btn ghost small quiet-danger" data-del="${esc(n.id)}">Remove' in PAGE
+    assert "on this assistant's calls" in PAGE  # the model line agrees with the cost and time strip
