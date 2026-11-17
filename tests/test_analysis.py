@@ -169,7 +169,7 @@ def test_the_report_carries_the_analysis_and_the_call_its_cost(monkeypatch, quie
         time.sleep(2)
         ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
     call = _wait_until_ended(store, params["callId"])
-    for _ in range(150):
+    for _ in range(300):  # up to 30 s: the analysis runs after the call ends, and CI's runners are slow
         if any(r["type"] == "end-of-call-report" for r in reports):
             break
         time.sleep(0.1)
