@@ -197,9 +197,9 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .spark path.area { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: none; }
 .spark path.line { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .livebar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 10px 16px; border-radius: var(--radius); background: var(--signal-soft); color: var(--ink); font-weight: 600; }
-.livebar::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 0 var(--signal); animation: ping 1.6s ease-out infinite; }
+.livebar::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 0 var(--signal); animation: livering 1.6s ease-out infinite; }
 .livebar a { margin-left: auto; font-size: 13px; }
-@keyframes ping { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes livering { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .livebar::before { animation: none; } }
 .card.hero .value { font-size: 44px; }
 
@@ -519,15 +519,15 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
   background: conic-gradient(from 0deg, transparent 0, rgba(255, 255, 255, .85) 18%, transparent 38%, rgba(255, 255, 255, .5) 62%, transparent 80%); animation: spin 3.4s linear infinite; }
 .voice.talking .orb b { opacity: 1; animation-duration: 1.5s; }
 /* A thread between them: a dot travels from whoever is speaking to whoever listens. */
-.link { position: relative; width: 84px; height: 2px; margin-bottom: 38px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
-.link::after { content: ""; position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: 0; }
-.voices[data-speaker] .link::after { opacity: 1; animation: travel 1s ease-in-out infinite; }
-.voices[data-speaker="bot"] .link::after { animation-direction: reverse; }
+.thread { position: relative; width: 84px; height: 2px; margin-bottom: 38px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
+.thread::after { content: ""; position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: 0; }
+.voices[data-speaker] .thread::after { opacity: 1; animation: travel 1s ease-in-out infinite; }
+.voices[data-speaker="bot"] .thread::after { animation-direction: reverse; }
 @keyframes breathe { 50% { transform: scale(1.045); } }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes travel { from { left: 0; } to { left: calc(100% - 8px); } }
-@media (prefers-reduced-motion: reduce) { .orb, .orb b, .voices[data-speaker] .link::after { animation: none; } .voices, .orb b { transition: none; } }
-@media (max-width: 440px) { .voice { width: 104px; } .orb { width: 84px; height: 84px; } .link { width: 40px; } }
+@keyframes travel { from { transform: translateX(0); } to { transform: translateX(76px); } }
+@media (prefers-reduced-motion: reduce) { .orb, .orb b, .voices[data-speaker] .thread::after { animation: none; } .voices, .orb b { transition: none; } }
+@media (max-width: 440px) { .voice { width: 104px; } .orb { width: 84px; height: 84px; } .thread { width: 40px; } .voices[data-speaker] .thread::after { animation: none; } }
 .talk .state { color: var(--muted); min-height: 3em; margin: 8px 0 0; }
 .talk .row-actions { justify-content: center; }
 
@@ -609,7 +609,7 @@ dialog::backdrop { background: rgba(5,8,12,.6); }
   <h2 id="talkTitle">Browser test</h2>
   <div class="voices" id="voices" aria-hidden="true">
     <div class="voice you" id="youMeter"><div class="orb"><i></i><b></b></div><span class="name">You</span><span class="status">listening</span></div>
-    <div class="link"></div>
+    <div class="thread"></div>
     <div class="voice bot" id="botMeter"><div class="orb"><i></i><b></b></div><span class="name">Assistant</span><span class="status">listening</span></div>
   </div>
   <p class="state" id="talkState" role="status"></p>

@@ -446,3 +446,9 @@ def test_the_advanced_tab_fields_are_in_the_form():
     names = json.loads(re.search(r"^const ADVANCED_FIELDS = (\[.*?\]);$", PAGE, re.M).group(1))
     assert all(f'name="{n}"' in PAGE for n in [*names, "maxmin"])
     assert '["advanced", "Advanced"]' in PAGE and '["traffic", "Traffic"]' in PAGE and '<h3>Caller</h3>' not in PAGE
+
+
+def test_short_class_names_used_by_the_lists_are_not_restyled_elsewhere():
+    """A bare `.link` rule for the test-call dialog once striped every Calls row and squeezed every list tile."""
+    assert "\n.link {" not in PAGE and "\n.link::" not in PAGE
+    assert PAGE.count("@keyframes ping ") <= 1
