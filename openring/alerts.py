@@ -99,3 +99,26 @@ async def watch(store: Store) -> None:
         except Exception:
             logger.exception("the alert watcher failed")
         await asyncio.sleep(INTERVAL)
+
+
+async def test(store: Store, client: Any = None) -> bool:
+    """Send a harmless test message to the saved address; False when none is saved."""
+    from datetime import datetime, timezone
+
+    url = webhook(store)
+    if not url:
+        return False
+    owned = client is None
+    client = client or netguard.client()
+    try:
+        await netguard.check_url_async(url)
+        body = {"type": "test", "at": datetime.now(timezone.utc).isoformat()}
+        reply = await client.post(url, json=body, timeout=TIMEOUT)
+    except Exception as exc:
+        raise AlertError(f"the address did not take the test ({exc.__class__.__name__})") from exc
+    finally:
+        if owned:
+            await client.aclose()
+    if reply.status_code >= 400:
+        raise AlertError(f"the address answered {reply.status_code}")
+    return True

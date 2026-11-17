@@ -464,7 +464,7 @@ input[type="file"]::file-selector-button:hover { border-color: var(--muted); }
 .progress { display: flex; align-items: center; gap: 10px; min-width: 120px; }
 .progress .track { flex: 1; height: 6px; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .progress .track span { display: block; height: 100%; background: var(--accent); }
-.progress.done .track span { background: var(--ok); }
+.progress.done .track span { background: var(--data); }
 .progress small { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .copyline { display: flex; gap: 8px; align-items: center; }
 .copyline code { flex: 1; padding: 8px 10px; display: block; min-width: 0; }
@@ -543,13 +543,16 @@ fieldset.outputs legend { padding: 0; margin-bottom: 6px; color: var(--muted); }
 .lat-note.bad { color: var(--bad); }
 /* Call facts: who, which line, which assistant */
 .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 22px; margin: 0; }
+.facts { font-size: 13.5px; }
 .facts dt { color: var(--muted); font-size: 12.5px; margin-bottom: 2px; }
+.facts code { white-space: nowrap; }
 .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .facts dd .btn { margin-left: 6px; vertical-align: middle; }
 /* An output's latest results, one line each */
 .recent { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; max-width: 360px; }
 .recent li { display: flex; gap: 10px; min-width: 0; }
-.recent li a { flex: none; font-variant-numeric: tabular-nums; }
+.recent li a { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); }
+.recent li a:hover { color: var(--accent); }
 .recent li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A tool the assistant used, between the lines of the conversation */
 .toolrow { align-self: flex-start; max-width: min(88%, 720px); font: 12.5px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--muted); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 10px; overflow-wrap: anywhere; }
@@ -2111,7 +2114,7 @@ async function viewEvals() {
   v.innerHTML = `<div class="toolbar"><label class="muted" for="evalTarget">Run against</label><select id="evalTarget" class="inline-select">${assistants.map(a => option(a.id, a.name || "Untitled", "")).join("")}</select><span class="spacer"></span><button class="btn ghost" id="refresh">${ICON.refresh}Refresh</button></div>
   ${shown ? evalResult(shown, list.results.find(e => e.id === shown.evalId)) : ""}
   <section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Eval</th><th>Checks</th><th>Last run</th><th class="hide-sm">Recent runs</th><th class="hide-sm">When</th><th></th></tr></thead><tbody>
-    ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm">${runDots(byEval[e.id] || [])}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">${ICON.trash || "Delete"}</button></td></tr>`).join("")}
+    ${list.results.map(e => `<tr><td><b>${esc(e.name || "Eval")}</b>${e.description ? `<div class="muted">${esc(e.description)}</div>` : ""}</td><td>${e.messages.filter(m => m.judgePlan).length}</td><td>${last[e.id] ? `<button class="btn ghost small" data-show="${esc(last[e.id].id)}">${evalBadge(last[e.id])}</button>` : evalBadge(null)}</td><td class="hide-sm">${runDots(byEval[e.id] || [])}</td><td class="hide-sm muted">${last[e.id] ? when(last[e.id].createdAt) : ""}</td><td class="num"><button class="btn small" data-run="${esc(e.id)}" ${assistants.length ? "" : "disabled"}>Run</button> <button class="btn ghost small quiet-danger" data-del="${esc(e.id)}" aria-label="Delete ${esc(e.name || "eval")}">Delete</button></td></tr>`).join("")}
   </tbody></table></div>` : `<div class="empty">No evals yet. An eval is a chat you write for the assistant, with checks on what it answers: exact words, a pattern, the tools it calls, or a model's judgment. Run it after each change to the prompt.</div>`}</section>
   <section class="panel"><header><h2>New eval</h2></header><div class="body"><form id="evalForm">
     <div class="field"><label for="evalName">Name</label><input id="evalName" name="name" maxlength="80" required placeholder="Books a table for two"></div>
@@ -2198,7 +2201,7 @@ async function viewOutputs() {
   const users = o => assistants.filter(a => (a.artifactPlan?.structuredOutputIds || []).includes(o.id) || (o.assistantIds || []).includes(a.id)).map(a => a.name || "Untitled");
   const v = $("#view");
   v.innerHTML = `<section class="panel" style="margin-bottom:18px">${list.results.length ? `<div class="scroll"><table class="table"><thead><tr><th>Output</th><th class="hide-sm">Kind</th><th>Used by</th><th>Latest results</th><th></th></tr></thead><tbody>
-    ${list.results.map(o => `<tr><td><b>${esc(o.name)}</b>${o.description ? `<div class="muted">${esc(o.description)}</div>` : ""}</td><td class="hide-sm">${o.type === "regex" ? "Pattern" : "Model"}</td><td>${esc(users(o).join(", ") || "—")}</td><td>${outputResults(o, calls)}</td><td class="num"><button class="btn ghost small" data-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button></td></tr>`).join("")}
+    ${list.results.map(o => `<tr><td><b>${esc(o.name)}</b>${o.description ? `<div class="muted">${esc(o.description)}</div>` : ""}</td><td class="hide-sm">${o.type === "regex" ? "Pattern" : "Model"}</td><td>${esc(users(o).join(", ") || "—")}</td><td>${outputResults(o, calls)}</td><td class="num"><button class="btn ghost small quiet-danger" data-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button></td></tr>`).join("")}
   </tbody></table></div>` : `<div class="empty">No structured outputs yet. Each one is a piece of data a model pulls out of every call, in the shape of a JSON Schema: a name, a yes or no, a date. Link it in an assistant's editor; the result lands in the call and the end-of-call report.</div>`}</section>
   <section class="panel"><header><h2>New structured output</h2></header><div class="body"><form id="outForm">
     <div class="field"><label for="outName">Name</label><input id="outName" name="name" maxlength="40" required placeholder="booking"></div>
@@ -2821,7 +2824,7 @@ function callFacts(c, assistants, line, campaign) {
     : saved ? `<a href="#assistants/${esc(saved.id)}">${esc(saved.name || "Untitled")}</a>${version}`
     : esc(assistantOf(c, assistants)) + version;
   const remembered = (c.rememberedCallIds || []).map((r, i) => `<a href="#calls/${esc(r)}" title="${esc(r)}">Call ${i + 1}</a>`).join(", ");
-  return `<section class="panel" style="margin-bottom:18px"><header><h2>Call facts</h2></header><div class="body"><dl class="facts">
+  return `<section class="panel" style="margin-bottom:18px" aria-label="Call facts"><div class="body"><dl class="facts">
     ${fact(c.type === "outboundPhoneCall" ? "Called" : "Caller", person)}
     ${fact("Our number", line ? esc(line.number) : c.phoneNumberId ? `<span class="muted">Removed number</span>` : "")}
     ${fact(c.squadId ? "Squad" : "Assistant", who)}
@@ -3249,7 +3252,7 @@ async function viewSettings() {
         <input id="alertUrl" type="url" placeholder="https://hooks.example.com/openring" value="${esc(alertsNow.alertWebhook || "")}" spellcheck="false" autocomplete="off"></div>
       <div class="error" id="err" role="alert"></div>
       <p class="muted" id="alertSaved" role="status" style="font-size:13px"></p>
-      <div class="row-actions"><span class="spacer"></span><button class="btn">Save</button></div></form></div></section>`
+      <div class="row-actions"><span class="spacer"></span><button type="button" class="btn ghost" id="alertTest">Send a test</button><button class="btn">Save</button></div></form></div></section>`
   : tab === "recordings" ? `<section class="panel" style="max-width:520px"><header><h2>Recordings</h2></header><div class="body"><form id="recForm">
       <div class="field"><label for="recDays">Delete recordings after</label><p class="hint">Days. Applies to every recording on this server; 0 keeps them for good. Recording itself is turned on per assistant.</p><input id="recDays" type="number" min="0" max="36500" step="1" required value="${esc(rec.retentionDays)}" style="max-width:120px"></div>
       <div class="error" id="err" role="alert"></div>
@@ -3283,6 +3286,12 @@ async function viewSettings() {
     try {
       const r = await api("/settings/alerts", { method: "PATCH", body: JSON.stringify({ alertWebhook: $("#alertUrl").value.trim() }) });
       $("#err").textContent = ""; $("#alertSaved").textContent = r.alertWebhook ? "Saved. Failed calls are reported to this address." : "Saved. No alerts.";
+    } catch (err) { $("#err").textContent = err.message; $("#alertSaved").textContent = ""; }
+  };
+  if ($("#alertTest")) $("#alertTest").onclick = async () => {
+    try {
+      const r = await api("/settings/alerts/test", { method: "POST" });
+      $("#err").textContent = ""; $("#alertSaved").textContent = r.sent ? "Test sent. Check the other side." : "Nothing sent: save an address first.";
     } catch (err) { $("#err").textContent = err.message; $("#alertSaved").textContent = ""; }
   };
   if ($("#recForm")) $("#recForm").onsubmit = async e => {
@@ -3440,7 +3449,12 @@ async function route() {
     else if (name === "routes" && id) await viewRoute(id);
     else if (name === "assistants" && id) await viewAssistant(id);
     else if (name === "squads" && id) await viewSquad(id);
-    else await (views[name] || viewHome)();
+    else if (name !== "home" && !views[name]) {
+      const alias = { "phone-numbers": "numbers", phones: "numbers", "model-routes": "routes" }[name];
+      history.replaceState(null, "", "#" + (alias || "home"));
+      if (!alias) toast(`There is no page called "${name}". This is Home.`);
+      return route();
+    } else await views[name]();
     if (moved) $("#pageTitle").focus({ preventScroll: true });  // a screen reader hears the new page's name
   } catch (err) { $("#view").innerHTML = `<div class="panel empty">${esc(err.message)}</div>`; }
 }

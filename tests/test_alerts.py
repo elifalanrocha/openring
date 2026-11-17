@@ -91,3 +91,25 @@ def test_only_failures_are_alerts_not_every_unhappy_ending(reason, told):
     store.set_setting(alerts.KEY, URL)
     call(store, "2026-11-17T10:00:00Z", reason)
     assert (run_tell(store)[0] == 1) is told
+
+
+def test_a_test_message_goes_to_the_saved_address_and_says_so_when_it_fails():
+    store = Store(":memory:")
+    assert asyncio.run(alerts.test(store)) is False
+    store.set_setting(alerts.KEY, URL)
+    seen = []
+
+    def answer(request):
+        seen.append(request)
+        return httpx.Response(200 if len(seen) == 1 else 500)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
+            ok = await alerts.test(store, client)
+            try:
+                await alerts.test(store, client)
+            except alerts.AlertError as exc:
+                return ok, str(exc)
+
+    ok, why = asyncio.run(go())
+    assert ok is True and "500" in why and b'"test"' in seen[0].content

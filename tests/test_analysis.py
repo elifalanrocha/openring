@@ -168,11 +168,13 @@ def test_the_report_carries_the_analysis_and_the_call_its_cost(monkeypatch, quie
         _handshake(ws, params)
         time.sleep(2)
         ws.send_text(json.dumps({"event": "stop", "streamSid": "MZ1"}))
-    call = _wait_until_ended(store, params["callId"])
-    for _ in range(300):  # up to 30 s: the analysis runs after the call ends, and CI's runners are slow
-        if any(r["type"] == "end-of-call-report" for r in reports):
-            break
-        time.sleep(0.1)
+        # Wait inside the connection: its event loop closes on leaving, and would cancel an analysis still running
+        # (what failed on a slow Python 3.11 runner).
+        _wait_until_ended(store, params["callId"])
+        for _ in range(300):  # up to 30 s: the analysis runs after the call ends
+            if any(r["type"] == "end-of-call-report" for r in reports):
+                break
+            time.sleep(0.1)
     call = store.get("calls", params["callId"])
     report = next(r for r in reports if r["type"] == "end-of-call-report")
     assert report["analysis"] == {"summary": "A short call."} == call["analysis"]

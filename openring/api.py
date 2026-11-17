@@ -1390,6 +1390,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         store.set_setting(alerts.KEY, url)
         return {"alertWebhook": url}
 
+    @app.post("/settings/alerts/test", dependencies=auth_deps)
+    async def test_alert() -> dict[str, Any]:
+        """Send a test message to the saved alert address."""
+        try:
+            return {"sent": await alerts.test(store)}
+        except alerts.AlertError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.get("/call/{call_id}", dependencies=auth_deps)
     def get_call(call_id: str) -> dict[str, Any]:
         return _get_or_404("calls", call_id)

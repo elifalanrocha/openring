@@ -462,7 +462,7 @@ def test_table_headers_are_not_sticky_inside_their_scrolling_box():
 
 
 def test_calls_show_how_they_ended_their_facts_and_each_replys_wait_and_evals_their_recent_runs():
-    assert "<h2>Call facts</h2>" in PAGE and 'data-copy="${esc(c.id)}"' in PAGE
+    assert 'aria-label="Call facts"' in PAGE and 'data-copy="${esc(c.id)}"' in PAGE
     assert '<th class="hide-sm">Ended</th>' in PAGE and '<th class="hide-sm">Success</th>' in PAGE
     assert 'class="rundot ' in PAGE and "Results appear here after calls end." in PAGE
     assert 'id="findA"' in PAGE and "#calls?number=" in PAGE
@@ -532,3 +532,9 @@ def test_home_says_what_needs_attention_and_settings_has_alerts():
     assert "function attention(s, assistants, info)" in PAGE and 'aria-label="Needs attention"' in PAGE
     assert 'const LOCAL = ["ollama", "whisper", "kokoro"]' in PAGE  # a local provider needs no key to be missing
     assert 'id="alertForm"' in PAGE and '["alerts", "Alerts"]' in PAGE
+
+
+def test_dashboard_names_a_missing_page_and_alerts_can_be_tested():
+    html = (Path(__file__).parent.parent / "openring" / "static" / "index.html").read_text(encoding="utf-8")
+    assert "There is no page called" in html and "/settings/alerts/test" in html
+    assert "Call facts</h2>" not in html
