@@ -32,7 +32,8 @@ def test_summarize_counts_window_and_latency():
     assert s["latencyParts"]["modelLatency"] == 300
     assert s["byType"] == {"webCall": 2, "inboundPhoneCall": 2}
     assert s["byAssistant"][0] == {"assistantId": "a", "calls": 2, "minutes": 2.0}
-    assert len(s["perDay"]) == 7 and s["perDay"][-1] == {"date": "2026-10-30", "calls": 2, "minutes": 1.5, "failed": 0}
+    assert len(s["perDay"]) == 7
+    assert s["perDay"][-1] == {"date": "2026-10-30", "calls": 2, "minutes": 1.5, "failed": 0, "cost": 0.0}
     assert s["perDay"][-2]["failed"] == 1
 
 
@@ -100,3 +101,12 @@ def test_calls_can_be_listed_for_one_assistant():
     store.create("calls", {"assistantId": "a2", "status": "ended"})
     mine = client.get("/call?assistantId=a1", headers=AUTH).json()
     assert [c["assistantId"] for c in mine] == ["a1"] and len(client.get("/call", headers=AUTH).json()) == 2
+
+
+
+def test_each_day_says_what_its_calls_cost_and_the_overview_can_be_one_assistants():
+    from test_api import AUTH, make_client
+
+    s = summarize([call(NOW.isoformat(), cost=0.25), call(NOW.isoformat(), cost=0.5)], 7, NOW)
+    assert s["perDay"][-1]["cost"] == 0.75
+    assert make_client().get("/stats?assistantId=nobody", headers=AUTH).json()["calls"] == 0

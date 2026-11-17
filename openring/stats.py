@@ -104,7 +104,7 @@ def summarize(calls: list[dict[str, Any]], days: int | None = None, now: datetim
     per_day: dict[date, dict[str, Any]] = {}
     d = first
     while d <= now.date():
-        per_day[d] = {"date": d.isoformat(), "calls": 0, "minutes": 0.0, "failed": 0}
+        per_day[d] = {"date": d.isoformat(), "calls": 0, "minutes": 0.0, "failed": 0, "cost": 0.0}
         d += timedelta(days=1)
     for c, t in picked:
         if t.date() in per_day:
@@ -112,8 +112,9 @@ def summarize(calls: list[dict[str, Any]], days: int | None = None, now: datetim
             day["calls"] += 1
             day["minutes"] += float(c.get("durationSeconds") or 0) / 60
             day["failed"] += int(_failed(c))
+            day["cost"] += float(c.get("cost") or 0)
     for day in per_day.values():
-        day["minutes"] = round(day["minutes"], 1)
+        day["minutes"], day["cost"] = round(day["minutes"], 1), round(day["cost"], 4)
 
     by_assistant: dict[str, dict[str, Any]] = {}
     for c in window:

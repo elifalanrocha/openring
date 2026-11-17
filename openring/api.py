@@ -807,9 +807,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
             return {"connected": False, "provider": provider}
 
     @app.get("/stats", dependencies=auth_deps)
-    def call_stats(days: int | None = 30) -> dict[str, Any]:
-        """Totals for the dashboard's overview; `days=0` covers every call."""
-        return stats.summarize(store.list("calls", limit=100_000), days or None)
+    def call_stats(days: int | None = 30, assistantId: str | None = None) -> dict[str, Any]:  # noqa: N803
+        """Totals for the dashboard's overview; `days=0` covers every call, `assistantId` one assistant's calls."""
+        calls = store.list("calls", limit=100_000)
+        if assistantId:
+            calls = [c for c in calls if c.get("assistantId") == assistantId]
+        return stats.summarize(calls, days or None)
 
     @app.post("/assistant/draft", dependencies=auth_deps)
     async def draft_assistant(body: dict[str, Any]) -> dict[str, Any]:
