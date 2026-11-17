@@ -486,3 +486,8 @@ def test_a_campaign_shows_each_persons_call_length_cost_and_verdict():
     head = '<th class="num hide-sm">Duration</th><th class="num hide-sm">Cost</th><th class="hide-sm">Success</th>'
     assert head in PAGE
     assert "Turn on Analyze calls to judge them" in PAGE
+
+
+def test_ctrl_k_goes_anywhere_and_has_a_button():
+    assert 'id="jumpDialog"' in PAGE and "function openJump()" in PAGE and 'id="jump"' in PAGE
+    assert '(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"' in PAGE
