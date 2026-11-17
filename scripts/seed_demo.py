@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from openring.bot import performance_metrics  # noqa: E402
 from openring.store import Store  # noqa: E402
 
 rng = random.Random(7)
@@ -414,12 +415,11 @@ def seed(store: Store) -> None:
                     "ttsCharacters": 90 * len(turns),
                     "transcriberAudioSeconds": seconds,
                 },
+                # the same shapes a real call saves (bot.run_call): messages at the top and in the artifact
+                "messages": [{"role": r, "message": m} for r, m in script],
                 "artifact": {
                     "messages": [{"role": r, "message": m} for r, m in script],
-                    "performanceMetrics": {
-                        "turnLatencies": turns,
-                        **({"firstWordLatency": rng.randint(800, 2100)} if reached else {}),
-                    },
+                    "performanceMetrics": performance_metrics(turns, rng.randint(800, 2100) if reached else None),
                 },
                 **(
                     {

@@ -453,3 +453,9 @@ def test_short_class_names_used_by_the_lists_are_not_restyled_elsewhere():
     """A bare `.link` rule for the test-call dialog once striped every Calls row and squeezed every list tile."""
     assert "\n.link {" not in PAGE and "\n.link::" not in PAGE
     assert PAGE.count("@keyframes ping ") <= 1
+
+
+def test_table_headers_are_not_sticky_inside_their_scrolling_box():
+    """A sticky header inside the tables' horizontal scroll box was pushed down over the first rows."""
+    head = PAGE.split(".table th {", 1)[1].split("}", 1)[0]
+    assert "sticky" not in head
