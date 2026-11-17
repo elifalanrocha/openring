@@ -210,6 +210,15 @@ main { padding: 28px 32px 48px; max-width: 1480px; width: 100%; margin: 0 auto; 
 .callsum .stat b { font-family: Archivo, "Segoe UI", system-ui, sans-serif; font-size: 22px; font-weight: 650; font-stretch: 108%; font-variant-numeric: tabular-nums; }
 .callsum .stat .sub { color: var(--muted); font-size: 12px; }
 .callsum .fine { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.step { display: grid; gap: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.step label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.step input, .step select { width: 100%; padding: 8px 10px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font-size: 14px; }
+.step-check { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.field-row-b { grid-template-columns: 170px 140px minmax(0, 1fr) auto; align-items: end; }
+@media (max-width: 760px) { .step-check, .field-row-b { grid-template-columns: minmax(0, 1fr); } }
+details.advanced-json { margin-top: 14px; }
+details.advanced-json > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+details.advanced-json[open] > summary { margin-bottom: 8px; }
 .chart-switch { display: inline-flex; gap: 4px; }
 details.carriers > summary { cursor: pointer; font-weight: 600; margin-bottom: 4px; }
 details.carriers[open] > summary { margin-bottom: 12px; }
@@ -2008,7 +2017,11 @@ async function viewEvals() {
   </tbody></table></div>` : `<div class="empty">No evals yet. An eval is a chat you write for the assistant, with checks on what it answers: exact words, a pattern, the tools it calls, or a model's judgment. Run it after each change to the prompt.</div>`}</section>
   <section class="panel"><header><h2>New eval</h2></header><div class="body"><form id="evalForm">
     <div class="field"><label for="evalName">Name</label><input id="evalName" name="name" maxlength="80" required placeholder="Books a table for two"></div>
-    <div class="field"><label for="evalMessages">Messages</label><p class="hint">Vapi's format: user, system and tool messages are said to the assistant; an assistant message with a <code>judgePlan</code> (exact, regex or ai) is where it answers and gets checked.</p><textarea id="evalMessages" name="messages" rows="14" spellcheck="false">${esc(EVAL_EXAMPLE)}</textarea></div>
+    <div class="field"><label>Conversation</label><p class="hint">Each step: what the caller says, and what the assistant's answer must be like. Run it after every change to the prompt.</p>
+      <div id="evalSteps"></div>
+      <button type="button" class="btn ghost small" id="addStep">${ICON.plus}Add a step</button></div>
+    <details class="advanced-json"><summary>Edit as JSON (tool calls, system messages, continue plans)</summary>
+      <textarea id="evalMessages" name="messages" rows="12" spellcheck="false" aria-label="Eval messages as JSON">${esc(EVAL_EXAMPLE)}</textarea></details>
     <div class="error" id="evalErr" role="alert"></div>
     <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.plus}Save eval</button></div>
   </form></div></section>`;
@@ -2028,10 +2041,33 @@ async function viewEvals() {
     } catch (err) { tell("Couldn't run it", err.message); }
     if (location.hash === "#evals") viewEvals();
   });
+  // One step = a caller line, then the assistant's answer with its check.
+  const stepRow = (say = "", how = "regex", value = "") => {
+    const row = document.createElement("div"); row.className = "step";
+    row.innerHTML = `<div class="step-say"><label>The caller says<input class="s-say" value="${esc(say)}" placeholder="Hi, I'd like a table for two tonight."></label></div>
+      <div class="step-check"><label>The answer must<select class="s-how" aria-label="Check">${option("regex", "match a pattern", how)}${option("exact", "say exactly", how)}${option("ai", "pass a model's judgment", how)}</select></label>
+        <label class="s-valuel"><span class="s-hint"></span><input class="s-value" value="${esc(value)}"></label>
+        <button type="button" class="btn ghost small quiet-danger s-del" aria-label="Remove this step">Remove</button></div>`;
+    const hint = () => { const how = $(".s-how", row).value; $(".s-hint", row).textContent = how === "regex" ? "Pattern (it passes if the answer matches)" : how === "exact" ? "The words, exactly" : "What a pass looks like (written for a judge model)"; $(".s-value", row).placeholder = how === "regex" ? "(?i)what time|when" : how === "exact" ? "Of course." : "Pass if the reply offers a time."; };
+    $(".s-how", row).onchange = hint; hint();
+    $(".s-del", row).onclick = () => { row.remove(); };
+    return row;
+  };
+  $("#evalSteps").append(stepRow("Hi, I'd like a table for two tonight.", "regex", "(?i)what time|which time|when"));
+  $("#addStep").onclick = () => { const r = stepRow(); $("#evalSteps").append(r); $(".s-say", r).focus(); };
+  const stepsToMessages = () => [...$("#evalSteps").children].flatMap(row => {
+    const say = $(".s-say", row).value.trim(), how = $(".s-how", row).value, value = $(".s-value", row).value.trim();
+    if (!say || !value) throw new Error("Each step needs what the caller says and how to check the answer.");
+    const plan = how === "ai" ? { type: "ai", model: { provider: "groq", model: "openai/gpt-oss-20b", messages: [{ role: "system", content: value }] } } : { type: how, content: value };
+    return [{ role: "user", content: say }, { role: "assistant", judgePlan: plan }];
+  });
   $("#evalForm").onsubmit = async e => {
     e.preventDefault(); const f = new FormData(e.target);
     let messages;
-    try { messages = JSON.parse(f.get("messages")); } catch { $("#evalErr").textContent = "The messages aren't JSON."; return; }
+    try {
+      messages = e.target.querySelector("details.advanced-json").open ? JSON.parse(f.get("messages")) : stepsToMessages();
+      if (!messages.length) throw new Error("Add at least one step.");
+    } catch (err) { $("#evalErr").textContent = err instanceof SyntaxError ? "The messages aren't JSON." : err.message; return; }
     try {
       await api("/eval", { method: "POST", body: JSON.stringify({ name: f.get("name"), type: "chat.mockConversation", messages }) });
       viewEvals();
@@ -2069,7 +2105,12 @@ async function viewOutputs() {
   <section class="panel"><header><h2>New structured output</h2></header><div class="body"><form id="outForm">
     <div class="field"><label for="outName">Name</label><input id="outName" name="name" maxlength="40" required placeholder="booking"></div>
     <div class="field"><label for="outDesc">What to look for (optional)</label><input id="outDesc" name="description" maxlength="500" placeholder="The table the caller booked, if any"></div>
-    <div class="field"><label for="outSchema">JSON Schema</label><textarea id="outSchema" name="schema" rows="9" spellcheck="false">${esc(OUTPUT_EXAMPLE)}</textarea></div>
+    <div class="field"><label for="outKind">How to find it</label><select id="outKind" name="kind">${option("ai", "Ask a model, call by call", "ai")}${option("regex", "Find a pattern in the transcript (no model, no cost)", "ai")}</select></div>
+    <div class="field" id="outFieldsBox"><label>What to pull out</label><p class="hint">One row for each piece of data. A single yes-or-no is fine too.</p>
+      <div id="outFields"></div><button type="button" class="btn ghost small" id="addField">${ICON.plus}Add a field</button></div>
+    <div class="field" id="outRegexBox" hidden><label for="outRegex">Pattern</label><p class="hint">The first match is the result. Example: <code>PX ?[0-9 ]{6,}</code></p><input id="outRegex" name="regex" placeholder="PX ?[0-9 ]{6,}" spellcheck="false" autocomplete="off"></div>
+    <details class="advanced-json"><summary>Edit the JSON Schema by hand</summary>
+      <textarea id="outSchema" name="schema" rows="9" spellcheck="false" aria-label="JSON Schema">${esc(OUTPUT_EXAMPLE)}</textarea></details>
     <div class="error" id="outErr" role="alert"></div>
     <div class="row-actions"><span class="spacer"></span><button class="btn">${ICON.plus}Save output</button></div>
   </form></div></section>`;
@@ -2078,12 +2119,33 @@ async function viewOutputs() {
     await api("/structured-output/" + b.dataset.del, { method: "DELETE" });
     viewOutputs();
   });
+  const KINDS_OF = [["string", "Text"], ["number", "Number"], ["boolean", "Yes or no"], ["string:date", "Date"]];
+  const fieldRow = (name = "", kind = "string", about = "") => {
+    const row = document.createElement("div"); row.className = "step field-row-b";
+    row.innerHTML = `<label>Name<input class="f-name" value="${esc(name)}" placeholder="partySize" spellcheck="false" autocomplete="off"></label>
+      <label>Kind<select class="f-kind">${KINDS_OF.map(([k, l]) => option(k, l, kind)).join("")}</select></label>
+      <label class="f-about">What to look for (optional)<input class="f-desc" value="${esc(about)}" placeholder="How many people the caller booked for"></label>
+      <button type="button" class="btn ghost small quiet-danger" aria-label="Remove this field">Remove</button>`;
+    $("button", row).onclick = () => row.remove();
+    return row;
+  };
+  $("#outFields").append(fieldRow("booked", "boolean", "Did the caller book a visit?"));
+  $("#addField").onclick = () => { const r = fieldRow(); $("#outFields").append(r); $(".f-name", r).focus(); };
+  $("#outKind").onchange = e => { const regex = e.target.value === "regex"; $("#outRegexBox").hidden = !regex; $("#outFieldsBox").hidden = regex; };
+  const fieldsToSchema = () => {
+    const rows = [...$("#outFields").children].map(r => [$(".f-name", r).value.trim(), $(".f-kind", r).value, $(".f-desc", r).value.trim()]);
+    if (!rows.length || rows.some(([n]) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(n))) throw new Error("Each field needs a name: letters, digits and _, not starting with a digit.");
+    const props = Object.fromEntries(rows.map(([n, k, d]) => { const [type, format] = k.split(":"); return [n, { type, ...(format ? { format } : {}), ...(d ? { description: d } : {}) }]; }));
+    return rows.length === 1 && rows[0][1] === "boolean" ? props[rows[0][0]] : { type: "object", properties: props };
+  };
   $("#outForm").onsubmit = async e => {
     e.preventDefault(); const f = new FormData(e.target);
     let schema;
-    try { schema = JSON.parse(f.get("schema")); } catch { $("#outErr").textContent = "The schema isn't JSON."; return; }
     try {
-      await api("/structured-output", { method: "POST", body: JSON.stringify({ name: f.get("name"), description: f.get("description") || undefined, type: "ai", schema }) });
+      schema = e.target.querySelector("details.advanced-json").open ? JSON.parse(f.get("schema")) : f.get("kind") === "regex" ? { type: "string" } : fieldsToSchema();
+    } catch (err) { $("#outErr").textContent = err instanceof SyntaxError ? "The schema isn't JSON." : err.message; return; }
+    try {
+      await api("/structured-output", { method: "POST", body: JSON.stringify({ name: f.get("name"), description: f.get("description") || undefined, type: f.get("kind") === "regex" ? "regex" : "ai", ...(f.get("kind") === "regex" ? { regex: f.get("regex") } : {}), schema }) });
       viewOutputs();
     } catch (err) { $("#outErr").textContent = err.message; }
   };

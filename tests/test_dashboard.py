@@ -514,3 +514,9 @@ def test_a_squad_of_one_reads_in_the_singular_and_an_empty_knowledge_page_offers
 def test_a_call_leads_with_one_summary_strip_not_seven_cards():
     assert 'class="panel callsum"' in PAGE and "const stats = [" in PAGE
     assert 'class="cards compact"' not in PAGE
+
+
+def test_evals_and_outputs_are_written_in_fields_with_the_json_one_click_away():
+    assert 'id="evalSteps"' in PAGE and "stepsToMessages" in PAGE and 'id="addStep"' in PAGE
+    assert 'id="outFields"' in PAGE and "fieldsToSchema" in PAGE and 'id="outRegex"' in PAGE
+    assert PAGE.count('<details class="advanced-json">') == 2  # the hand-written JSON stays, folded
