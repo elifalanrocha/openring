@@ -55,6 +55,10 @@ def memory_mb() -> float:
         info.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
         info(current(), ctypes.byref(counters), counters.cb)
         return counters.WorkingSetSize / 1e6
+    if sys.platform == "darwin":  # no /proc: the peak so far, in bytes
+        import resource
+
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
     with open("/proc/self/statm") as f:
         return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e6
 
