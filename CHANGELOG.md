@@ -6,6 +6,8 @@ All notable changes to OpenRing are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-19
+
 ### Changed
 
 - A Tools page (list, create and delete tools of every kind), evals and structured outputs written in fields instead of
