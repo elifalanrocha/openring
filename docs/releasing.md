@@ -12,7 +12,10 @@ its own version number, so both always ship together.
 3. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
    `.github/workflows/release.yml` checks that the tag matches the versions, runs the tests, publishes
    to PyPI and, once that succeeds, stages the release on npm.
-4. Approve the staged release on npmjs.com (the package's **Staged Packages** tab) with two-factor
+4. Create the GitHub release (the workflows don't): `gh release create vX.Y.Z -t "OpenRing X.Y.Z: <summary>"
+   -F notes.md --verify-tag --latest`, with the version's section of `CHANGELOG.md` as the notes. Without it the
+   Releases page keeps showing the last one made by hand as Latest.
+5. Approve the staged release on npmjs.com (the package's **Staged Packages** tab) with two-factor
    authentication. Until then `npx openring` keeps installing the previous version.
 
    The same tag starts `.github/workflows/docker.yml`, which pushes `ghcr.io/elifalanrocha/openring` (`latest`,
